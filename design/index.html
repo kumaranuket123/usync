@@ -1,0 +1,1672 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Usync — Feel Together</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+:root{
+  --pink:#FF2D78;--pink-l:#FF6EC7;--purple:#9D4EDD;--purple-d:#4A0E8F;
+  --mid:#0D0D2B;--bg2:#1A0533;--bg3:#0A1628;
+  --lav:#C77DFF;--cyan:#00D4FF;
+  --glass:rgba(255,255,255,0.05);--gb:rgba(255,255,255,0.08);
+  --text:rgba(255,255,255,0.9);--muted:rgba(255,255,255,0.45);
+}
+html,body{width:100%;height:100%;overflow:hidden;background:#000;font-family:-apple-system,'Inter',sans-serif}
+.wrap{display:flex;justify-content:center;align-items:center;width:100%;height:100%;
+  background:radial-gradient(ellipse at 50% 50%,#1a0533 0%,#000 70%)}
+.phone{position:relative;width:390px;height:844px;border-radius:50px;overflow:hidden;
+  background:linear-gradient(145deg,#0D0D2B 0%,#1A0533 40%,#0A1628 100%);
+  box-shadow:0 0 80px rgba(155,78,221,0.25),0 0 160px rgba(255,45,120,0.1),
+  inset 0 0 0 1px rgba(255,255,255,0.07)}
+
+/* SCREENS */
+.screen{position:absolute;inset:0;display:none;flex-direction:column;overflow:hidden;
+  background:linear-gradient(145deg,#0D0D2B 0%,#1A0533 40%,#0A1628 100%)}
+.screen.active{display:flex}
+
+/* KEYFRAMES */
+@keyframes pulse-ring{0%{transform:scale(.8);opacity:.9}100%{transform:scale(2.8);opacity:0}}
+@keyframes float-up{0%{transform:translateY(0) rotate(0deg);opacity:0}
+  10%{opacity:.8}90%{opacity:.3}100%{transform:translateY(-900px) rotate(360deg);opacity:0}}
+@keyframes glow-pulse{0%,100%{box-shadow:0 0 20px rgba(255,45,120,.4)}
+  50%{box-shadow:0 0 50px rgba(255,45,120,.8),0 0 100px rgba(155,78,221,.4)}}
+@keyframes hb{0%,100%{transform:scale(1)}14%{transform:scale(1.18)}28%{transform:scale(1)}
+  42%{transform:scale(1.12)}70%{transform:scale(1)}}
+@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+@keyframes fade-up{from{opacity:0;transform:translateY(30px)}to{opacity:1;transform:translateY(0)}}
+@keyframes logo-in{0%{opacity:0;transform:scale(.5)}60%{transform:scale(1.06)}100%{opacity:1;transform:scale(1)}}
+@keyframes breathe{0%,100%{transform:scale(1);filter:brightness(1)}50%{transform:scale(1.07);filter:brightness(1.2)}}
+@keyframes wave{0%{transform:scale(1);opacity:.7}100%{transform:scale(2.2);opacity:0}}
+@keyframes bubble{0%,100%{transform:translateY(0) scale(1)}50%{transform:translateY(-8px) scale(1.03)}}
+@keyframes slide-in-right{from{transform:translateX(40px);opacity:0}to{transform:translateX(0);opacity:1}}
+@keyframes success-pop{0%{transform:scale(0)}70%{transform:scale(1.1)}100%{transform:scale(1)}}
+
+/* PARTICLES */
+.particles{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.p{position:absolute;border-radius:50%;animation:float-up linear infinite}
+
+/* MESH BG */
+.mesh{position:absolute;inset:0;pointer-events:none;
+  background:radial-gradient(ellipse at 15% 50%,rgba(255,45,120,.06) 0%,transparent 50%),
+  radial-gradient(ellipse at 85% 20%,rgba(0,212,255,.06) 0%,transparent 50%),
+  radial-gradient(ellipse at 50% 85%,rgba(155,78,221,.08) 0%,transparent 50%)}
+
+/* GLASS */
+.glass{background:rgba(255,255,255,.045);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
+  border:1px solid rgba(255,255,255,.08);border-radius:20px}
+.ginput{width:100%;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);
+  border-radius:14px;padding:16px 20px;color:#fff;font-size:16px;
+  font-family:inherit;outline:none;transition:.3s}
+.ginput::placeholder{color:rgba(255,255,255,.3)}
+.ginput:focus{border-color:rgba(255,45,120,.5);box-shadow:0 0 0 3px rgba(255,45,120,.1);
+  background:rgba(255,255,255,.08)}
+.gi-wrap{position:relative}
+.gi-icon{position:absolute;left:16px;top:50%;transform:translateY(-50%);font-size:18px;pointer-events:none}
+.ginput.ico{padding-left:48px}
+.lbl{display:block;font-size:11px;font-weight:600;color:var(--muted);letter-spacing:1px;
+  text-transform:uppercase;margin-bottom:8px}
+.fg{margin-bottom:14px}
+
+/* BUTTONS */
+.btn-primary{width:100%;padding:18px;border-radius:16px;border:none;
+  background:linear-gradient(135deg,#FF2D78 0%,#9D4EDD 100%);
+  color:#fff;font-size:16px;font-weight:600;cursor:pointer;letter-spacing:.5px;
+  box-shadow:0 0 30px rgba(255,45,120,.4),0 4px 20px rgba(0,0,0,.3);transition:.2s}
+.btn-primary:active{transform:scale(.97)}
+.btn-outline{width:100%;padding:16px;border-radius:16px;
+  border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.04);
+  color:rgba(255,255,255,.7);font-size:15px;cursor:pointer;transition:.2s;font-family:inherit}
+.btn-outline:active{background:rgba(255,255,255,.08)}
+.link{background:none;border:none;color:var(--pink-l);font-size:14px;cursor:pointer;font-weight:600;font-family:inherit}
+
+/* GRAD TEXT */
+.gt{background:linear-gradient(135deg,var(--pink-l),var(--lav),var(--cyan));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.gt2{background:linear-gradient(135deg,var(--pink-l),var(--lav));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+
+/* BACK BTN */
+.back{width:40px;height:40px;border-radius:20px;background:rgba(255,255,255,.06);
+  border:1px solid rgba(255,255,255,.08);display:flex;align-items:center;justify-content:center;
+  font-size:20px;cursor:pointer;color:#fff;transition:.2s;flex-shrink:0}
+.back:active{transform:scale(.92)}
+
+/* ========== 1. SPLASH ========== */
+#splash{justify-content:center;align-items:center}
+.splash-glow{position:absolute;width:500px;height:500px;border-radius:50%;
+  background:radial-gradient(circle,rgba(155,78,221,.25) 0%,transparent 65%);
+  top:50%;left:50%;transform:translate(-50%,-50%)}
+.splash-logo{position:relative;z-index:10;text-align:center;animation:logo-in 1.3s cubic-bezier(.34,1.56,.64,1) forwards}
+.logo-orb-wrap{width:130px;height:130px;margin:0 auto 24px;position:relative}
+.logo-orb{width:130px;height:130px;border-radius:50%;
+  background:conic-gradient(from 0deg,#FF2D78,#9D4EDD,#00D4FF,#9D4EDD,#FF2D78);
+  display:flex;align-items:center;justify-content:center;
+  animation:spin 8s linear infinite;
+  box-shadow:0 0 50px rgba(255,45,120,.5),0 0 100px rgba(155,78,221,.3)}
+.logo-orb-inner{width:100px;height:100px;border-radius:50%;
+  background:linear-gradient(135deg,#1A0533,#0D0D2B);
+  display:flex;align-items:center;justify-content:center;font-size:40px}
+.splash-rings{position:absolute;top:0;left:0;right:0;bottom:0;display:flex;align-items:center;justify-content:center}
+.sr{position:absolute;border-radius:50%;border:1.5px solid rgba(255,45,120,.35);animation:pulse-ring 2.8s ease-out infinite}
+.sr:nth-child(2){animation-delay:.9s}.sr:nth-child(3){animation-delay:1.8s}
+.splash-logo h1{font-size:46px;font-weight:800;letter-spacing:10px;margin-bottom:10px}
+.splash-logo p{font-size:13px;color:rgba(255,255,255,.35);letter-spacing:4px;font-weight:300}
+
+/* ========== 2. ONBOARDING ========== */
+#onboarding{position:relative}
+.ob-slides{display:flex;width:400%;height:100%;transition:transform .55s cubic-bezier(.4,0,.2,1)}
+.ob-slide{width:390px;height:100%;display:flex;flex-direction:column;
+  align-items:center;justify-content:flex-end;padding:0 36px 140px;position:relative;flex-shrink:0}
+.ob-visual{position:absolute;top:0;left:0;right:0;height:62%;
+  display:flex;align-items:center;justify-content:center}
+.ob-text{position:relative;z-index:5;text-align:center}
+.ob-text h2{font-size:30px;font-weight:700;color:#fff;line-height:1.25;margin-bottom:14px}
+.ob-text p{font-size:15px;color:var(--muted);line-height:1.65}
+.ob-footer{position:absolute;bottom:0;left:0;right:0;padding:30px 36px 50px;
+  display:flex;align-items:center;justify-content:space-between;z-index:10}
+.dots{display:flex;gap:7px}
+.dot{width:7px;height:7px;border-radius:4px;background:rgba(255,255,255,.2);transition:.35s}
+.dot.active{width:26px;background:var(--pink);box-shadow:0 0 10px rgba(255,45,120,.6)}
+.btn-nxt{width:62px;height:62px;border-radius:31px;
+  background:linear-gradient(135deg,#FF2D78,#9D4EDD);border:none;color:#fff;
+  font-size:24px;cursor:pointer;
+  box-shadow:0 0 25px rgba(255,45,120,.4),0 0 50px rgba(155,78,221,.2);
+  display:flex;align-items:center;justify-content:center;transition:.2s}
+.btn-nxt:active{transform:scale(.94)}
+.btn-skip{background:none;border:none;color:rgba(255,255,255,.35);font-size:14px;cursor:pointer;font-family:inherit}
+
+/* Orbs visuals */
+.v-orbs{position:relative;width:100%;height:100%;display:flex;align-items:center;justify-content:center}
+.vo{width:90px;height:90px;border-radius:50%;position:absolute;animation:breathe 3.5s ease-in-out infinite}
+.vo-a{background:radial-gradient(circle at 35% 30%,#FF6EC7,#FF2D78);
+  box-shadow:0 0 40px rgba(255,45,120,.5);left:70px}
+.vo-b{background:radial-gradient(circle at 35% 30%,#C77DFF,#9D4EDD);
+  box-shadow:0 0 40px rgba(155,78,221,.5);right:70px;animation-delay:.6s}
+.v-conn{position:absolute;height:2px;width:150px;
+  background:linear-gradient(90deg,rgba(255,45,120,.5),rgba(155,78,221,.5));border-radius:2px}
+
+.v-emotion{position:relative;width:200px;height:200px;display:flex;align-items:center;justify-content:center}
+.ve-center{width:100px;height:100px;border-radius:50%;
+  background:radial-gradient(circle at 35% 30%,rgba(255,110,199,.4),rgba(155,78,221,.4));
+  border:1px solid rgba(255,110,199,.3);display:flex;align-items:center;justify-content:center;
+  font-size:44px;animation:breathe 3s ease-in-out infinite}
+.ve-ring{position:absolute;border-radius:50%;border:1px solid;animation:wave 3s ease-out infinite}
+.ve-ring-1{width:130px;height:130px;border-color:rgba(255,110,199,.25)}
+.ve-ring-2{width:170px;height:170px;border-color:rgba(155,78,221,.2);animation-delay:.8s}
+.ve-ring-3{width:210px;height:210px;border-color:rgba(0,212,255,.15);animation-delay:1.6s}
+
+.v-doodle{position:relative;width:280px;height:220px}
+.v-doodle svg{width:100%;height:100%}
+
+.v-presence{position:relative;width:100%;height:100%;display:flex;align-items:center;justify-content:center}
+.vp-dots{display:flex;gap:20px}
+.vp-dot{width:16px;height:16px;border-radius:50%;animation:breathe 2s ease-in-out infinite}
+.vp-dot:nth-child(1){background:#FF2D78;box-shadow:0 0 20px rgba(255,45,120,.6)}
+.vp-dot:nth-child(2){background:#9D4EDD;box-shadow:0 0 20px rgba(155,78,221,.6);animation-delay:.3s}
+.vp-dot:nth-child(3){background:#00D4FF;box-shadow:0 0 20px rgba(0,212,255,.6);animation-delay:.6s}
+.vp-arc{position:absolute;border-radius:50%;border:1px dashed rgba(255,255,255,.1);animation:spin 20s linear infinite}
+.vp-arc-1{width:160px;height:160px}
+.vp-arc-2{width:220px;height:220px;animation-direction:reverse}
+.vp-arc-3{width:280px;height:280px}
+
+/* ========== 3. LOGIN ========== */
+#login{justify-content:center;padding:0 32px}
+.auth-hd{text-align:center;margin-bottom:44px}
+.auth-logo{font-size:28px;font-weight:800;letter-spacing:5px;margin-bottom:14px}
+.auth-hd h2{font-size:26px;font-weight:700;color:#fff;margin-bottom:8px}
+.auth-hd p{font-size:14px;color:var(--muted)}
+.auth-ft{text-align:center;margin-top:22px;font-size:14px;color:var(--muted)}
+.divider{display:flex;align-items:center;gap:14px;margin:22px 0}
+.divider-line{flex:1;height:1px;background:rgba(255,255,255,.08)}
+.divider span{font-size:12px;color:rgba(255,255,255,.25)}
+
+/* ========== 4. REGISTER ========== */
+#register{overflow-y:auto;padding:60px 32px 40px;scrollbar-width:none}
+#register::-webkit-scrollbar{display:none}
+.avatar-grid{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin:14px 0 20px}
+.av-opt{width:54px;height:54px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  font-size:26px;cursor:pointer;border:2px solid rgba(255,255,255,.08);
+  background:rgba(255,255,255,.04);transition:.2s}
+.av-opt.sel{border-color:var(--pink);box-shadow:0 0 16px rgba(255,45,120,.5);transform:scale(1.12)}
+
+/* ========== 5. PAIRING ========== */
+#pair-invite,#pair-join,#pair-success{justify-content:center;align-items:center;padding:40px 32px;text-align:center}
+.pair-title{font-size:30px;font-weight:700;color:#fff;margin-bottom:12px;line-height:1.25}
+.pair-sub{font-size:15px;color:var(--muted);margin-bottom:40px;line-height:1.65}
+.code-box{background:rgba(255,255,255,.04);border:1px dashed rgba(255,45,120,.4);
+  border-radius:22px;padding:36px;margin:20px 0;width:100%}
+.code-val{font-size:52px;font-weight:800;letter-spacing:14px}
+.code-lbl{font-size:11px;color:var(--muted);letter-spacing:2px;text-transform:uppercase;margin-bottom:10px}
+.code-inputs{display:flex;gap:10px;justify-content:center;margin:24px 0}
+.code-input{width:46px;height:56px;border-radius:12px;
+  background:rgba(255,255,255,.06);border:1.5px solid rgba(255,255,255,.1);
+  color:#fff;font-size:24px;font-weight:700;text-align:center;outline:none;font-family:inherit}
+.code-input:focus{border-color:rgba(255,45,120,.6);background:rgba(255,45,120,.08)}
+.hearts-merge{position:relative;width:200px;height:120px;margin:0 auto 36px;display:flex;align-items:center;justify-content:center}
+.hm-orb{width:80px;height:80px;border-radius:50%;position:absolute;display:flex;align-items:center;justify-content:center;font-size:34px}
+.hm-a{background:radial-gradient(circle at 35% 30%,#FF6EC7,#FF2D78);
+  box-shadow:0 0 30px rgba(255,45,120,.6);left:10px}
+.hm-b{background:radial-gradient(circle at 35% 30%,#C77DFF,#9D4EDD);
+  box-shadow:0 0 30px rgba(155,78,221,.6);right:10px}
+.success-orb{width:130px;height:130px;border-radius:50%;
+  background:radial-gradient(circle at 35% 30%,rgba(255,110,199,.8),rgba(155,78,221,.8));
+  display:flex;align-items:center;justify-content:center;font-size:54px;
+  box-shadow:0 0 50px rgba(255,45,120,.5),0 0 100px rgba(155,78,221,.3);
+  animation:glow-pulse 2.2s ease-in-out infinite,success-pop .6s cubic-bezier(.34,1.56,.64,1) forwards;
+  margin:0 auto 36px}
+
+/* ========== 6. HOME ========== */
+#home{position:relative}
+.hbg1{position:absolute;width:320px;height:320px;border-radius:50%;pointer-events:none;
+  background:radial-gradient(circle,rgba(255,45,120,.15),transparent);top:-120px;right:-100px;filter:blur(50px)}
+.hbg2{position:absolute;width:280px;height:280px;border-radius:50%;pointer-events:none;
+  background:radial-gradient(circle,rgba(155,78,221,.15),transparent);bottom:80px;left:-80px;filter:blur(50px)}
+.home-hdr{padding:58px 26px 16px;display:flex;align-items:center;justify-content:space-between;position:relative;z-index:10}
+.home-hi{font-size:13px;color:var(--muted);margin-bottom:2px}
+.home-nm{font-size:20px;font-weight:700;color:#fff}
+.home-bell{width:44px;height:44px;border-radius:22px;background:rgba(255,255,255,.06);
+  border:1px solid rgba(255,255,255,.08);display:flex;align-items:center;justify-content:center;
+  font-size:20px;cursor:pointer}
+.partner-section{display:flex;flex-direction:column;align-items:center;padding:10px 0 16px;position:relative;z-index:10}
+.partner-orb-wrap{position:relative;width:190px;height:190px;margin:0 auto}
+.p-rings{position:absolute;inset:-40px;display:flex;align-items:center;justify-content:center}
+.pr{position:absolute;border-radius:50%;border:1.5px solid rgba(255,110,199,.22);animation:wave 3.5s ease-out infinite}
+.pr:nth-child(1){width:200px;height:200px}
+.pr:nth-child(2){width:250px;height:250px;animation-delay:1.1s}
+.pr:nth-child(3){width:300px;height:300px;animation-delay:2.2s}
+.partner-orb{width:150px;height:150px;border-radius:50%;
+  background:conic-gradient(from 0deg,#FF2D78,#9D4EDD,#00D4FF,#9D4EDD,#FF2D78);
+  position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+  display:flex;align-items:center;justify-content:center;
+  animation:spin 14s linear infinite,breathe 4.5s ease-in-out infinite;
+  box-shadow:0 0 50px rgba(255,45,120,.35),0 0 100px rgba(155,78,221,.2)}
+.partner-orb-inner{width:118px;height:118px;border-radius:50%;
+  background:linear-gradient(135deg,#1A0533,#0D0D2B);
+  display:flex;align-items:center;justify-content:center;font-size:50px}
+.partner-badge{position:absolute;bottom:-2px;right:8px;
+  background:linear-gradient(135deg,rgba(255,45,120,.9),rgba(155,78,221,.9));
+  border:2px solid #0D0D2B;border-radius:20px;padding:4px 12px;
+  font-size:11px;color:#fff;font-weight:600;white-space:nowrap;z-index:5}
+.partner-name{font-size:22px;font-weight:700;color:#fff;margin-top:22px}
+.partner-mood{font-size:15px;color:rgba(255,110,199,.85);margin-top:6px;font-style:italic}
+/* Heartbeat */
+.hb-wrap{width:270px;height:48px;position:relative;margin:12px auto;overflow:hidden}
+.hb-svg{width:100%;height:100%}
+/* Quick actions */
+.qa-row{display:flex;justify-content:center;gap:10px;padding:10px 24px;position:relative;z-index:10}
+.qa-pill{display:flex;align-items:center;gap:7px;padding:10px 16px;border-radius:30px;
+  background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);
+  cursor:pointer;transition:.2s;backdrop-filter:blur(10px)}
+.qa-pill:active{background:rgba(255,45,120,.15);border-color:rgba(255,45,120,.3)}
+.qa-pill .qi{font-size:19px}
+.qa-pill .ql{font-size:12px;color:rgba(255,255,255,.7);font-weight:500}
+/* Mood strip */
+.mood-strip{padding:8px 24px;position:relative;z-index:10}
+.ms-lbl{font-size:11px;color:rgba(255,255,255,.35);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:10px}
+.ms-scroll{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;scrollbar-width:none}
+.ms-scroll::-webkit-scrollbar{display:none}
+.mc{flex-shrink:0;padding:7px 14px;border-radius:20px;background:rgba(255,255,255,.05);
+  border:1px solid rgba(255,255,255,.08);font-size:12px;color:rgba(255,255,255,.65);
+  display:flex;align-items:center;gap:6px}
+/* Floating emoji */
+.float-em{position:absolute;font-size:24px;animation:float-up ease-out infinite;opacity:0;pointer-events:none;z-index:4}
+
+/* ========== 7. CANVAS ========== */
+#canvas-screen{position:relative}
+.cv-hdr{padding:55px 20px 10px;display:flex;align-items:center;justify-content:space-between;
+  position:relative;z-index:20;background:linear-gradient(to bottom,rgba(13,13,43,.95),transparent)}
+.cv-title{font-size:18px;font-weight:700;color:#fff}
+.cv-live{display:flex;align-items:center;gap:7px;font-size:13px;color:var(--muted)}
+.live-dot{width:8px;height:8px;border-radius:50%;background:var(--cyan);
+  box-shadow:0 0 8px var(--cyan);animation:hb 1.4s infinite}
+.draw-canvas{flex:1;width:100%;cursor:crosshair;touch-action:none;display:block}
+.cv-toolbar{position:absolute;bottom:100px;left:50%;transform:translateX(-50%);
+  display:flex;align-items:center;gap:3px;padding:8px 12px;
+  background:rgba(10,10,31,.88);backdrop-filter:blur(20px);
+  border:1px solid rgba(255,255,255,.09);border-radius:30px;z-index:20;
+  box-shadow:0 8px 32px rgba(0,0,0,.4)}
+.tb-btn{width:44px;height:44px;border-radius:22px;border:none;background:transparent;
+  color:rgba(255,255,255,.65);font-size:19px;cursor:pointer;display:flex;align-items:center;
+  justify-content:center;transition:.2s;font-family:inherit}
+.tb-btn.act{background:rgba(255,45,120,.2);color:var(--pink-l);box-shadow:0 0 12px rgba(255,45,120,.3)}
+.tb-div{width:1px;height:28px;background:rgba(255,255,255,.1);margin:0 3px}
+.cdots{display:flex;gap:6px;align-items:center}
+.cdot{width:22px;height:22px;border-radius:50%;cursor:pointer;border:2px solid transparent;transition:.2s}
+.cdot.sel{transform:scale(1.25);border-color:#fff}
+
+/* ========== 8. TOUCH SYNC ========== */
+#touch-screen{justify-content:center;align-items:center;gap:0;position:relative}
+.ts-bg{position:absolute;width:700px;height:700px;border-radius:50%;pointer-events:none;
+  background:radial-gradient(circle,rgba(0,212,255,.04),transparent 65%);
+  top:50%;left:50%;transform:translate(-50%,-50%)}
+.ts-area{position:relative;width:280px;height:280px;display:flex;align-items:center;justify-content:center;margin-bottom:40px}
+.ts-fp{font-size:90px;filter:drop-shadow(0 0 25px rgba(0,212,255,.65));animation:breathe 2.5s ease-in-out infinite;position:relative;z-index:5;cursor:pointer}
+.ts-rings{position:absolute;inset:0;display:flex;align-items:center;justify-content:center}
+.ts-r{position:absolute;border-radius:50%;border:1.5px solid rgba(0,212,255,.2);animation:wave 3s ease-out infinite}
+.ts-r:nth-child(1){width:140px;height:140px}
+.ts-r:nth-child(2){width:200px;height:200px;animation-delay:.8s}
+.ts-r:nth-child(3){width:260px;height:260px;animation-delay:1.6s}
+.ts-text{text-align:center;position:relative;z-index:10;padding:0 36px}
+.ts-title{font-size:26px;font-weight:700;color:#fff;margin-bottom:10px}
+.ts-sub{font-size:15px;color:var(--muted);line-height:1.65}
+.ts-status{margin-top:28px;display:flex;align-items:center;gap:10px;font-size:14px;color:rgba(0,212,255,.8)}
+
+/* ========== 9. MOOD ========== */
+#mood-screen{overflow:hidden}
+.mood-hdr{padding:58px 28px 16px;position:relative;z-index:10}
+.mood-hdr h2{font-size:26px;font-weight:700;color:#fff}
+.mood-hdr p{font-size:14px;color:var(--muted);margin-top:4px}
+.mood-grid{flex:1;display:flex;flex-wrap:wrap;justify-content:center;
+  align-content:center;gap:14px;padding:16px 24px 100px;overflow-y:auto;scrollbar-width:none}
+.mood-grid::-webkit-scrollbar{display:none}
+.mb{display:flex;flex-direction:column;align-items:center;gap:8px;padding:22px 16px;
+  border-radius:26px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.07);
+  cursor:pointer;transition:.3s cubic-bezier(.34,1.56,.64,1);
+  animation:bubble ease-in-out infinite;backdrop-filter:blur(10px);min-width:106px}
+.mb:active,.mb.sel{transform:scale(1.12);background:rgba(255,45,120,.15);
+  border-color:rgba(255,45,120,.4);box-shadow:0 0 25px rgba(255,45,120,.3)}
+.mb .me{font-size:38px}.mb .ml{font-size:12px;color:rgba(255,255,255,.7);font-weight:500;text-align:center}
+
+/* ========== 10. MEMORIES ========== */
+#mem-screen{overflow:hidden}
+.mem-hdr{padding:58px 28px 14px;position:relative;z-index:10}
+.mem-hdr h2{font-size:26px;font-weight:700;color:#fff}
+.mem-hdr p{font-size:14px;color:var(--muted);margin-top:4px}
+.mem-scroll{flex:1;overflow-y:auto;padding:8px 20px 100px;scrollbar-width:none}
+.mem-scroll::-webkit-scrollbar{display:none}
+.mcard{margin-bottom:14px;border-radius:22px;overflow:hidden;
+  background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);
+  cursor:pointer;transition:.2s}
+.mcard:active{transform:scale(.98)}
+.mcard-img{height:160px;position:relative;overflow:hidden;display:flex;align-items:center;justify-content:center}
+.mcard-art{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:72px}
+.mcard-foot{padding:12px 16px;display:flex;align-items:center;justify-content:space-between}
+.mcard-title{font-size:14px;font-weight:600;color:#fff;margin-bottom:3px}
+.mcard-date{font-size:12px;color:var(--muted)}
+.mtag{padding:4px 10px;border-radius:10px;font-size:11px;font-weight:600}
+
+/* ========== 11. MEMORY DETAIL ========== */
+#mem-detail{position:relative}
+.md-bg-blur{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  font-size:200px;opacity:.12;filter:blur(40px);pointer-events:none}
+.md-content{position:relative;z-index:5;flex:1;display:flex;flex-direction:column}
+.md-hdr{padding:55px 20px 16px;display:flex;align-items:center;justify-content:space-between}
+.md-art{flex:1;display:flex;align-items:center;justify-content:center;font-size:110px;padding:20px}
+.md-footer{padding:20px 28px 44px;background:linear-gradient(to top,rgba(13,13,43,.98),transparent)}
+.md-title{font-size:26px;font-weight:700;color:#fff;margin-bottom:6px}
+.md-date{font-size:14px;color:var(--muted);margin-bottom:22px}
+.md-acts{display:flex;gap:12px}
+.md-act{flex:1;padding:15px;border-radius:15px;border:1px solid rgba(255,255,255,.08);
+  background:rgba(255,255,255,.04);color:rgba(255,255,255,.7);
+  font-size:14px;font-weight:500;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;gap:8px;transition:.2s;font-family:inherit}
+.md-act.pri{background:linear-gradient(135deg,rgba(255,45,120,.3),rgba(155,78,221,.3));
+  border-color:rgba(255,45,120,.3);color:#fff}
+
+/* ========== 12. WIDGETS ========== */
+#widget-screen{overflow:hidden}
+.wid-hdr{padding:58px 28px 14px;position:relative;z-index:10}
+.wid-hdr h2{font-size:26px;font-weight:700;color:#fff}
+.wid-hdr p{font-size:14px;color:var(--muted);margin-top:4px}
+.wid-grid{flex:1;overflow-y:auto;padding:10px 18px 100px;
+  display:grid;grid-template-columns:1fr 1fr;gap:13px;scrollbar-width:none}
+.wid-grid::-webkit-scrollbar{display:none}
+.wcard{border-radius:24px;padding:20px;background:rgba(255,255,255,.04);
+  border:1px solid rgba(255,255,255,.07);animation:bubble ease-in-out infinite;
+  cursor:pointer;transition:.2s;position:relative;overflow:hidden}
+.wcard:active{transform:scale(.97)}
+.wglow{position:absolute;width:80px;height:80px;border-radius:50%;filter:blur(30px);top:-20px;right:-20px;pointer-events:none}
+.wi{font-size:32px;margin-bottom:10px}
+.wn{font-size:14px;font-weight:700;color:#fff;margin-bottom:5px}
+.wd{font-size:11px;color:var(--muted);line-height:1.5}
+.hb-bars{display:flex;align-items:flex-end;gap:3px;height:32px;margin-top:12px}
+.hb-bar{width:5px;border-radius:3px;background:linear-gradient(to top,var(--pink),var(--pink-l));animation:hb .9s ease-in-out infinite}
+
+/* ========== 13. NOTIFICATIONS ========== */
+#notif-screen{overflow:hidden}
+.nf-hdr{padding:58px 28px 14px;position:relative;z-index:10}
+.nf-hdr h2{font-size:26px;font-weight:700;color:#fff}
+.nf-scroll{flex:1;overflow-y:auto;padding:8px 20px 100px;scrollbar-width:none}
+.nf-scroll::-webkit-scrollbar{display:none}
+.nf-item{display:flex;align-items:flex-start;gap:13px;padding:15px;border-radius:18px;
+  margin-bottom:9px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.06);
+  cursor:pointer;transition:.2s}
+.nf-item.unread{background:rgba(255,45,120,.055);border-color:rgba(255,45,120,.15)}
+.nf-item:active{transform:scale(.98)}
+.nf-ico{width:44px;height:44px;border-radius:22px;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0}
+.nf-body{flex:1}
+.nf-txt{font-size:14px;color:rgba(255,255,255,.85);line-height:1.5;margin-bottom:4px}
+.nf-time{font-size:12px;color:rgba(255,255,255,.3)}
+.nf-dot{width:8px;height:8px;border-radius:50%;background:var(--pink);margin-top:6px;
+  flex-shrink:0;box-shadow:0 0 7px rgba(255,45,120,.7)}
+
+/* ========== 14. PROFILE ========== */
+#profile-screen{overflow:hidden}
+.prof-hero{padding:55px 28px 26px;display:flex;flex-direction:column;align-items:center;position:relative;z-index:10}
+.prof-bg-glow{position:absolute;width:300px;height:200px;border-radius:50%;
+  background:radial-gradient(circle,rgba(155,78,221,.12),transparent 70%);
+  top:0;left:50%;transform:translateX(-50%);pointer-events:none}
+.prof-av{width:96px;height:96px;border-radius:50%;
+  background:conic-gradient(from 0deg,#FF2D78,#9D4EDD,#00D4FF,#FF2D78);
+  display:flex;align-items:center;justify-content:center;
+  box-shadow:0 0 35px rgba(255,45,120,.4),0 0 70px rgba(155,78,221,.2);
+  margin-bottom:14px;animation:spin 22s linear infinite;position:relative}
+.prof-av-in{width:76px;height:76px;border-radius:50%;
+  background:linear-gradient(135deg,#1A0533,#0D0D2B);
+  display:flex;align-items:center;justify-content:center;font-size:38px}
+.prof-name{font-size:22px;font-weight:700;color:#fff;margin-bottom:4px}
+.prof-since{font-size:13px;color:var(--muted);margin-bottom:22px}
+.prof-stats{display:flex;gap:12px;width:100%;max-width:340px}
+.stat{flex:1;text-align:center;padding:14px 10px;border-radius:16px;
+  background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07)}
+.stat-v{font-size:22px;font-weight:700;margin-bottom:4px}
+.stat-l{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px}
+.prof-scroll{flex:1;overflow-y:auto;padding:0 20px 100px;scrollbar-width:none}
+.prof-scroll::-webkit-scrollbar{display:none}
+.sec-lbl{font-size:11px;font-weight:600;color:rgba(255,255,255,.28);
+  text-transform:uppercase;letter-spacing:1.5px;padding:16px 0 8px}
+.prow{display:flex;align-items:center;gap:13px;padding:13px;border-radius:14px;
+  margin-bottom:5px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.05);
+  cursor:pointer;transition:.2s}
+.prow:active{opacity:.8}
+.prow-ico{width:38px;height:38px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+.prow-body{flex:1}
+.prow-t{font-size:15px;color:#fff;margin-bottom:2px}
+.prow-s{font-size:12px;color:rgba(255,255,255,.33)}
+.prow-arr{color:rgba(255,255,255,.22);font-size:16px}
+
+/* ========== 15. TIMELINE ========== */
+#timeline-screen{overflow:hidden}
+.tl-hdr{padding:58px 28px 14px;position:relative;z-index:10}
+.tl-hdr h2{font-size:26px;font-weight:700;color:#fff}
+.tl-hdr p{font-size:14px;color:var(--muted);margin-top:4px}
+.tl-scroll{flex:1;overflow-y:auto;padding:16px 24px 100px;scrollbar-width:none;position:relative}
+.tl-scroll::-webkit-scrollbar{display:none}
+.tl-line{position:absolute;left:43px;top:16px;bottom:100px;width:1px;
+  background:linear-gradient(to bottom,rgba(255,45,120,.5),rgba(155,78,221,.4),rgba(0,212,255,.3))}
+.tl-item{display:flex;align-items:flex-start;gap:14px;margin-bottom:22px;position:relative}
+.tl-dot{width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  font-size:17px;flex-shrink:0;position:relative;z-index:2;
+  background:#0D0D2B;border:1.5px solid rgba(255,45,120,.4);box-shadow:0 0 14px rgba(255,45,120,.3)}
+.tl-body{flex:1;padding:13px 16px;border-radius:16px;
+  background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);margin-top:4px}
+.tl-ev{font-size:15px;font-weight:600;color:#fff;margin-bottom:4px}
+.tl-note{font-size:13px;color:var(--muted);line-height:1.5;margin-bottom:5px}
+.tl-dt{font-size:11px;color:rgba(255,255,255,.28)}
+
+/* ========== 16. SETTINGS ========== */
+#settings-screen{overflow:hidden}
+.st-hdr{padding:58px 28px 14px;position:relative;z-index:10}
+.st-hdr h2{font-size:26px;font-weight:700;color:#fff}
+.st-scroll{flex:1;overflow-y:auto;padding:8px 20px 100px;scrollbar-width:none}
+.st-scroll::-webkit-scrollbar{display:none}
+.st-sec{font-size:11px;font-weight:600;color:rgba(255,255,255,.28);
+  text-transform:uppercase;letter-spacing:1.5px;padding:16px 0 8px}
+.srow{display:flex;align-items:center;gap:13px;padding:13px;border-radius:14px;
+  margin-bottom:4px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.05);cursor:pointer;transition:.2s}
+.srow:active{opacity:.8}
+.sico{width:38px;height:38px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+.stext{flex:1}
+.st-t{font-size:15px;color:#fff}
+.st-s{font-size:12px;color:rgba(255,255,255,.33);margin-top:2px}
+.toggle{width:46px;height:26px;border-radius:13px;background:rgba(255,255,255,.14);
+  position:relative;cursor:pointer;transition:.3s;flex-shrink:0}
+.toggle.on{background:linear-gradient(135deg,var(--pink),var(--purple));box-shadow:0 0 12px rgba(255,45,120,.4)}
+.toggle::after{content:'';position:absolute;width:20px;height:20px;border-radius:50%;
+  background:#fff;top:3px;left:3px;transition:.3s}
+.toggle.on::after{left:23px}
+
+/* ========== 17. THEMES ========== */
+#themes-screen{overflow:hidden}
+.th-hdr{padding:58px 28px 14px}
+.th-hdr h2{font-size:26px;font-weight:700;color:#fff}
+.th-hdr p{font-size:14px;color:var(--muted);margin-top:4px}
+.th-list{flex:1;overflow-y:auto;padding:10px 20px 100px;display:flex;flex-direction:column;gap:13px;scrollbar-width:none}
+.th-list::-webkit-scrollbar{display:none}
+.thcard{border-radius:24px;padding:24px;border:2px solid transparent;cursor:pointer;
+  position:relative;overflow:hidden;min-height:110px;transition:.3s}
+.thcard.sel{border-color:rgba(255,255,255,.6)}
+.thcard::before{content:'';position:absolute;inset:0;opacity:.65}
+.th-mid::before{background:linear-gradient(135deg,#2D1B69,#11998E)}
+.th-pink::before{background:linear-gradient(135deg,#FF2D78,#6B1FB2)}
+.th-ocean::before{background:linear-gradient(135deg,#0575E6,#021B79)}
+.th-lav::before{background:linear-gradient(135deg,#9B59B6,#C77DFF)}
+.th-sunset::before{background:linear-gradient(135deg,#FF416C,#FF4B2B,#FFA500)}
+.thcont{position:relative;z-index:2;display:flex;align-items:center;justify-content:space-between}
+.thname{font-size:18px;font-weight:700;color:#fff}
+.thcheck{width:28px;height:28px;border-radius:50%;border:2px solid rgba(255,255,255,.4);
+  display:flex;align-items:center;justify-content:center;font-size:14px;color:#fff;transition:.2s}
+.thcard.sel .thcheck{background:#fff;color:var(--pink);border-color:#fff}
+.thswatches{display:flex;gap:7px;margin-top:16px;position:relative;z-index:2}
+.tsw{width:24px;height:24px;border-radius:12px;border:1.5px solid rgba(255,255,255,.3)}
+
+/* ========== 18. EMPTY STATE ========== */
+#empty-screen{justify-content:center;align-items:center;padding:40px;text-align:center}
+.emp-visual{width:190px;height:190px;position:relative;display:flex;align-items:center;justify-content:center;margin-bottom:32px}
+.emp-orb{width:120px;height:120px;border-radius:50%;
+  background:radial-gradient(circle,rgba(155,78,221,.1),transparent 70%);
+  border:1px dashed rgba(255,255,255,.1);display:flex;align-items:center;justify-content:center;
+  font-size:50px;animation:breathe 4.5s ease-in-out infinite}
+.emp-rings{position:absolute;inset:0;display:flex;align-items:center;justify-content:center}
+.emp-r{position:absolute;border-radius:50%;border:1px dashed rgba(255,255,255,.06)}
+.emp-r-1{width:160px;height:160px}
+.emp-r-2{width:210px;height:210px;animation:spin 25s linear infinite}
+.emp-title{font-size:26px;font-weight:700;color:#fff;margin-bottom:12px}
+.emp-sub{font-size:15px;color:var(--muted);line-height:1.65;margin-bottom:38px;max-width:280px}
+
+/* ========== BOTTOM NAV ========== */
+.bnav{position:absolute;bottom:0;left:0;right:0;height:90px;
+  background:rgba(8,8,28,.88);backdrop-filter:blur(30px);-webkit-backdrop-filter:blur(30px);
+  border-top:1px solid rgba(255,255,255,.06);
+  display:none;align-items:center;justify-content:space-around;padding:0 8px 20px;z-index:100}
+.bnav.vis{display:flex}
+.ni{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer;
+  padding:6px 4px;border-radius:12px;transition:.2s}
+.ni-ico{font-size:22px;transition:.2s}
+.ni-lbl{font-size:10px;color:rgba(255,255,255,.32);font-weight:500;transition:.2s}
+.ni.act .ni-lbl{color:var(--pink-l)}
+.ni.act .ni-ico{filter:drop-shadow(0 0 8px rgba(255,45,120,.7))}
+.ni-dot{width:4px;height:4px;border-radius:50%;background:var(--pink);
+  box-shadow:0 0 8px rgba(255,45,120,.8);opacity:0;transition:.2s;margin-top:1px}
+.ni.act .ni-dot{opacity:1}
+/* canvas center button */
+.nav-cv{width:58px;height:58px;border-radius:29px;
+  background:linear-gradient(135deg,var(--pink),var(--purple));
+  display:flex;align-items:center;justify-content:center;font-size:26px;
+  box-shadow:0 0 22px rgba(255,45,120,.5),0 0 44px rgba(155,78,221,.3);
+  transform:translateY(-14px);cursor:pointer;transition:.2s;border:none}
+.nav-cv:active{transform:translateY(-14px) scale(.94)}
+
+@media(max-width:430px){
+  .wrap{background:linear-gradient(145deg,#0D0D2B 0%,#1A0533 40%,#0A1628 100%)}
+  .phone{width:100%;height:100%;border-radius:0}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="phone" id="app">
+
+<!-- ===== SPLASH ===== -->
+<div class="screen active" id="splash">
+  <div class="particles" id="sp-particles"></div>
+  <div class="splash-glow"></div>
+  <div class="splash-logo">
+    <div class="logo-orb-wrap">
+      <div class="splash-rings">
+        <div class="sr" style="width:130px;height:130px"></div>
+        <div class="sr" style="width:130px;height:130px"></div>
+        <div class="sr" style="width:130px;height:130px"></div>
+      </div>
+      <div class="logo-orb"><div class="logo-orb-inner">💫</div></div>
+    </div>
+    <h1 class="gt">USYNC</h1>
+    <p>feel together</p>
+  </div>
+</div>
+
+<!-- ===== ONBOARDING ===== -->
+<div class="screen" id="onboarding">
+  <div class="mesh"></div>
+  <div class="ob-slides" id="ob-slides">
+
+    <!-- Slide 1 -->
+    <div class="ob-slide">
+      <div class="ob-visual">
+        <div class="v-orbs">
+          <div class="vo vo-a">👤</div>
+          <div class="v-conn"></div>
+          <div class="vo vo-b">👤</div>
+        </div>
+      </div>
+      <div class="ob-text">
+        <h2>Feel close,<br>even from far away.</h2>
+        <p>Usync creates a shared emotional space that keeps two hearts in sync across any distance.</p>
+      </div>
+    </div>
+
+    <!-- Slide 2 -->
+    <div class="ob-slide">
+      <div class="ob-visual">
+        <div class="v-emotion">
+          <div class="ve-ring ve-ring-1"></div>
+          <div class="ve-ring ve-ring-2"></div>
+          <div class="ve-ring ve-ring-3"></div>
+          <div class="ve-center">💖</div>
+        </div>
+      </div>
+      <div class="ob-text">
+        <h2>Share emotions<br>in realtime.</h2>
+        <p>Send your mood, your heartbeat, and your presence — instantly and beautifully.</p>
+      </div>
+    </div>
+
+    <!-- Slide 3 -->
+    <div class="ob-slide">
+      <div class="ob-visual">
+        <div class="v-doodle">
+          <svg viewBox="0 0 280 220" fill="none">
+            <defs>
+              <filter id="glow">
+                <feGaussianBlur stdDeviation="3" result="blur"/>
+                <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+              </filter>
+            </defs>
+            <path d="M30,160 C60,100 90,80 130,110 C160,130 180,80 220,60 C240,50 260,70 270,90" stroke="#FF6EC7" stroke-width="3" stroke-linecap="round" fill="none" filter="url(#glow)" opacity=".9"/>
+            <path d="M20,120 C50,140 80,90 110,70 C140,50 160,90 190,110 C210,125 230,100 260,110" stroke="#C77DFF" stroke-width="2.5" stroke-linecap="round" fill="none" filter="url(#glow)" opacity=".7"/>
+            <circle cx="130" cy="110" r="6" fill="#FF6EC7" opacity=".8" filter="url(#glow)"/>
+            <circle cx="220" cy="60" r="5" fill="#C77DFF" opacity=".7" filter="url(#glow)"/>
+            <circle cx="50" cy="130" r="8" fill="rgba(0,212,255,0.6)" filter="url(#glow)"/>
+            <text x="90" y="180" fill="rgba(255,255,255,0.4)" font-size="13" font-family="sans-serif">drawing together…</text>
+          </svg>
+        </div>
+      </div>
+      <div class="ob-text">
+        <h2>Create moments<br>together.</h2>
+        <p>Draw, doodle, and leave glowing traces on a shared canvas that only you two can see.</p>
+      </div>
+    </div>
+
+    <!-- Slide 4 -->
+    <div class="ob-slide">
+      <div class="ob-visual">
+        <div class="v-presence">
+          <div class="vp-arc vp-arc-1"></div>
+          <div class="vp-arc vp-arc-2"></div>
+          <div class="vp-arc vp-arc-3"></div>
+          <div class="vp-dots">
+            <div class="vp-dot"></div>
+            <div class="vp-dot"></div>
+            <div class="vp-dot"></div>
+          </div>
+        </div>
+      </div>
+      <div class="ob-text">
+        <h2>Stay connected<br>everywhere.</h2>
+        <p>Widgets, ambient presence, and gentle notifications keep your connection alive all day.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="ob-footer">
+    <button class="btn-skip" onclick="goScreen('login')">Skip</button>
+    <div class="dots">
+      <div class="dot active" id="d0"></div>
+      <div class="dot" id="d1"></div>
+      <div class="dot" id="d2"></div>
+      <div class="dot" id="d3"></div>
+    </div>
+    <button class="btn-nxt" id="ob-next" onclick="obNext()">›</button>
+  </div>
+</div>
+
+<!-- ===== LOGIN ===== -->
+<div class="screen" id="login">
+  <div class="mesh"></div>
+  <div class="particles" id="login-p"></div>
+  <div class="auth-hd" style="margin-top:80px">
+    <div class="auth-logo gt2">USYNC</div>
+    <h2>Welcome back</h2>
+    <p>Your partner is waiting for you</p>
+  </div>
+  <div style="padding:0 32px;flex:1;display:flex;flex-direction:column;justify-content:center;margin-top:-40px">
+    <div class="fg">
+      <label class="lbl">Email</label>
+      <div class="gi-wrap">
+        <span class="gi-icon">✉️</span>
+        <input class="ginput ico" type="email" placeholder="your@email.com">
+      </div>
+    </div>
+    <div class="fg" style="margin-bottom:28px">
+      <label class="lbl">Password</label>
+      <div class="gi-wrap">
+        <span class="gi-icon">🔒</span>
+        <input class="ginput ico" type="password" placeholder="••••••••">
+      </div>
+    </div>
+    <button class="btn-primary" onclick="goScreen('pair-invite');showNav()">Continue</button>
+    <div style="text-align:right;margin-top:14px">
+      <button class="link" style="font-size:13px">Forgot password?</button>
+    </div>
+    <div style="height:1px;background:rgba(255,255,255,.07);margin:22px 0"></div>
+    <div class="auth-ft">
+      New here? <button class="link" onclick="goScreen('register')">Create account</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== REGISTER ===== -->
+<div class="screen" id="register">
+  <div class="mesh"></div>
+  <div style="padding:58px 32px 32px;overflow-y:auto;flex:1;scrollbar-width:none">
+    <div style="display:flex;align-items:center;gap:14px;margin-bottom:30px">
+      <button class="back" onclick="goScreen('login')">‹</button>
+      <div>
+        <div class="auth-logo gt2" style="font-size:20px;letter-spacing:3px">USYNC</div>
+        <h2 style="font-size:22px;font-weight:700;color:#fff">Create your space</h2>
+      </div>
+    </div>
+    <div style="text-align:center;margin-bottom:20px">
+      <p class="lbl" style="margin-bottom:12px">Choose your avatar</p>
+      <div class="avatar-grid">
+        <div class="av-opt sel" onclick="selAv(this)">🦋</div>
+        <div class="av-opt" onclick="selAv(this)">🌸</div>
+        <div class="av-opt" onclick="selAv(this)">🌙</div>
+        <div class="av-opt" onclick="selAv(this)">⭐</div>
+        <div class="av-opt" onclick="selAv(this)">🔮</div>
+        <div class="av-opt" onclick="selAv(this)">🌊</div>
+        <div class="av-opt" onclick="selAv(this)">🌺</div>
+        <div class="av-opt" onclick="selAv(this)">✨</div>
+      </div>
+    </div>
+    <div class="fg">
+      <label class="lbl">Username</label>
+      <div class="gi-wrap">
+        <span class="gi-icon">👤</span>
+        <input class="ginput ico" placeholder="your name">
+      </div>
+    </div>
+    <div class="fg">
+      <label class="lbl">Email</label>
+      <div class="gi-wrap">
+        <span class="gi-icon">✉️</span>
+        <input class="ginput ico" type="email" placeholder="your@email.com">
+      </div>
+    </div>
+    <div class="fg" style="margin-bottom:28px">
+      <label class="lbl">Password</label>
+      <div class="gi-wrap">
+        <span class="gi-icon">🔒</span>
+        <input class="ginput ico" type="password" placeholder="••••••••">
+      </div>
+    </div>
+    <button class="btn-primary" onclick="goScreen('pair-invite');showNav()">Create Account</button>
+    <div class="auth-ft" style="margin-top:18px">
+      Already paired? <button class="link" onclick="goScreen('login')">Sign in</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== PAIR INVITE ===== -->
+<div class="screen" id="pair-invite">
+  <div class="mesh"></div>
+  <div class="particles" id="pair-p"></div>
+  <div class="hearts-merge">
+    <div class="hm-orb hm-a">💖</div>
+    <div class="hm-orb hm-b">💜</div>
+  </div>
+  <h2 class="pair-title">Invite your partner</h2>
+  <p class="pair-sub">Share this code with the one you love.<br>It expires in 24 hours.</p>
+  <div class="code-box">
+    <p class="code-lbl">Your invite code</p>
+    <div class="code-val gt">U7K3</div>
+  </div>
+  <div style="width:100%;padding:0 32px;margin-top:8px">
+    <button class="btn-primary">Share Code ↗</button>
+    <div style="height:12px"></div>
+    <button class="btn-outline" onclick="goScreen('pair-join')">I have a code instead →</button>
+  </div>
+</div>
+
+<!-- ===== PAIR JOIN ===== -->
+<div class="screen" id="pair-join">
+  <div class="mesh"></div>
+  <div style="padding:58px 32px 0;display:flex;align-items:center;gap:14px">
+    <button class="back" onclick="goScreen('pair-invite')">‹</button>
+  </div>
+  <div style="flex:1;display:flex;flex-direction:column;justify-content:center;align-items:center;padding:0 32px;text-align:center">
+    <div style="font-size:60px;margin-bottom:24px;animation:breathe 3s ease-in-out infinite">🔑</div>
+    <h2 class="pair-title">Enter partner's code</h2>
+    <p class="pair-sub">Type the invite code<br>your partner shared with you.</p>
+    <div class="code-inputs">
+      <input class="code-input" maxlength="1" oninput="codeInput(this)" type="text">
+      <input class="code-input" maxlength="1" oninput="codeInput(this)" type="text">
+      <input class="code-input" maxlength="1" oninput="codeInput(this)" type="text">
+      <input class="code-input" maxlength="1" oninput="codeInput(this)" type="text">
+    </div>
+    <button class="btn-primary" style="margin-top:10px" onclick="goScreen('pair-success')">Connect ✦</button>
+  </div>
+</div>
+
+<!-- ===== PAIR SUCCESS ===== -->
+<div class="screen" id="pair-success">
+  <div class="mesh"></div>
+  <div class="particles" id="success-p"></div>
+  <div style="flex:1;display:flex;flex-direction:column;justify-content:center;align-items:center;padding:0 32px;text-align:center">
+    <div class="success-orb">💞</div>
+    <h2 class="pair-title">You're connected!</h2>
+    <p class="pair-sub">Your emotional space is now live.<br>You and your partner are in sync.</p>
+    <button class="btn-primary" onclick="goScreen('home');showNav()">Enter your space →</button>
+  </div>
+</div>
+
+<!-- ===== HOME ===== -->
+<div class="screen" id="home">
+  <div class="mesh"></div>
+  <div class="hbg1"></div>
+  <div class="hbg2"></div>
+  <div class="float-em" style="left:40px;bottom:200px;animation-duration:5s;animation-delay:0s">💖</div>
+  <div class="float-em" style="left:80px;bottom:200px;animation-duration:7s;animation-delay:2s">✨</div>
+  <div class="float-em" style="right:50px;bottom:200px;animation-duration:6s;animation-delay:1s">🌸</div>
+  <div class="float-em" style="right:90px;bottom:200px;animation-duration:8s;animation-delay:3s">💜</div>
+
+  <div class="home-hdr">
+    <div>
+      <div class="home-hi">Good evening,</div>
+      <div class="home-nm">Anuket 🦋</div>
+    </div>
+    <div class="home-bell" onclick="goScreen('notif-screen')">🔔</div>
+  </div>
+
+  <div class="partner-section">
+    <div class="partner-orb-wrap">
+      <div class="p-rings">
+        <div class="pr"></div>
+        <div class="pr"></div>
+        <div class="pr"></div>
+      </div>
+      <div class="partner-orb">
+        <div class="partner-orb-inner">🌙</div>
+      </div>
+      <div class="partner-badge">● online</div>
+    </div>
+    <div class="partner-name">Aria</div>
+    <div class="partner-mood">"Thinking about you…"</div>
+  </div>
+
+  <!-- Heartbeat -->
+  <div class="hb-wrap">
+    <svg class="hb-svg" viewBox="0 0 270 48">
+      <defs>
+        <filter id="hbglow">
+          <feGaussianBlur stdDeviation="2" result="b"/>
+          <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
+      </defs>
+      <polyline points="0,24 30,24 40,24 50,8 58,40 66,12 74,36 82,24 120,24 130,24 140,24 150,10 158,38 166,14 174,34 182,24 220,24 270,24"
+        fill="none" stroke="url(#hbg)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" filter="url(#hbglow)"/>
+      <defs>
+        <linearGradient id="hbg" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" stop-color="rgba(255,45,120,0.2)"/>
+          <stop offset="50%" stop-color="#FF6EC7"/>
+          <stop offset="100%" stop-color="rgba(255,45,120,0.2)"/>
+        </linearGradient>
+      </defs>
+    </svg>
+  </div>
+
+  <div class="qa-row">
+    <div class="qa-pill" onclick="goScreen('touch-screen')">
+      <span class="qi">👆</span><span class="ql">Touch</span>
+    </div>
+    <div class="qa-pill" onclick="goScreen('mood-screen')">
+      <span class="qi">💭</span><span class="ql">Mood</span>
+    </div>
+    <div class="qa-pill" onclick="goScreen('canvas-screen')">
+      <span class="qi">✏️</span><span class="ql">Draw</span>
+    </div>
+    <div class="qa-pill" onclick="goScreen('mem-screen')">
+      <span class="qi">🫧</span><span class="ql">Memory</span>
+    </div>
+  </div>
+
+  <div class="mood-strip">
+    <div class="ms-lbl">Recent moods</div>
+    <div class="ms-scroll">
+      <div class="mc">💭 Thinking about you</div>
+      <div class="mc">😴 Just woke up</div>
+      <div class="mc">🌸 Relaxing</div>
+      <div class="mc">💖 Missing you</div>
+      <div class="mc">☕ Morning coffee</div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== CANVAS ===== -->
+<div class="screen" id="canvas-screen">
+  <div class="cv-hdr">
+    <button class="back" onclick="goBack()">‹</button>
+    <div class="cv-title">Shared Canvas</div>
+    <div class="cv-live"><div class="live-dot"></div>Aria is here</div>
+  </div>
+  <canvas class="draw-canvas" id="draw-canvas"></canvas>
+  <div class="cv-toolbar">
+    <button class="tb-btn act" id="pen-btn" onclick="setTool('pen',this)" title="Glow Pen">✏️</button>
+    <button class="tb-btn" onclick="setTool('eraser',this)" title="Eraser">🧹</button>
+    <div class="tb-div"></div>
+    <div class="cdots">
+      <div class="cdot sel" style="background:#FF6EC7" onclick="setColor('#FF6EC7',this)"></div>
+      <div class="cdot" style="background:#C77DFF" onclick="setColor('#C77DFF',this)"></div>
+      <div class="cdot" style="background:#00D4FF" onclick="setColor('#00D4FF',this)"></div>
+      <div class="cdot" style="background:#FFFFFF" onclick="setColor('#FFFFFF',this)"></div>
+      <div class="cdot" style="background:#FFD700" onclick="setColor('#FFD700',this)"></div>
+    </div>
+    <div class="tb-div"></div>
+    <button class="tb-btn" onclick="clearCanvas()" title="Clear">🗑️</button>
+    <button class="tb-btn" onclick="saveMemory()" title="Save as Memory">💾</button>
+  </div>
+</div>
+
+<!-- ===== TOUCH SYNC ===== -->
+<div class="screen" id="touch-screen">
+  <div class="mesh"></div>
+  <div class="ts-bg"></div>
+  <div style="padding:55px 20px 16px;display:flex;align-items:center;gap:14px;position:relative;z-index:10">
+    <button class="back" onclick="goBack()">‹</button>
+    <span style="font-size:18px;font-weight:700;color:#fff">Touch Sync</span>
+  </div>
+  <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0;position:relative;z-index:10">
+    <div class="ts-area">
+      <div class="ts-rings">
+        <div class="ts-r"></div>
+        <div class="ts-r"></div>
+        <div class="ts-r"></div>
+      </div>
+      <div class="ts-fp" id="ts-fp" onclick="triggerTouch()">🫰</div>
+    </div>
+    <div class="ts-text">
+      <div class="ts-title">Hold to sync</div>
+      <div class="ts-sub">Press and hold the icon.<br>Aria will feel your touch across the distance.</div>
+      <div class="ts-status">
+        <div class="live-dot" style="background:var(--cyan);box-shadow:0 0 8px var(--cyan)"></div>
+        Connected · 0ms latency
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== MOOD ===== -->
+<div class="screen" id="mood-screen">
+  <div class="mesh"></div>
+  <div style="padding:55px 28px 0;display:flex;align-items:center;gap:14px">
+    <button class="back" onclick="goBack()">‹</button>
+    <div>
+      <div style="font-size:22px;font-weight:700;color:#fff">How are you feeling?</div>
+      <div style="font-size:13px;color:var(--muted);margin-top:3px">Your partner will feel this</div>
+    </div>
+  </div>
+  <div class="mood-grid">
+    <div class="mb sel" style="animation-duration:3.2s" onclick="selMood(this)">
+      <div class="me">😊</div><div class="ml">Happy</div>
+    </div>
+    <div class="mb" style="animation-duration:4s;animation-delay:.4s" onclick="selMood(this)">
+      <div class="me">💭</div><div class="ml">Thinking<br>About You</div>
+    </div>
+    <div class="mb" style="animation-duration:3.6s;animation-delay:.8s" onclick="selMood(this)">
+      <div class="me">💖</div><div class="ml">Missing<br>You</div>
+    </div>
+    <div class="mb" style="animation-duration:4.4s;animation-delay:.2s" onclick="selMood(this)">
+      <div class="me">😴</div><div class="ml">Sleeping</div>
+    </div>
+    <div class="mb" style="animation-duration:3.8s;animation-delay:.6s" onclick="selMood(this)">
+      <div class="me">🌸</div><div class="ml">Relaxing</div>
+    </div>
+    <div class="mb" style="animation-duration:4.2s;animation-delay:1s" onclick="selMood(this)">
+      <div class="me">⚡</div><div class="ml">Busy</div>
+    </div>
+  </div>
+  <div style="padding:0 24px 110px;position:relative;z-index:10">
+    <button class="btn-primary">Send My Mood ✦</button>
+  </div>
+</div>
+
+<!-- ===== MEMORIES ===== -->
+<div class="screen" id="mem-screen">
+  <div class="mesh"></div>
+  <div class="mem-hdr">
+    <div style="font-size:26px;font-weight:700;color:#fff">Memory Space</div>
+    <div style="font-size:14px;color:var(--muted);margin-top:4px">Your shared emotional archive</div>
+  </div>
+  <div class="mem-scroll">
+    <div class="mcard" onclick="goScreen('mem-detail')">
+      <div class="mcard-img" style="background:linear-gradient(135deg,rgba(255,45,120,.15),rgba(155,78,221,.15))">
+        <div class="mcard-art">🌸</div>
+      </div>
+      <div class="mcard-foot">
+        <div><div class="mcard-title">Our first doodle</div><div class="mcard-date">May 28, 2026</div></div>
+        <div class="mtag" style="background:rgba(255,110,199,.15);color:#FF6EC7">Canvas</div>
+      </div>
+    </div>
+    <div class="mcard">
+      <div class="mcard-img" style="background:linear-gradient(135deg,rgba(0,212,255,.1),rgba(155,78,221,.15))">
+        <div class="mcard-art">💜</div>
+      </div>
+      <div class="mcard-foot">
+        <div><div class="mcard-title">Goodnight touch</div><div class="mcard-date">May 27, 2026</div></div>
+        <div class="mtag" style="background:rgba(155,78,221,.15);color:#C77DFF">Touch</div>
+      </div>
+    </div>
+    <div class="mcard">
+      <div class="mcard-img" style="background:linear-gradient(135deg,rgba(255,215,0,.08),rgba(255,45,120,.12))">
+        <div class="mcard-art">🌙</div>
+      </div>
+      <div class="mcard-foot">
+        <div><div class="mcard-title">Midnight mood</div><div class="mcard-date">May 25, 2026</div></div>
+        <div class="mtag" style="background:rgba(0,212,255,.12);color:#00D4FF">Mood</div>
+      </div>
+    </div>
+    <div class="mcard">
+      <div class="mcard-img" style="background:linear-gradient(135deg,rgba(199,125,255,.1),rgba(255,110,199,.12))">
+        <div class="mcard-art">✨</div>
+      </div>
+      <div class="mcard-foot">
+        <div><div class="mcard-title">Sunday sketch</div><div class="mcard-date">May 24, 2026</div></div>
+        <div class="mtag" style="background:rgba(255,45,120,.12);color:var(--pink-l)">Canvas</div>
+      </div>
+    </div>
+    <div class="mcard">
+      <div class="mcard-img" style="background:linear-gradient(135deg,rgba(0,212,255,.08),rgba(11,78,221,.15))">
+        <div class="mcard-art">🫧</div>
+      </div>
+      <div class="mcard-foot">
+        <div><div class="mcard-title">Our 100th day</div><div class="mcard-date">May 20, 2026</div></div>
+        <div class="mtag" style="background:rgba(255,215,0,.12);color:#FFD700">Milestone</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== MEMORY DETAIL ===== -->
+<div class="screen" id="mem-detail">
+  <div class="md-bg-blur">🌸</div>
+  <div class="md-content">
+    <div class="md-hdr">
+      <button class="back" onclick="goScreen('mem-screen')">‹</button>
+      <button class="back" style="font-size:16px">♡</button>
+    </div>
+    <div class="md-art">🌸</div>
+    <div class="md-footer">
+      <div class="md-title">Our first doodle</div>
+      <div class="md-date">May 28, 2026 · Canvas Memory</div>
+      <div class="md-acts">
+        <button class="md-act">🔗 Share</button>
+        <button class="md-act">⬇️ Save</button>
+        <button class="md-act pri">💖 Favourite</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== WIDGETS ===== -->
+<div class="screen" id="widget-screen">
+  <div class="mesh"></div>
+  <div class="wid-hdr">
+    <div style="font-size:26px;font-weight:700;color:#fff">Widgets</div>
+    <div style="font-size:14px;color:var(--muted);margin-top:4px">Add to your home screen</div>
+  </div>
+  <div class="wid-grid">
+    <!-- Heartbeat -->
+    <div class="wcard" style="animation-duration:3.5s">
+      <div class="wglow" style="background:rgba(255,45,120,.4)"></div>
+      <div class="wi">💓</div>
+      <div class="wn">Heartbeat</div>
+      <div class="wd">Live pulse from your partner</div>
+      <div class="hb-bars">
+        <div class="hb-bar" style="height:8px;animation-delay:0s"></div>
+        <div class="hb-bar" style="height:22px;animation-delay:.1s"></div>
+        <div class="hb-bar" style="height:30px;animation-delay:.15s"></div>
+        <div class="hb-bar" style="height:14px;animation-delay:.2s"></div>
+        <div class="hb-bar" style="height:26px;animation-delay:.25s"></div>
+        <div class="hb-bar" style="height:10px;animation-delay:.3s"></div>
+        <div class="hb-bar" style="height:20px;animation-delay:.35s"></div>
+        <div class="hb-bar" style="height:8px;animation-delay:.4s"></div>
+      </div>
+    </div>
+    <!-- Mood -->
+    <div class="wcard" style="animation-duration:4s;animation-delay:.3s">
+      <div class="wglow" style="background:rgba(155,78,221,.4)"></div>
+      <div class="wi">💭</div>
+      <div class="wn">Mood</div>
+      <div class="wd">Partner's current vibe</div>
+      <div style="margin-top:12px;padding:8px;border-radius:12px;background:rgba(255,255,255,.05);text-align:center">
+        <div style="font-size:22px">😊</div>
+        <div style="font-size:10px;color:var(--muted);margin-top:3px">Happy</div>
+      </div>
+    </div>
+    <!-- Doodle -->
+    <div class="wcard" style="animation-duration:3.8s;animation-delay:.6s">
+      <div class="wglow" style="background:rgba(0,212,255,.3)"></div>
+      <div class="wi">✏️</div>
+      <div class="wn">Live Doodle</div>
+      <div class="wd">See sketches appear in real time</div>
+      <div style="margin-top:10px;height:40px;border-radius:10px;overflow:hidden;background:rgba(255,255,255,.04)">
+        <svg width="100%" height="40" viewBox="0 0 120 40">
+          <path d="M5,20 C20,10 35,30 50,18 C65,6 80,28 95,16 C105,10 115,22 120,20" stroke="#FF6EC7" stroke-width="2" fill="none" stroke-linecap="round"/>
+        </svg>
+      </div>
+    </div>
+    <!-- Presence -->
+    <div class="wcard" style="animation-duration:4.5s;animation-delay:.9s">
+      <div class="wglow" style="background:rgba(255,110,199,.3)"></div>
+      <div class="wi">🌐</div>
+      <div class="wn">Presence</div>
+      <div class="wd">Is your partner nearby?</div>
+      <div style="margin-top:12px;display:flex;align-items:center;gap:7px">
+        <div style="width:10px;height:10px;border-radius:50%;background:var(--cyan);box-shadow:0 0 8px var(--cyan);animation:hb 1.4s infinite"></div>
+        <span style="font-size:11px;color:rgba(0,212,255,.8)">Online · Active 2m ago</span>
+      </div>
+    </div>
+    <!-- Streak -->
+    <div class="wcard" style="grid-column:1/-1;animation-duration:3.2s;animation-delay:.2s">
+      <div class="wglow" style="background:rgba(255,215,0,.3)"></div>
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <div>
+          <div class="wi" style="margin-bottom:6px">🔥</div>
+          <div class="wn">Connection Streak</div>
+          <div class="wd">You've been in sync every day</div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-size:48px;font-weight:800" class="gt">47</div>
+          <div style="font-size:11px;color:var(--muted)">days</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== NOTIFICATIONS ===== -->
+<div class="screen" id="notif-screen">
+  <div class="mesh"></div>
+  <div style="padding:58px 28px 0;display:flex;align-items:center;gap:14px">
+    <button class="back" onclick="goBack()">‹</button>
+    <div style="font-size:24px;font-weight:700;color:#fff">Moments</div>
+  </div>
+  <div class="nf-scroll" style="padding-top:16px">
+    <div class="nf-item unread">
+      <div class="nf-ico" style="background:rgba(255,45,120,.12)">👆</div>
+      <div class="nf-body">
+        <div class="nf-txt">Aria touched the screen and thought of you.</div>
+        <div class="nf-time">Just now</div>
+      </div>
+      <div class="nf-dot"></div>
+    </div>
+    <div class="nf-item unread">
+      <div class="nf-ico" style="background:rgba(0,212,255,.12)">✏️</div>
+      <div class="nf-body">
+        <div class="nf-txt">A new doodle appeared on your canvas.</div>
+        <div class="nf-time">4 min ago</div>
+      </div>
+      <div class="nf-dot"></div>
+    </div>
+    <div class="nf-item unread">
+      <div class="nf-ico" style="background:rgba(155,78,221,.12)">💭</div>
+      <div class="nf-body">
+        <div class="nf-txt">Aria's mood changed to "Thinking About You".</div>
+        <div class="nf-time">18 min ago</div>
+      </div>
+      <div class="nf-dot"></div>
+    </div>
+    <div class="nf-item">
+      <div class="nf-ico" style="background:rgba(255,215,0,.1)">🔥</div>
+      <div class="nf-body">
+        <div class="nf-txt">Day 47 streak! You've connected every single day.</div>
+        <div class="nf-time">2 hours ago</div>
+      </div>
+    </div>
+    <div class="nf-item">
+      <div class="nf-ico" style="background:rgba(199,125,255,.12)">💖</div>
+      <div class="nf-body">
+        <div class="nf-txt">Aria saved a memory from your shared canvas.</div>
+        <div class="nf-time">Yesterday</div>
+      </div>
+    </div>
+    <div class="nf-item">
+      <div class="nf-ico" style="background:rgba(0,212,255,.1)">🌙</div>
+      <div class="nf-body">
+        <div class="nf-txt">Aria set her mood to "Sleeping". Rest well 🌙</div>
+        <div class="nf-time">Yesterday · 11:42 PM</div>
+      </div>
+    </div>
+    <div class="nf-item">
+      <div class="nf-ico" style="background:rgba(255,45,120,.1)">🎉</div>
+      <div class="nf-body">
+        <div class="nf-txt">You reached 100 shared moments together!</div>
+        <div class="nf-time">May 20, 2026</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== PROFILE ===== -->
+<div class="screen" id="profile-screen">
+  <div class="mesh"></div>
+  <div class="prof-hero">
+    <div class="prof-bg-glow"></div>
+    <div class="prof-av">
+      <div class="prof-av-in">🦋</div>
+    </div>
+    <div class="prof-name">Anuket</div>
+    <div class="prof-since">Together since Jan 12, 2026</div>
+    <div class="prof-stats">
+      <div class="stat">
+        <div class="stat-v gt2">47</div>
+        <div class="stat-l">Day Streak</div>
+      </div>
+      <div class="stat">
+        <div class="stat-v gt2">104</div>
+        <div class="stat-l">Moments</div>
+      </div>
+      <div class="stat">
+        <div class="stat-v gt2">32</div>
+        <div class="stat-l">Doodles</div>
+      </div>
+    </div>
+  </div>
+  <div class="prof-scroll">
+    <div class="sec-lbl">Your connection</div>
+    <div class="prow" onclick="goScreen('timeline-screen')">
+      <div class="prow-ico" style="background:rgba(255,45,120,.12)">🕰️</div>
+      <div class="prow-body"><div class="prow-t">Relationship Timeline</div><div class="prow-s">View your shared journey</div></div>
+      <div class="prow-arr">›</div>
+    </div>
+    <div class="prow" onclick="goScreen('mem-screen')">
+      <div class="prow-ico" style="background:rgba(0,212,255,.12)">🫧</div>
+      <div class="prow-body"><div class="prow-t">Memory Space</div><div class="prow-s">104 moments saved</div></div>
+      <div class="prow-arr">›</div>
+    </div>
+    <div class="prow" onclick="goScreen('widget-screen')">
+      <div class="prow-ico" style="background:rgba(155,78,221,.12)">📱</div>
+      <div class="prow-body"><div class="prow-t">Widgets</div><div class="prow-s">Manage home screen widgets</div></div>
+      <div class="prow-arr">›</div>
+    </div>
+    <div class="sec-lbl">Preferences</div>
+    <div class="prow" onclick="goScreen('themes-screen')">
+      <div class="prow-ico" style="background:rgba(255,215,0,.1)">🎨</div>
+      <div class="prow-body"><div class="prow-t">Themes</div><div class="prow-s">Midnight Purple (active)</div></div>
+      <div class="prow-arr">›</div>
+    </div>
+    <div class="prow" onclick="goScreen('settings-screen')">
+      <div class="prow-ico" style="background:rgba(255,255,255,.06)">⚙️</div>
+      <div class="prow-body"><div class="prow-t">Settings</div><div class="prow-s">Account, privacy, notifications</div></div>
+      <div class="prow-arr">›</div>
+    </div>
+    <div class="prow" onclick="goScreen('empty-screen')">
+      <div class="prow-ico" style="background:rgba(255,45,120,.08)">🌌</div>
+      <div class="prow-body"><div class="prow-t">Empty State Demo</div><div class="prow-s">Preview empty screens</div></div>
+      <div class="prow-arr">›</div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== TIMELINE ===== -->
+<div class="screen" id="timeline-screen">
+  <div class="mesh"></div>
+  <div class="tl-hdr">
+    <div style="display:flex;align-items:center;gap:14px">
+      <button class="back" onclick="goBack()">‹</button>
+      <div>
+        <div style="font-size:24px;font-weight:700;color:#fff">Our Journey</div>
+        <div style="font-size:13px;color:var(--muted);margin-top:3px">Anuket & Aria · 139 days</div>
+      </div>
+    </div>
+  </div>
+  <div class="tl-scroll">
+    <div class="tl-line"></div>
+    <div class="tl-item">
+      <div class="tl-dot">🎉</div>
+      <div class="tl-body">
+        <div class="tl-ev">You connected!</div>
+        <div class="tl-note">The moment your two worlds became one shared space.</div>
+        <div class="tl-dt">January 12, 2026</div>
+      </div>
+    </div>
+    <div class="tl-item">
+      <div class="tl-dot">✏️</div>
+      <div class="tl-body">
+        <div class="tl-ev">First doodle together</div>
+        <div class="tl-note">A messy little star that meant the world.</div>
+        <div class="tl-dt">January 14, 2026</div>
+      </div>
+    </div>
+    <div class="tl-item">
+      <div class="tl-dot">🔥</div>
+      <div class="tl-body">
+        <div class="tl-ev">7-day streak achieved</div>
+        <div class="tl-note">A week of daily connection. The first of many.</div>
+        <div class="tl-dt">January 19, 2026</div>
+      </div>
+    </div>
+    <div class="tl-item">
+      <div class="tl-dot">💖</div>
+      <div class="tl-body">
+        <div class="tl-ev">100 shared moments</div>
+        <div class="tl-note">100 little sparks that light up the space between you.</div>
+        <div class="tl-dt">March 3, 2026</div>
+      </div>
+    </div>
+    <div class="tl-item">
+      <div class="tl-dot">🌙</div>
+      <div class="tl-body">
+        <div class="tl-ev">30-day streak</div>
+        <div class="tl-note">A whole month of closeness, no matter the distance.</div>
+        <div class="tl-dt">February 11, 2026</div>
+      </div>
+    </div>
+    <div class="tl-item">
+      <div class="tl-dot">✨</div>
+      <div class="tl-body">
+        <div class="tl-ev">Today · Day 139</div>
+        <div class="tl-note">Still here. Still close. Still together.</div>
+        <div class="tl-dt">May 30, 2026</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== SETTINGS ===== -->
+<div class="screen" id="settings-screen">
+  <div class="mesh"></div>
+  <div class="st-hdr">
+    <div style="display:flex;align-items:center;gap:14px">
+      <button class="back" onclick="goBack()">‹</button>
+      <div style="font-size:24px;font-weight:700;color:#fff">Settings</div>
+    </div>
+  </div>
+  <div class="st-scroll">
+    <div class="st-sec">Account</div>
+    <div class="srow"><div class="sico" style="background:rgba(255,45,120,.12)">👤</div><div class="stext"><div class="st-t">Profile</div><div class="st-s">Anuket · anuket@email.com</div></div><div style="color:rgba(255,255,255,.22)">›</div></div>
+    <div class="srow"><div class="sico" style="background:rgba(155,78,221,.12)">🔒</div><div class="stext"><div class="st-t">Privacy</div><div class="st-s">Manage visibility</div></div><div style="color:rgba(255,255,255,.22)">›</div></div>
+
+    <div class="st-sec">Connection</div>
+    <div class="srow"><div class="sico" style="background:rgba(255,110,199,.12)">💞</div><div class="stext"><div class="st-t">Couple Settings</div><div class="st-s">Aria · paired Jan 12</div></div><div style="color:rgba(255,255,255,.22)">›</div></div>
+    <div class="srow"><div class="sico" style="background:rgba(0,212,255,.1)">🔔</div><div class="stext"><div class="st-t">Notifications</div><div class="st-s">Gentle emotional alerts</div></div><div class="toggle on" onclick="this.classList.toggle('on')"></div></div>
+
+    <div class="st-sec">Experience</div>
+    <div class="srow" onclick="goScreen('themes-screen')"><div class="sico" style="background:rgba(255,215,0,.1)">🎨</div><div class="stext"><div class="st-t">Themes</div><div class="st-s">Midnight Purple</div></div><div style="color:rgba(255,255,255,.22)">›</div></div>
+    <div class="srow"><div class="sico" style="background:rgba(155,78,221,.12)">✨</div><div class="stext"><div class="st-t">Animations</div><div class="st-s">Rich particle effects</div></div><div class="toggle on" onclick="this.classList.toggle('on')"></div></div>
+    <div class="srow"><div class="sico" style="background:rgba(0,212,255,.1)">🌙</div><div class="stext"><div class="st-t">Dark Mode</div><div class="st-s">Always on</div></div><div class="toggle on"></div></div>
+    <div class="srow"><div class="sico" style="background:rgba(255,45,120,.1)">📳</div><div class="stext"><div class="st-t">Haptic Feedback</div><div class="st-s">Vibrate on partner touch</div></div><div class="toggle on" onclick="this.classList.toggle('on')"></div></div>
+
+    <div class="st-sec">About</div>
+    <div class="srow"><div class="sico" style="background:rgba(255,255,255,.05)">ℹ️</div><div class="stext"><div class="st-t">About Usync</div><div class="st-s">Version 1.0.0</div></div><div style="color:rgba(255,255,255,.22)">›</div></div>
+    <div style="height:20px"></div>
+    <button class="btn-outline" style="color:rgba(255,80,80,.7);border-color:rgba(255,80,80,.2)">Sign Out</button>
+  </div>
+</div>
+
+<!-- ===== THEMES ===== -->
+<div class="screen" id="themes-screen">
+  <div class="mesh"></div>
+  <div class="th-hdr">
+    <div style="display:flex;align-items:center;gap:14px">
+      <button class="back" onclick="goBack()">‹</button>
+      <div>
+        <div style="font-size:24px;font-weight:700;color:#fff">Themes</div>
+        <div style="font-size:13px;color:var(--muted);margin-top:3px">Choose your emotional palette</div>
+      </div>
+    </div>
+  </div>
+  <div class="th-list">
+    <div class="thcard th-mid sel" onclick="selTheme(this)">
+      <div class="thcont"><div class="thname">Midnight Purple</div><div class="thcheck">✓</div></div>
+      <div class="thswatches">
+        <div class="tsw" style="background:#9D4EDD"></div>
+        <div class="tsw" style="background:#FF2D78"></div>
+        <div class="tsw" style="background:#00D4FF"></div>
+        <div class="tsw" style="background:#C77DFF"></div>
+      </div>
+    </div>
+    <div class="thcard th-pink" onclick="selTheme(this)">
+      <div class="thcont"><div class="thname">Neon Pink</div><div class="thcheck"></div></div>
+      <div class="thswatches">
+        <div class="tsw" style="background:#FF2D78"></div>
+        <div class="tsw" style="background:#FF6EC7"></div>
+        <div class="tsw" style="background:#6B1FB2"></div>
+        <div class="tsw" style="background:#FFB3D9"></div>
+      </div>
+    </div>
+    <div class="thcard th-ocean" onclick="selTheme(this)">
+      <div class="thcont"><div class="thname">Ocean Blue</div><div class="thcheck"></div></div>
+      <div class="thswatches">
+        <div class="tsw" style="background:#0575E6"></div>
+        <div class="tsw" style="background:#00D4FF"></div>
+        <div class="tsw" style="background:#021B79"></div>
+        <div class="tsw" style="background:#7FEFFF"></div>
+      </div>
+    </div>
+    <div class="thcard th-lav" onclick="selTheme(this)">
+      <div class="thcont"><div class="thname">Lavender Dream</div><div class="thcheck"></div></div>
+      <div class="thswatches">
+        <div class="tsw" style="background:#C77DFF"></div>
+        <div class="tsw" style="background:#9B59B6"></div>
+        <div class="tsw" style="background:#E8C5FF"></div>
+        <div class="tsw" style="background:#7B2FBE"></div>
+      </div>
+    </div>
+    <div class="thcard th-sunset" onclick="selTheme(this)">
+      <div class="thcont"><div class="thname">Sunset Glow</div><div class="thcheck"></div></div>
+      <div class="thswatches">
+        <div class="tsw" style="background:#FF416C"></div>
+        <div class="tsw" style="background:#FF4B2B"></div>
+        <div class="tsw" style="background:#FFA500"></div>
+        <div class="tsw" style="background:#FFD700"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== EMPTY STATE ===== -->
+<div class="screen" id="empty-screen">
+  <div class="mesh"></div>
+  <div style="padding:58px 20px 16px;display:flex;align-items:center;gap:14px">
+    <button class="back" onclick="goBack()">‹</button>
+    <div style="font-size:20px;font-weight:700;color:#fff">Memory Space</div>
+  </div>
+  <div style="flex:1;display:flex;flex-direction:column;justify-content:center;align-items:center;padding:0 40px;text-align:center">
+    <div class="emp-visual">
+      <div class="emp-rings">
+        <div class="emp-r emp-r-1"></div>
+        <div class="emp-r emp-r-2"></div>
+      </div>
+      <div class="emp-orb">🫧</div>
+    </div>
+    <div class="emp-title">No memories yet.</div>
+    <div class="emp-sub">Every doodle, every touch, every mood you share will be kept here, quietly waiting for you.</div>
+    <button class="btn-primary" onclick="goScreen('canvas-screen')">Create your first moment ✦</button>
+    <div style="height:12px"></div>
+    <button class="btn-outline" onclick="goBack()">Maybe later</button>
+  </div>
+</div>
+
+<!-- ===== BOTTOM NAV ===== -->
+<nav class="bnav" id="bnav">
+  <div class="ni act" id="ni-home" onclick="navTo('home','ni-home')">
+    <div class="ni-ico">🏠</div>
+    <div class="ni-lbl">Home</div>
+    <div class="ni-dot"></div>
+  </div>
+  <div class="ni" id="ni-mem" onclick="navTo('mem-screen','ni-mem')">
+    <div class="ni-ico">🫧</div>
+    <div class="ni-lbl">Memories</div>
+    <div class="ni-dot"></div>
+  </div>
+  <button class="nav-cv" onclick="navTo('canvas-screen','')">✏️</button>
+  <div class="ni" id="ni-wid" onclick="navTo('widget-screen','ni-wid')">
+    <div class="ni-ico">📱</div>
+    <div class="ni-lbl">Widgets</div>
+    <div class="ni-dot"></div>
+  </div>
+  <div class="ni" id="ni-prof" onclick="navTo('profile-screen','ni-prof')">
+    <div class="ni-ico">🦋</div>
+    <div class="ni-lbl">Profile</div>
+    <div class="ni-dot"></div>
+  </div>
+</nav>
+
+</div><!-- /phone -->
+</div><!-- /wrap -->
+
+<script>
+// ===== STATE =====
+let prevScreen = 'home';
+let obSlide = 0;
+let drawTool = 'pen';
+let drawColor = '#FF6EC7';
+let isDrawing = false;
+let lastX = 0, lastY = 0;
+
+// ===== NAVIGATION =====
+function goScreen(id) {
+  const cur = document.querySelector('.screen.active');
+  if (cur) prevScreen = cur.id;
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  const next = document.getElementById(id);
+  if (next) next.classList.add('active');
+  if (id === 'canvas-screen') initCanvas();
+}
+
+function goBack() { goScreen(prevScreen); }
+
+function showNav() {
+  document.getElementById('bnav').classList.add('vis');
+}
+
+function navTo(screenId, navId) {
+  goScreen(screenId);
+  document.querySelectorAll('.ni').forEach(n => n.classList.remove('act'));
+  if (navId) document.getElementById(navId)?.classList.add('act');
+}
+
+// ===== ONBOARDING =====
+function obNext() {
+  if (obSlide < 3) {
+    obSlide++;
+    document.getElementById('ob-slides').style.transform = `translateX(-${obSlide * 390}px)`;
+    document.querySelectorAll('.dot').forEach((d, i) => d.classList.toggle('active', i === obSlide));
+    if (obSlide === 3) document.getElementById('ob-next').textContent = '✓';
+  } else {
+    goScreen('login');
+  }
+}
+
+// ===== AVATAR SELECTION =====
+function selAv(el) {
+  document.querySelectorAll('.av-opt').forEach(a => a.classList.remove('sel'));
+  el.classList.add('sel');
+}
+
+// ===== MOOD SELECTION =====
+function selMood(el) {
+  document.querySelectorAll('.mb').forEach(m => m.classList.remove('sel'));
+  el.classList.add('sel');
+}
+
+// ===== THEME SELECTION =====
+function selTheme(el) {
+  document.querySelectorAll('.thcard').forEach(t => {
+    t.classList.remove('sel');
+    t.querySelector('.thcheck').textContent = '';
+  });
+  el.classList.add('sel');
+  el.querySelector('.thcheck').textContent = '✓';
+}
+
+// ===== CODE INPUT =====
+function codeInput(el) {
+  if (el.value.length === 1) {
+    const next = el.nextElementSibling;
+    if (next) next.focus();
+  }
+}
+
+// ===== TOUCH TRIGGER =====
+function triggerTouch() {
+  const fp = document.getElementById('ts-fp');
+  fp.style.filter = 'drop-shadow(0 0 40px rgba(0,212,255,1))';
+  fp.style.transform = 'scale(1.2)';
+  setTimeout(() => {
+    fp.style.filter = 'drop-shadow(0 0 25px rgba(0,212,255,.65))';
+    fp.style.transform = 'scale(1)';
+  }, 400);
+}
+
+// ===== CANVAS DRAWING =====
+function initCanvas() {
+  const canvas = document.getElementById('draw-canvas');
+  if (!canvas || canvas._init) return;
+  canvas._init = true;
+  const ctx = canvas.getContext('2d');
+
+  function resize() {
+    const rect = canvas.parentElement.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    const w = rect.width;
+    const h = rect.height - 160;
+    canvas.style.width = w + 'px';
+    canvas.style.height = h + 'px';
+    canvas.width = w * dpr;
+    canvas.height = h * dpr;
+    ctx.scale(dpr, dpr);
+    ctx.fillStyle = 'rgba(13,13,43,0.0)';
+    ctx.clearRect(0, 0, w, h);
+  }
+  resize();
+
+  function getPos(e) {
+    const r = canvas.getBoundingClientRect();
+    const src = e.touches ? e.touches[0] : e;
+    return { x: src.clientX - r.left, y: src.clientY - r.top };
+  }
+
+  function startDraw(e) {
+    e.preventDefault();
+    isDrawing = true;
+    const p = getPos(e);
+    lastX = p.x; lastY = p.y;
+  }
+
+  function draw(e) {
+    e.preventDefault();
+    if (!isDrawing) return;
+    const p = getPos(e);
+    ctx.beginPath();
+    ctx.moveTo(lastX, lastY);
+    ctx.lineTo(p.x, p.y);
+    if (drawTool === 'eraser') {
+      ctx.strokeStyle = 'rgba(13,13,43,1)';
+      ctx.lineWidth = 30;
+      ctx.shadowBlur = 0;
+    } else {
+      ctx.strokeStyle = drawColor;
+      ctx.lineWidth = 3;
+      ctx.shadowColor = drawColor;
+      ctx.shadowBlur = 12;
+    }
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.stroke();
+    lastX = p.x; lastY = p.y;
+  }
+
+  function stopDraw(e) { e.preventDefault(); isDrawing = false; }
+
+  canvas.addEventListener('mousedown', startDraw);
+  canvas.addEventListener('mousemove', draw);
+  canvas.addEventListener('mouseup', stopDraw);
+  canvas.addEventListener('touchstart', startDraw, { passive: false });
+  canvas.addEventListener('touchmove', draw, { passive: false });
+  canvas.addEventListener('touchend', stopDraw, { passive: false });
+}
+
+function setTool(tool, btn) {
+  drawTool = tool;
+  document.querySelectorAll('.tb-btn').forEach(b => b.classList.remove('act'));
+  btn.classList.add('act');
+}
+
+function setColor(c, el) {
+  drawColor = c;
+  document.querySelectorAll('.cdot').forEach(d => d.classList.remove('sel'));
+  el.classList.add('sel');
+  setTool('pen', document.getElementById('pen-btn'));
+}
+
+function clearCanvas() {
+  const canvas = document.getElementById('draw-canvas');
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width / (window.devicePixelRatio || 1), canvas.height / (window.devicePixelRatio || 1));
+}
+
+function saveMemory() {
+  const btn = event.currentTarget;
+  btn.textContent = '✅';
+  setTimeout(() => btn.textContent = '💾', 1500);
+}
+
+// ===== PARTICLES =====
+function spawnParticles(containerId, count) {
+  const c = document.getElementById(containerId);
+  if (!c) return;
+  const colors = ['#FF2D78','#FF6EC7','#9D4EDD','#C77DFF','#00D4FF','#FFFFFF'];
+  for (let i = 0; i < count; i++) {
+    const p = document.createElement('div');
+    p.className = 'p';
+    const size = Math.random() * 4 + 1.5;
+    const color = colors[Math.floor(Math.random() * colors.length)];
+    p.style.cssText = `
+      width:${size}px;height:${size}px;
+      background:${color};
+      opacity:${Math.random() * 0.6 + 0.2};
+      left:${Math.random() * 100}%;
+      bottom:-20px;
+      animation-duration:${Math.random() * 8 + 6}s;
+      animation-delay:${Math.random() * 8}s;
+      box-shadow:0 0 ${size * 3}px ${color};
+    `;
+    c.appendChild(p);
+  }
+}
+
+// ===== INIT =====
+window.addEventListener('DOMContentLoaded', () => {
+  spawnParticles('sp-particles', 40);
+  spawnParticles('login-p', 20);
+  spawnParticles('pair-p', 25);
+  spawnParticles('success-p', 50);
+  setTimeout(() => goScreen('onboarding'), 3000);
+});
+</script>
+</body>
+</html>

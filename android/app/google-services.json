@@ -1,0 +1,30 @@
+{
+  "project_info": {
+    "project_number": "375959701381",
+    "firebase_url": "https://usync-app-default-rtdb.firebaseio.com",
+    "project_id": "usync-app",
+    "storage_bucket": "usync-app.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:375959701381:android:1b66a98ef000b3ee9726ec",
+        "android_client_info": {
+          "package_name": "com.example.usync"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCguSIuOTchvsVzMx1eGha01i5-ijclD1I"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
