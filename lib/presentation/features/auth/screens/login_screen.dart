@@ -36,6 +36,10 @@ class _LoginScreenState extends State<LoginScreen> {
         if (state is Authenticated) {
           final route = state.user.coupleId != null ? RouteNames.home : RouteNames.pairInvite;
           context.go(route);
+        } else if (state is PasswordResetSent) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Password reset email sent to ${state.email}')),
+          );
         } else if (state is AuthError) {
           ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(state.message)));
         }
@@ -74,7 +78,16 @@ class _LoginScreenState extends State<LoginScreen> {
                     Align(
                       alignment: Alignment.centerRight,
                       child: TextButton(
-                        onPressed: () {},
+                        onPressed: () {
+                          final email = _emailCtrl.text.trim();
+                          if (email.isEmpty || !email.contains('@')) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Enter your email above first')),
+                            );
+                            return;
+                          }
+                          context.read<AuthBloc>().add(PasswordResetRequested(email: email));
+                        },
                         child: const Text('Forgot password?', style: AppTextStyles.link),
                       ),
                     ),
