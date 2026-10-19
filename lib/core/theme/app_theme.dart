@@ -68,7 +68,7 @@ abstract final class AppTheme {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide(color: tokens.primary.withOpacity(0.5)),
+          borderSide: BorderSide(color: tokens.primary.withValues(alpha: 0.5)),
         ),
         hintStyle: const TextStyle(color: AppColors.textDim),
         contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),

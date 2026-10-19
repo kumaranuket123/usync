@@ -127,8 +127,8 @@ class _TimelineItem extends StatelessWidget {
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               color: AppColors.bg1,
-              border: Border.all(color: AppColors.pink.withOpacity(0.4), width: 1.5),
-              boxShadow: [BoxShadow(color: AppColors.pink.withOpacity(0.3), blurRadius: 14)],
+              border: Border.all(color: AppColors.pink.withValues(alpha: 0.4), width: 1.5),
+              boxShadow: [BoxShadow(color: AppColors.pink.withValues(alpha: 0.3), blurRadius: 14)],
             ),
             child: Center(child: Text(milestone.type.emoji, style: const TextStyle(fontSize: 17))),
           ),

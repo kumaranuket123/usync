@@ -13,7 +13,7 @@ abstract final class HapticUtil {
 
   /// "Touch landing" — warm partner-touch arrival sequence.
   static Future<void> touchLanding() async {
-    if (await Vibration.hasVibrator() ?? false) {
+    if (await Vibration.hasVibrator()) {
       Vibration.vibrate(pattern: [0, 80, 60, 60, 60, 40]);
     } else {
       await HapticFeedback.heavyImpact();
@@ -26,7 +26,7 @@ abstract final class HapticUtil {
 
   /// Repeating pulse while partner is holding (call every ~1.2 s).
   static Future<void> touchPulse() async {
-    if (await Vibration.hasVibrator() ?? false) {
+    if (await Vibration.hasVibrator()) {
       Vibration.vibrate(pattern: [0, 100, 50, 100]);
     } else {
       await HapticFeedback.mediumImpact();

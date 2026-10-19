@@ -67,7 +67,7 @@ class _HomeBody extends StatelessWidget {
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     gradient: RadialGradient(
-                      colors: [AppColors.pink.withOpacity(0.15), Colors.transparent],
+                      colors: [AppColors.pink.withValues(alpha: 0.15), Colors.transparent],
                     ),
                   ),
                 ),
@@ -79,7 +79,7 @@ class _HomeBody extends StatelessWidget {
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     gradient: RadialGradient(
-                      colors: [AppColors.purple.withOpacity(0.15), Colors.transparent],
+                      colors: [AppColors.purple.withValues(alpha: 0.15), Colors.transparent],
                     ),
                   ),
                 ),

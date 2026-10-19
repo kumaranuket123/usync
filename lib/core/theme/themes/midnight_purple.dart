@@ -31,15 +31,15 @@ final class MidnightPurpleTheme {
     ),
     gradientTextColors: const [AppColors.pinkLight, AppColors.lavender, AppColors.cyan],
     primaryGlow: [
-      BoxShadow(color: AppColors.pink.withOpacity(0.45), blurRadius: 30),
-      BoxShadow(color: AppColors.pink.withOpacity(0.20), blurRadius: 60),
+      BoxShadow(color: AppColors.pink.withValues(alpha: 0.45), blurRadius: 30),
+      BoxShadow(color: AppColors.pink.withValues(alpha: 0.20), blurRadius: 60),
     ],
     cardGlow: [
-      BoxShadow(color: AppColors.purple.withOpacity(0.15), blurRadius: 20),
+      BoxShadow(color: AppColors.purple.withValues(alpha: 0.15), blurRadius: 20),
     ],
     orbGlow: [
-      BoxShadow(color: AppColors.pink.withOpacity(0.35), blurRadius: 50),
-      BoxShadow(color: AppColors.purple.withOpacity(0.20), blurRadius: 100),
+      BoxShadow(color: AppColors.pink.withValues(alpha: 0.35), blurRadius: 50),
+      BoxShadow(color: AppColors.purple.withValues(alpha: 0.20), blurRadius: 100),
     ],
   );
 

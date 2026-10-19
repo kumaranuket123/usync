@@ -163,5 +163,5 @@ class _SplashBodyState extends State<_SplashBody> with TickerProviderStateMixin 
 
 extension _ColorExt on Color {
   RadialGradient toRadialGlow({double opacity = 0.25}) =>
-      RadialGradient(colors: [withOpacity(opacity), withOpacity(0)]);
+      RadialGradient(colors: [withValues(alpha: opacity), withValues(alpha: 0)]);
 }

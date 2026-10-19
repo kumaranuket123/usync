@@ -49,12 +49,12 @@ class _LiveIndicatorState extends State<LiveIndicator> with SingleTickerProvider
             decoration: BoxDecoration(
               color:     dotColor,
               shape:     BoxShape.circle,
-              boxShadow: [BoxShadow(color: dotColor.withOpacity(0.7), blurRadius: 6)],
+              boxShadow: [BoxShadow(color: dotColor.withValues(alpha: 0.7), blurRadius: 6)],
             ),
           ),
         ),
         const SizedBox(width: 7),
-        Text(widget.label, style: AppTextStyles.label.copyWith(color: dotColor.withOpacity(0.85))),
+        Text(widget.label, style: AppTextStyles.label.copyWith(color: dotColor.withValues(alpha: 0.85))),
       ],
     );
   }

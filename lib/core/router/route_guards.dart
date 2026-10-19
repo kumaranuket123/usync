@@ -1,3 +1,4 @@
+import 'package:flutter/widgets.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:go_router/go_router.dart';
 
@@ -17,7 +18,7 @@ abstract final class RouteGuards {
     RouteNames.pairSuccess,
   };
 
-  static Future<String?> redirect(_, GoRouterState state) async {
+  static String? redirect(BuildContext _, GoRouterState state) {
     final path = state.matchedLocation;
 
     // Splash always renders regardless.

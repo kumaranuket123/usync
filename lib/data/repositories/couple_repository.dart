@@ -50,6 +50,7 @@ class CoupleRepository implements ICoupleRepository {
     await firestoreSource.userDoc(partnerUserId).update({'coupleId': coupleRef.id});
     await firestoreSource.userDoc(userId).update({'coupleId': coupleRef.id});
     await firestoreSource.inviteCodes.doc(code).delete();
+    await _registerMembers(couple);
 
     return couple;
   }
@@ -58,7 +59,21 @@ class CoupleRepository implements ICoupleRepository {
   Future<Couple> getCouple(String coupleId) async {
     final snap = await firestoreSource.coupleDoc(coupleId).get();
     if (!snap.exists) throw Exception('Couple not found');
-    return CoupleModel.fromJson(coupleId, snap.data()!);
+    final couple = CoupleModel.fromJson(coupleId, snap.data()!);
+    // Backfill for couples created before RTDB membership rules existed.
+    await _registerMembers(couple);
+    return couple;
+  }
+
+  /// Mirrors couple membership into RTDB so security rules can authorize
+  /// presence/mood/canvas/touch access (RTDB cannot read Firestore).
+  Future<void> _registerMembers(Couple couple) async {
+    try {
+      await rtdbSource.membersRef(couple.id).set({
+        couple.userAId: true,
+        couple.userBId: true,
+      });
+    } catch (_) {}
   }
 
   @override

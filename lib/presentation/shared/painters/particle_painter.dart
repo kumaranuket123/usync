@@ -1,4 +1,3 @@
-import 'dart:math';
 
 import 'package:flutter/material.dart';
 
@@ -29,7 +28,7 @@ class ParticlePainter extends CustomPainter {
       };
 
       final paint = Paint()
-        ..color      = p.color.withOpacity(opacity.clamp(0.0, 1.0))
+        ..color      = p.color.withValues(alpha: opacity.clamp(0.0, 1.0))
         ..maskFilter = MaskFilter.blur(BlurStyle.normal, p.size);
 
       canvas.drawCircle(Offset(x, y), p.size, paint);

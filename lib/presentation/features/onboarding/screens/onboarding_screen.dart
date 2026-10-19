@@ -8,7 +8,6 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../data/datasources/local/prefs_source.dart';
 import '../../../shared/animations/breathe_animation.dart';
-import '../../../shared/widgets/gradient_text.dart';
 import '../../../shared/widgets/pulse_rings.dart';
 import '../bloc/onboarding_bloc.dart';
 
@@ -102,7 +101,7 @@ class _OnboardingBodyState extends State<_OnboardingBody> {
                               color: active ? AppColors.pink : AppColors.textDim,
                               borderRadius: BorderRadius.circular(4),
                               boxShadow: active
-                                  ? [BoxShadow(color: AppColors.pink.withOpacity(0.6), blurRadius: 10)]
+                                  ? [BoxShadow(color: AppColors.pink.withValues(alpha: 0.6), blurRadius: 10)]
                                   : null,
                             ),
                           );
@@ -129,7 +128,7 @@ class _OnboardingBodyState extends State<_OnboardingBody> {
                               colors: [Theme.of(context).colorScheme.primary, Theme.of(context).colorScheme.secondary],
                             ),
                             boxShadow: [
-                              BoxShadow(color: AppColors.pink.withOpacity(0.4), blurRadius: 25),
+                              BoxShadow(color: AppColors.pink.withValues(alpha: 0.4), blurRadius: 25),
                             ],
                           ),
                           child: Center(
@@ -213,7 +212,7 @@ class _ConnectedOrbsVisual extends StatelessWidget {
           width: 150, height: 2,
           decoration: BoxDecoration(
             gradient: LinearGradient(
-              colors: [AppColors.pink.withOpacity(0.5), AppColors.purple.withOpacity(0.5)],
+              colors: [AppColors.pink.withValues(alpha: 0.5), AppColors.purple.withValues(alpha: 0.5)],
             ),
           ),
         ),
@@ -228,7 +227,7 @@ class _ConnectedOrbsVisual extends StatelessWidget {
                   colors: [AppColors.pinkLight, AppColors.pink],
                   center: Alignment(-0.3, -0.3),
                 ),
-                boxShadow: [BoxShadow(color: AppColors.pink.withOpacity(0.5), blurRadius: 40)],
+                boxShadow: [BoxShadow(color: AppColors.pink.withValues(alpha: 0.5), blurRadius: 40)],
               ),
               child: const Center(child: Text('👤', style: TextStyle(fontSize: 36))),
             ),
@@ -246,7 +245,7 @@ class _ConnectedOrbsVisual extends StatelessWidget {
                   colors: [AppColors.lavender, AppColors.purple],
                   center: Alignment(-0.3, -0.3),
                 ),
-                boxShadow: [BoxShadow(color: AppColors.purple.withOpacity(0.5), blurRadius: 40)],
+                boxShadow: [BoxShadow(color: AppColors.purple.withValues(alpha: 0.5), blurRadius: 40)],
               ),
               child: const Center(child: Text('👤', style: TextStyle(fontSize: 36))),
             ),
@@ -270,8 +269,8 @@ class _EmotionWaveVisual extends StatelessWidget {
             width: 100, height: 100,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: AppColors.pink.withOpacity(0.2),
-              border: Border.all(color: AppColors.pink.withOpacity(0.3)),
+              color: AppColors.pink.withValues(alpha: 0.2),
+              border: Border.all(color: AppColors.pink.withValues(alpha: 0.3)),
             ),
             child: const Center(child: Text('💖', style: TextStyle(fontSize: 44))),
           ),
@@ -301,7 +300,7 @@ class _DoodlePainter extends CustomPainter {
       ..style = PaintingStyle.stroke
       ..maskFilter = const MaskFilter.blur(BlurStyle.solid, 3);
 
-    paint.color = AppColors.pinkLight.withOpacity(0.9);
+    paint.color = AppColors.pinkLight.withValues(alpha: 0.9);
     final path1 = Path()
       ..moveTo(30, 160)
       ..cubicTo(60, 100, 90, 80, 130, 110)
@@ -309,7 +308,7 @@ class _DoodlePainter extends CustomPainter {
       ..lineTo(270, 90);
     canvas.drawPath(path1, paint);
 
-    paint.color = AppColors.lavender.withOpacity(0.7);
+    paint.color = AppColors.lavender.withValues(alpha: 0.7);
     final path2 = Path()
       ..moveTo(20, 120)
       ..cubicTo(50, 140, 80, 90, 110, 70)
@@ -318,9 +317,9 @@ class _DoodlePainter extends CustomPainter {
     canvas.drawPath(path2, paint);
 
     canvas.drawCircle(const Offset(130, 110), 6,
-        Paint()..color = AppColors.pinkLight.withOpacity(0.8)..maskFilter = const MaskFilter.blur(BlurStyle.solid, 4));
+        Paint()..color = AppColors.pinkLight.withValues(alpha: 0.8)..maskFilter = const MaskFilter.blur(BlurStyle.solid, 4));
     canvas.drawCircle(const Offset(220, 60), 5,
-        Paint()..color = AppColors.lavender.withOpacity(0.7)..maskFilter = const MaskFilter.blur(BlurStyle.solid, 3));
+        Paint()..color = AppColors.lavender.withValues(alpha: 0.7)..maskFilter = const MaskFilter.blur(BlurStyle.solid, 3));
   }
 
   @override
@@ -348,7 +347,9 @@ class _PresenceVisualState extends State<_PresenceVisual> with TickerProviderSta
 
   @override
   void dispose() {
-    for (final c in _arcs) c.dispose();
+    for (final c in _arcs) {
+      c.dispose();
+    }
     super.dispose();
   }
 
@@ -370,7 +371,7 @@ class _PresenceVisualState extends State<_PresenceVisual> with TickerProviderSta
                   width: size, height: size,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    border: Border.all(color: Colors.white.withOpacity(0.08), style: BorderStyle.solid),
+                    border: Border.all(color: Colors.white.withValues(alpha: 0.08), style: BorderStyle.solid),
                   ),
                 ),
               ),
@@ -387,7 +388,7 @@ class _PresenceVisualState extends State<_PresenceVisual> with TickerProviderSta
                   decoration: BoxDecoration(
                     color: dots[i],
                     shape: BoxShape.circle,
-                    boxShadow: [BoxShadow(color: dots[i].withOpacity(0.6), blurRadius: 20)],
+                    boxShadow: [BoxShadow(color: dots[i].withValues(alpha: 0.6), blurRadius: 20)],
                   ),
                 ),
               );

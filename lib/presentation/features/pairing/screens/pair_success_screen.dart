@@ -57,8 +57,8 @@ class _PairSuccessScreenState extends State<PairSuccessScreen>
                           center: Alignment(-0.3, -0.3),
                         ),
                         boxShadow: [
-                          BoxShadow(color: AppColors.pink.withOpacity(0.5), blurRadius: 50),
-                          BoxShadow(color: AppColors.purple.withOpacity(0.3), blurRadius: 100),
+                          BoxShadow(color: AppColors.pink.withValues(alpha: 0.5), blurRadius: 50),
+                          BoxShadow(color: AppColors.purple.withValues(alpha: 0.3), blurRadius: 100),
                         ],
                       ),
                       child: const Center(child: Text('💞', style: TextStyle(fontSize: 54))),

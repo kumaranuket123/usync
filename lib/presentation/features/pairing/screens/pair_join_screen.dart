@@ -36,8 +36,12 @@ class _PairJoinBodyState extends State<_PairJoinBody> {
 
   @override
   void dispose() {
-    for (final c in _ctrls) c.dispose();
-    for (final f in _foci) f.dispose();
+    for (final c in _ctrls) {
+      c.dispose();
+    }
+    for (final f in _foci) {
+      f.dispose();
+    }
     super.dispose();
   }
 
@@ -95,9 +99,9 @@ class _PairJoinBodyState extends State<_PairJoinBody> {
                                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                                   focusedBorder: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(12),
-                                    borderSide: BorderSide(color: AppColors.pink.withOpacity(0.6), width: 1.5),
+                                    borderSide: BorderSide(color: AppColors.pink.withValues(alpha: 0.6), width: 1.5),
                                   ),
-                                  fillColor: AppColors.pink.withOpacity(0.08),
+                                  fillColor: AppColors.pink.withValues(alpha: 0.08),
                                 ),
                                 onChanged: (val) {
                                   if (val.isNotEmpty && i < 3) {

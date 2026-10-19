@@ -1,6 +1,5 @@
 import 'dart:typed_data';
 
-import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../../domain/entities/memory.dart';
 import '../../domain/repositories/i_memory_repository.dart';

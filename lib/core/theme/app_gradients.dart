@@ -40,32 +40,32 @@ abstract final class AppGradients {
 
   // ── Memory card overlays ──────────────────────────────────────
   static LinearGradient memoryCanvas = LinearGradient(
-    colors: [AppColors.pink.withOpacity(0.15), AppColors.purple.withOpacity(0.15)],
+    colors: [AppColors.pink.withValues(alpha: 0.15), AppColors.purple.withValues(alpha: 0.15)],
   );
 
   static LinearGradient memoryTouch = LinearGradient(
-    colors: [AppColors.cyan.withOpacity(0.10), AppColors.purple.withOpacity(0.15)],
+    colors: [AppColors.cyan.withValues(alpha: 0.10), AppColors.purple.withValues(alpha: 0.15)],
   );
 
   static LinearGradient memoryMood = LinearGradient(
-    colors: [AppColors.gold.withOpacity(0.08), AppColors.pink.withOpacity(0.12)],
+    colors: [AppColors.gold.withValues(alpha: 0.08), AppColors.pink.withValues(alpha: 0.12)],
   );
 
   static LinearGradient memoryMilestone = LinearGradient(
-    colors: [AppColors.cyan.withOpacity(0.08), const Color(0xFF0B4EDD).withOpacity(0.15)],
+    colors: [AppColors.cyan.withValues(alpha: 0.08), const Color(0xFF0B4EDD).withValues(alpha: 0.15)],
   );
 
   // ── Footer overlay (bottom-up fade) ───────────────────────────
   static LinearGradient footerOverlay = LinearGradient(
     begin: Alignment.bottomCenter,
     end: Alignment.topCenter,
-    colors: [AppColors.bg1, AppColors.bg1.withOpacity(0)],
+    colors: [AppColors.bg1, AppColors.bg1.withValues(alpha: 0)],
   );
 
   // ── Header overlay (top-down fade) ───────────────────────────
   static LinearGradient headerOverlay = LinearGradient(
     begin: Alignment.topCenter,
     end: Alignment.bottomCenter,
-    colors: [AppColors.bg1.withOpacity(0.95), AppColors.bg1.withOpacity(0)],
+    colors: [AppColors.bg1.withValues(alpha: 0.95), AppColors.bg1.withValues(alpha: 0)],
   );
 }

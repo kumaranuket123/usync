@@ -27,9 +27,9 @@ final class OceanBlueTheme {
       colors: [Color(0xFF0575E6), Color(0xFF021B79)],
     ),
     gradientTextColors: const [Color(0xFF00D4FF), Color(0xFF7FEFFF), Color(0xFF0575E6)],
-    primaryGlow: [BoxShadow(color: const Color(0xFF00D4FF).withOpacity(0.50), blurRadius: 30)],
-    cardGlow: [BoxShadow(color: const Color(0xFF0575E6).withOpacity(0.15), blurRadius: 20)],
-    orbGlow: [BoxShadow(color: const Color(0xFF00D4FF).withOpacity(0.40), blurRadius: 50)],
+    primaryGlow: [BoxShadow(color: const Color(0xFF00D4FF).withValues(alpha: 0.50), blurRadius: 30)],
+    cardGlow: [BoxShadow(color: const Color(0xFF0575E6).withValues(alpha: 0.15), blurRadius: 20)],
+    orbGlow: [BoxShadow(color: const Color(0xFF00D4FF).withValues(alpha: 0.40), blurRadius: 50)],
   );
 
   static const List<Color> swatches = [

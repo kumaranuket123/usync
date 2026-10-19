@@ -85,8 +85,8 @@ class _PartnerOrbState extends State<PartnerOrb> with SingleTickerProviderStateM
               shape: BoxShape.circle,
               gradient: const RadialGradient(colors: [AppColors.bg2, AppColors.bg1]),
               boxShadow: [
-                BoxShadow(color: AppColors.pink.withOpacity(0.35), blurRadius: 50),
-                BoxShadow(color: AppColors.purple.withOpacity(0.20), blurRadius: 100),
+                BoxShadow(color: AppColors.pink.withValues(alpha: 0.35), blurRadius: 50),
+                BoxShadow(color: AppColors.purple.withValues(alpha: 0.20), blurRadius: 100),
               ],
             ),
             child: Center(

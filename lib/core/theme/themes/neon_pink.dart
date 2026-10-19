@@ -27,9 +27,9 @@ final class NeonPinkTheme {
       colors: [Color(0xFFFF2D78), Color(0xFF6B1FB2)],
     ),
     gradientTextColors: const [Color(0xFFFF6EC7), Color(0xFFFFB3D9), Color(0xFFFF2D78)],
-    primaryGlow: [BoxShadow(color: const Color(0xFFFF2D78).withOpacity(0.55), blurRadius: 30)],
-    cardGlow: [BoxShadow(color: const Color(0xFF6B1FB2).withOpacity(0.15), blurRadius: 20)],
-    orbGlow: [BoxShadow(color: const Color(0xFFFF2D78).withOpacity(0.45), blurRadius: 50)],
+    primaryGlow: [BoxShadow(color: const Color(0xFFFF2D78).withValues(alpha: 0.55), blurRadius: 30)],
+    cardGlow: [BoxShadow(color: const Color(0xFF6B1FB2).withValues(alpha: 0.15), blurRadius: 20)],
+    orbGlow: [BoxShadow(color: const Color(0xFFFF2D78).withValues(alpha: 0.45), blurRadius: 50)],
   );
 
   static const List<Color> swatches = [

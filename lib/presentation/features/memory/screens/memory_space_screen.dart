@@ -153,8 +153,8 @@ class _EmptyState extends StatelessWidget {
                 width: 120, height: 120,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  gradient: RadialGradient(colors: [AppColors.purple.withOpacity(0.1), Colors.transparent]),
-                  border: Border.all(color: Colors.white.withOpacity(0.1), style: BorderStyle.solid),
+                  gradient: RadialGradient(colors: [AppColors.purple.withValues(alpha: 0.1), Colors.transparent]),
+                  border: Border.all(color: Colors.white.withValues(alpha: 0.1), style: BorderStyle.solid),
                 ),
                 child: const Center(child: Text('🫧', style: TextStyle(fontSize: 50))),
               ),

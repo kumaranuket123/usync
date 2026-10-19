@@ -50,7 +50,7 @@ class CanvasStrokeModel extends CanvasStroke {
   Map<String, dynamic> toJson() => {
     'coupleId':   coupleId,
     'userId':     userId,
-    'color':      color.value.toString(),
+    'color':      color.toARGB32().toString(),
     'width':      width,
     'timestamp':  timestamp.millisecondsSinceEpoch,
     'isEraser':   isEraser,

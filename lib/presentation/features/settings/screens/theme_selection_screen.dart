@@ -70,7 +70,7 @@ class ThemeSelectionScreen extends StatelessWidget {
                           decoration: BoxDecoration(
                             borderRadius: BorderRadius.circular(24),
                             border: Border.all(
-                              color: selected ? Colors.white.withOpacity(0.6) : Colors.transparent,
+                              color: selected ? Colors.white.withValues(alpha: 0.6) : Colors.transparent,
                               width: 2,
                             ),
                           ),
@@ -84,7 +84,7 @@ class ThemeSelectionScreen extends StatelessWidget {
                                     child: Container(decoration: BoxDecoration(gradient: entry.gradient)),
                                   ),
                                 ),
-                                Positioned.fill(child: Container(color: Colors.black.withOpacity(0.25))),
+                                Positioned.fill(child: Container(color: Colors.black.withValues(alpha: 0.25))),
                                 Padding(
                                   padding: const EdgeInsets.all(24),
                                   child: Column(
@@ -99,7 +99,7 @@ class ThemeSelectionScreen extends StatelessWidget {
                                             decoration: BoxDecoration(
                                               shape: BoxShape.circle,
                                               color: selected ? Colors.white : Colors.transparent,
-                                              border: Border.all(color: Colors.white.withOpacity(0.4), width: 2),
+                                              border: Border.all(color: Colors.white.withValues(alpha: 0.4), width: 2),
                                             ),
                                             child: selected
                                                 ? const Center(child: Text('✓', style: TextStyle(color: Color(0xFFFF2D78), fontSize: 14, fontWeight: FontWeight.w700)))
@@ -114,7 +114,7 @@ class ThemeSelectionScreen extends StatelessWidget {
                                           decoration: BoxDecoration(
                                             color: c,
                                             shape: BoxShape.circle,
-                                            border: Border.all(color: Colors.white.withOpacity(0.3), width: 1.5),
+                                            border: Border.all(color: Colors.white.withValues(alpha: 0.3), width: 1.5),
                                           ),
                                         )).toList(),
                                       ),

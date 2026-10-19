@@ -64,8 +64,8 @@ class _UsyncBottomNav extends StatelessWidget {
                               colors: [primary, Theme.of(context).colorScheme.secondary],
                             ),
                             boxShadow: [
-                              BoxShadow(color: primary.withOpacity(0.5), blurRadius: 22),
-                              BoxShadow(color: primary.withOpacity(0.3), blurRadius: 44),
+                              BoxShadow(color: primary.withValues(alpha: 0.5), blurRadius: 22),
+                              BoxShadow(color: primary.withValues(alpha: 0.3), blurRadius: 44),
                             ],
                           ),
                           child: Center(
@@ -91,7 +91,7 @@ class _UsyncBottomNav extends StatelessWidget {
                         style: TextStyle(
                           fontSize: 22,
                           shadows: isActive
-                              ? [Shadow(color: primary.withOpacity(0.8), blurRadius: 12)]
+                              ? [Shadow(color: primary.withValues(alpha: 0.8), blurRadius: 12)]
                               : null,
                         ),
                       ),

@@ -9,7 +9,6 @@ import '../../../../domain/repositories/i_auth_repository.dart';
 import '../../../../domain/repositories/i_couple_repository.dart';
 import '../../../shared/painters/canvas_stroke_painter.dart';
 import '../../../shared/widgets/live_indicator.dart';
-import '../../../shared/widgets/loading_dots.dart';
 import '../../../shared/widgets/neon_back_button.dart';
 import '../bloc/canvas_bloc.dart';
 
@@ -93,7 +92,7 @@ class _CanvasBodyState extends State<_CanvasBody> {
                     gradient: LinearGradient(
                       begin: Alignment.topCenter,
                       end: Alignment.bottomCenter,
-                      colors: [AppColors.bg1.withOpacity(0.95), Colors.transparent],
+                      colors: [AppColors.bg1.withValues(alpha: 0.95), Colors.transparent],
                     ),
                   ),
                   child: SafeArea(
@@ -125,7 +124,7 @@ class _CanvasBodyState extends State<_CanvasBody> {
                       color: const Color(0xE00A0A1F),
                       borderRadius: BorderRadius.circular(30),
                       border: Border.all(color: AppColors.glassBorder),
-                      boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.4), blurRadius: 32)],
+                      boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.4), blurRadius: 32)],
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
@@ -170,7 +169,7 @@ class _ToolBtn extends StatelessWidget {
         duration: const Duration(milliseconds: 200),
         width: 44, height: 44,
         decoration: BoxDecoration(
-          color: active ? AppColors.pink.withOpacity(0.2) : Colors.transparent,
+          color: active ? AppColors.pink.withValues(alpha: 0.2) : Colors.transparent,
           shape: BoxShape.circle,
         ),
         child: Center(child: Text(icon, style: const TextStyle(fontSize: 20))),
@@ -205,7 +204,7 @@ class _ColorDot extends StatelessWidget {
           shape:  BoxShape.circle,
           border: Border.all(color: selected ? Colors.white : Colors.transparent, width: 2),
         ),
-        transform: selected ? (Matrix4.identity()..scale(1.25)) : Matrix4.identity(),
+        transform: selected ? (Matrix4.identity()..scaleByDouble(1.25, 1.25, 1.25, 1)) : Matrix4.identity(),
         transformAlignment: Alignment.center,
       ),
     );

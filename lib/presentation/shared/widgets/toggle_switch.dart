@@ -22,7 +22,7 @@ class ToggleSwitch extends StatelessWidget {
               ? LinearGradient(colors: [primary, Theme.of(context).colorScheme.secondary])
               : null,
           boxShadow: value
-              ? [BoxShadow(color: primary.withOpacity(0.4), blurRadius: 12)]
+              ? [BoxShadow(color: primary.withValues(alpha: 0.4), blurRadius: 12)]
               : null,
         ),
         child: AnimatedAlign(

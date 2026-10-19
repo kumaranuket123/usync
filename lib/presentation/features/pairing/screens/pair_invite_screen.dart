@@ -77,7 +77,7 @@ class _PairInviteBodyState extends State<_PairInviteBody> {
                                   decoration: BoxDecoration(
                                     shape: BoxShape.circle,
                                     gradient: const RadialGradient(colors: [AppColors.pinkLight, AppColors.pink], center: Alignment(-0.3, -0.3)),
-                                    boxShadow: [BoxShadow(color: AppColors.pink.withOpacity(0.6), blurRadius: 30)],
+                                    boxShadow: [BoxShadow(color: AppColors.pink.withValues(alpha: 0.6), blurRadius: 30)],
                                   ),
                                   child: const Center(child: Text('💖', style: TextStyle(fontSize: 34))),
                                 ),
@@ -92,7 +92,7 @@ class _PairInviteBodyState extends State<_PairInviteBody> {
                                   decoration: BoxDecoration(
                                     shape: BoxShape.circle,
                                     gradient: const RadialGradient(colors: [AppColors.lavender, AppColors.purple], center: Alignment(-0.3, -0.3)),
-                                    boxShadow: [BoxShadow(color: AppColors.purple.withOpacity(0.6), blurRadius: 30)],
+                                    boxShadow: [BoxShadow(color: AppColors.purple.withValues(alpha: 0.6), blurRadius: 30)],
                                   ),
                                   child: const Center(child: Text('💜', style: TextStyle(fontSize: 34))),
                                 ),
@@ -124,7 +124,7 @@ class _PairInviteBodyState extends State<_PairInviteBody> {
                                 decoration: BoxDecoration(
                                   color: AppColors.glass,
                                   borderRadius: BorderRadius.circular(22),
-                                  border: Border.all(color: AppColors.pink.withOpacity(0.4)),
+                                  border: Border.all(color: AppColors.pink.withValues(alpha: 0.4)),
                                 ),
                                 child: Column(
                                   children: [

@@ -181,7 +181,7 @@ class _WidgetCard extends StatelessWidget {
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 gradient: RadialGradient(
-                  colors: [glowColor.withOpacity(0.4), Colors.transparent],
+                  colors: [glowColor.withValues(alpha: 0.4), Colors.transparent],
                 ),
               ),
             ),
@@ -221,7 +221,7 @@ class _DoodlePreviewPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = const Color(0xFFFF6EC7).withOpacity(0.8)
+      ..color = const Color(0xFFFF6EC7).withValues(alpha: 0.8)
       ..strokeWidth = 2
       ..strokeCap = StrokeCap.round
       ..style = PaintingStyle.stroke

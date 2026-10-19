@@ -81,10 +81,10 @@ class _NotifItem extends StatelessWidget {
         margin: const EdgeInsets.only(bottom: 9),
         padding: const EdgeInsets.all(15),
         decoration: BoxDecoration(
-          color: item.isRead ? AppColors.glass : AppColors.pink.withOpacity(0.055),
+          color: item.isRead ? AppColors.glass : AppColors.pink.withValues(alpha: 0.055),
           borderRadius: BorderRadius.circular(18),
           border: Border.all(
-            color: item.isRead ? AppColors.glassBorder : AppColors.pink.withOpacity(0.15),
+            color: item.isRead ? AppColors.glassBorder : AppColors.pink.withValues(alpha: 0.15),
           ),
         ),
         child: Row(
@@ -116,7 +116,7 @@ class _NotifItem extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: AppColors.pink,
                   shape: BoxShape.circle,
-                  boxShadow: [BoxShadow(color: AppColors.pink.withOpacity(0.7), blurRadius: 7)],
+                  boxShadow: [BoxShadow(color: AppColors.pink.withValues(alpha: 0.7), blurRadius: 7)],
                 ),
               ),
             ],

@@ -64,10 +64,10 @@ class _MoodBubbleState extends State<MoodBubble> with SingleTickerProviderStateM
             borderRadius: 26,
             opacity:      widget.isSelected ? 0.0 : 0.045,
             borderColor:  widget.isSelected
-                ? AppColors.pink.withOpacity(0.4)
+                ? AppColors.pink.withValues(alpha: 0.4)
                 : AppColors.glassBorder,
             boxShadow: widget.isSelected
-                ? [BoxShadow(color: AppColors.pink.withOpacity(0.30), blurRadius: 25)]
+                ? [BoxShadow(color: AppColors.pink.withValues(alpha: 0.30), blurRadius: 25)]
                 : null,
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 22),
             child: Column(

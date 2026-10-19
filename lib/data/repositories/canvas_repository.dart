@@ -19,7 +19,7 @@ class CanvasRepository implements ICanvasRepository {
     await rtdbSource.strokeRef(stroke.coupleId, stroke.id).set({
       'coupleId':   stroke.coupleId,
       'userId':     stroke.userId,
-      'color':      stroke.color.value.toString(),
+      'color':      stroke.color.toARGB32().toString(),
       'width':      stroke.width,
       'isEraser':   stroke.isEraser,
       'isComplete': false,
@@ -37,7 +37,7 @@ class CanvasRepository implements ICanvasRepository {
     await rtdbSource.strokeRef(stroke.coupleId, stroke.id).set({
       'coupleId':   stroke.coupleId,
       'userId':     stroke.userId,
-      'color':      stroke.color.value.toString(),
+      'color':      stroke.color.toARGB32().toString(),
       'width':      stroke.width,
       'isEraser':   stroke.isEraser,
       'isComplete': true,
@@ -57,7 +57,7 @@ class CanvasRepository implements ICanvasRepository {
   Stream<CanvasStroke> watchRemoteStrokes(String coupleId, String excludeUserId) {
     final ref = rtdbSource.canvasRef(coupleId).child('strokes');
 
-    CanvasStroke? _parse(DatabaseEvent event) {
+    CanvasStroke? parse(DatabaseEvent event) {
       final val = event.snapshot.value;
       if (val == null) return null;
       final data   = Map<String, dynamic>.from(val as Map);
@@ -66,8 +66,8 @@ class CanvasRepository implements ICanvasRepository {
     }
 
     // Merge onChildAdded (new strokes) + onChildChanged (point updates)
-    final added   = ref.onChildAdded.map(_parse).where((s) => s != null).cast<CanvasStroke>();
-    final changed = ref.onChildChanged.map(_parse).where((s) => s != null).cast<CanvasStroke>();
+    final added   = ref.onChildAdded.map(parse).where((s) => s != null).cast<CanvasStroke>();
+    final changed = ref.onChildChanged.map(parse).where((s) => s != null).cast<CanvasStroke>();
 
     return added.mergeWith([changed]);
   }
@@ -86,7 +86,7 @@ class CanvasRepository implements ICanvasRepository {
         .canvasClearedRef(coupleId)
         .onValue
         .where((event) => event.snapshot.value != null)
-        .map((_) => null);
+        .map((_) {});
   }
 
   @override

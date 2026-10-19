@@ -14,7 +14,7 @@ class GlowRingPainter extends CustomPainter {
     final opacity = (1.0 - progress).clamp(0.0, 1.0);
 
     final paint = Paint()
-      ..color = color.withOpacity(opacity * 0.5)
+      ..color = color.withValues(alpha: opacity * 0.5)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.5;
 

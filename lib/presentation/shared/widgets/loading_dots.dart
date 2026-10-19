@@ -42,7 +42,7 @@ class _LoadingDotsState extends State<LoadingDots> with SingleTickerProviderStat
               margin: const EdgeInsets.symmetric(horizontal: 3),
               width: 8, height: 8,
               decoration: BoxDecoration(
-                color:  (widget.color ?? colors[i]).withOpacity(0.7 + 0.3 * scale),
+                color:  (widget.color ?? colors[i]).withValues(alpha: 0.7 + 0.3 * scale),
                 shape:  BoxShape.circle,
               ),
               transform: Matrix4.diagonal3Values(scale, scale, 1),

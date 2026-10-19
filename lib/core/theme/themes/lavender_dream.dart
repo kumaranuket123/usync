@@ -27,9 +27,9 @@ final class LavenderDreamTheme {
       colors: [Color(0xFF9B59B6), Color(0xFFC77DFF)],
     ),
     gradientTextColors: const [Color(0xFFC77DFF), Color(0xFF9B59B6), Color(0xFFE8C5FF)],
-    primaryGlow: [BoxShadow(color: const Color(0xFFC77DFF).withOpacity(0.45), blurRadius: 30)],
-    cardGlow: [BoxShadow(color: const Color(0xFF9B59B6).withOpacity(0.15), blurRadius: 20)],
-    orbGlow: [BoxShadow(color: const Color(0xFFC77DFF).withOpacity(0.35), blurRadius: 50)],
+    primaryGlow: [BoxShadow(color: const Color(0xFFC77DFF).withValues(alpha: 0.45), blurRadius: 30)],
+    cardGlow: [BoxShadow(color: const Color(0xFF9B59B6).withValues(alpha: 0.15), blurRadius: 20)],
+    orbGlow: [BoxShadow(color: const Color(0xFFC77DFF).withValues(alpha: 0.35), blurRadius: 50)],
   );
 
   static const List<Color> swatches = [

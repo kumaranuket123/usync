@@ -80,7 +80,7 @@ class _TouchSyncBodyState extends State<_TouchSyncBody> {
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     gradient: RadialGradient(
-                      colors: [AppColors.cyan.withOpacity(0.04), Colors.transparent],
+                      colors: [AppColors.cyan.withValues(alpha: 0.04), Colors.transparent],
                     ),
                   ),
                 ),
@@ -134,7 +134,7 @@ class _TouchSyncBodyState extends State<_TouchSyncBody> {
                                     fontSize: 90,
                                     shadows: [
                                       Shadow(
-                                        color:      isOwner ? AppColors.cyan : AppColors.cyan.withOpacity(0.65),
+                                        color:      isOwner ? AppColors.cyan : AppColors.cyan.withValues(alpha: 0.65),
                                         blurRadius: isOwner ? 60 : 25,
                                       ),
                                     ],

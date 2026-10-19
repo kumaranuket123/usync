@@ -207,9 +207,9 @@ class _NavRow extends StatelessWidget {
         margin: const EdgeInsets.only(bottom: 5),
         padding: const EdgeInsets.all(13),
         decoration: BoxDecoration(
-          color: AppColors.glass.withOpacity(0.03),
+          color: AppColors.glass.withValues(alpha: 0.03),
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: AppColors.glassBorder.withOpacity(0.5)),
+          border: Border.all(color: AppColors.glassBorder.withValues(alpha: 0.5)),
         ),
         child: Row(
           children: [

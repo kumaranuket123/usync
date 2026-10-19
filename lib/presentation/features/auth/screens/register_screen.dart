@@ -88,7 +88,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               width: 2,
                             ),
                             boxShadow: selected
-                                ? [BoxShadow(color: AppColors.pink.withOpacity(0.5), blurRadius: 16)]
+                                ? [BoxShadow(color: AppColors.pink.withValues(alpha: 0.5), blurRadius: 16)]
                                 : null,
                           ),
                           child: Center(child: Text(av, style: const TextStyle(fontSize: 26))),

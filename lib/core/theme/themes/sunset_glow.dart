@@ -27,9 +27,9 @@ final class SunsetGlowTheme {
       colors: [Color(0xFFFF416C), Color(0xFFFF4B2B), Color(0xFFFFA500)],
     ),
     gradientTextColors: const [Color(0xFFFF416C), Color(0xFFFF4B2B), Color(0xFFFFD700)],
-    primaryGlow: [BoxShadow(color: const Color(0xFFFF416C).withOpacity(0.45), blurRadius: 30)],
-    cardGlow: [BoxShadow(color: const Color(0xFFFF4B2B).withOpacity(0.15), blurRadius: 20)],
-    orbGlow: [BoxShadow(color: const Color(0xFFFF416C).withOpacity(0.35), blurRadius: 50)],
+    primaryGlow: [BoxShadow(color: const Color(0xFFFF416C).withValues(alpha: 0.45), blurRadius: 30)],
+    cardGlow: [BoxShadow(color: const Color(0xFFFF4B2B).withValues(alpha: 0.15), blurRadius: 20)],
+    orbGlow: [BoxShadow(color: const Color(0xFFFF416C).withValues(alpha: 0.35), blurRadius: 50)],
   );
 
   static const List<Color> swatches = [

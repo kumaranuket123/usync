@@ -68,7 +68,7 @@ class MemoryDetailScreen extends StatelessWidget {
                     gradient: LinearGradient(
                       begin: Alignment.bottomCenter,
                       end:   Alignment.topCenter,
-                      colors: [AppColors.bg1, AppColors.bg1.withOpacity(0)],
+                      colors: [AppColors.bg1, AppColors.bg1.withValues(alpha: 0)],
                     ),
                   ),
                   child: Column(
@@ -111,9 +111,9 @@ class _ActionBtn extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 15),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(15),
-        color: secondary ? AppColors.pink.withOpacity(0.2) : AppColors.glass,
+        color: secondary ? AppColors.pink.withValues(alpha: 0.2) : AppColors.glass,
         border: Border.all(
-          color: secondary ? AppColors.pink.withOpacity(0.3) : AppColors.glassBorder,
+          color: secondary ? AppColors.pink.withValues(alpha: 0.3) : AppColors.glassBorder,
         ),
       ),
       child: Center(

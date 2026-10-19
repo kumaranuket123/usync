@@ -40,7 +40,6 @@ class _GlassInputState extends State<GlassInput> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
