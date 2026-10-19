@@ -45,19 +45,24 @@ class _CanvasBodyState extends State<_CanvasBody> {
   }
 
   Future<void> _mount() async {
-    final uid  = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null) return;
-    final user = await GetIt.I<IAuthRepository>().getCurrentUser();
-    if (user?.coupleId == null || !mounted) return;
-    final couple    = await GetIt.I<ICoupleRepository>().getCouple(user!.coupleId!);
-    final partnerId = couple.partnerIdFor(uid);
-    final partner   = await GetIt.I<IAuthRepository>().getUserById(partnerId);
-    if (!mounted) return;
-    setState(() => _partnerName = partner?.username ?? 'Partner');
-    context.read<CanvasBloc>().add(CanvasMounted(
-      coupleId: couple.id,
-      userId:   uid,
-    ));
+    try {
+      final uid  = FirebaseAuth.instance.currentUser?.uid;
+      if (uid == null) return;
+      final user = await GetIt.I<IAuthRepository>().getCurrentUser();
+      if (user?.coupleId == null || !mounted) return;
+      final couple  = await GetIt.I<ICoupleRepository>().getCouple(user!.coupleId!);
+      final partner = await GetIt.I<IAuthRepository>().getUserById(couple.partnerIdFor(uid));
+      if (!mounted) return;
+      setState(() => _partnerName = partner?.username ?? 'Partner');
+      context.read<CanvasBloc>().add(CanvasMounted(coupleId: couple.id, userId: uid));
+    } catch (err) {
+      debugPrint('Canvas mount failed: $err');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: const Text('Could not connect the shared canvas'),
+        action: SnackBarAction(label: 'Retry', onPressed: _mount),
+      ));
+    }
   }
 
   @override
@@ -65,21 +70,35 @@ class _CanvasBodyState extends State<_CanvasBody> {
     return Scaffold(
       backgroundColor: AppColors.bg1,
       body: BlocBuilder<CanvasBloc, CanvasState>(
+        // The canvas below has its own builder; this one only drives the toolbar.
+        buildWhen: (a, b) =>
+            a.activeTool != b.activeTool ||
+            a.activeColor != b.activeColor ||
+            a.isSaving != b.isSaving,
         builder: (context, state) {
           return Stack(
             children: [
-              // Drawing area
+              // Drawing area — repaints per point without rebuilding the toolbar.
               Positioned.fill(
                 child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
                   onPanStart: (d) => context.read<CanvasBloc>().add(StrokeStarted(d.localPosition)),
                   onPanUpdate:(d) => context.read<CanvasBloc>().add(StrokeUpdated(d.localPosition)),
                   onPanEnd:   (_) => context.read<CanvasBloc>().add(StrokeEnded()),
-                  child: CustomPaint(
-                    painter: CanvasStrokePainter(
-                      strokes:      state.strokes + state.remoteStrokes,
-                      activeStroke: state.activeStroke,
+                  onPanCancel: () => context.read<CanvasBloc>().add(StrokeEnded()),
+                  child: RepaintBoundary(
+                    child: BlocBuilder<CanvasBloc, CanvasState>(
+                      buildWhen: (a, b) =>
+                          !identical(a.committed, b.committed) ||
+                          !identical(a.activeStroke, b.activeStroke),
+                      builder: (context, drawing) => CustomPaint(
+                        size: Size.infinite,
+                        painter: CanvasStrokePainter(
+                          strokes:      drawing.committed,
+                          activeStroke: drawing.activeStroke,
+                        ),
+                      ),
                     ),
-                    child: Container(color: Colors.transparent),
                   ),
                 ),
               ),

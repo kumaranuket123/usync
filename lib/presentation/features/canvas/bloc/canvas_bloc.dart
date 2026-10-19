@@ -17,17 +17,27 @@ class CanvasBloc extends Bloc<CanvasEvent, CanvasState> {
     on<StrokeStarted>(_onStart);
     on<StrokeUpdated>(_onUpdate);
     on<StrokeEnded>(_onEnd);
+    on<_FlushRequested>((_, __) => _flush());
     on<ColorChanged>((e, emit) => emit(state.copyWith(activeColor: e.color, activeTool: CanvasTool.pen)));
     on<ToolChanged>((e, emit)  => emit(state.copyWith(activeTool: e.tool)));
     on<CanvasCleared>(_onClear);
     on<MemorySaved>(_onSave);
     on<RemoteStrokeReceived>(_onRemote);
-    on<RemoteCanvasCleared>((_, emit) => emit(const CanvasState()));
+    on<RemoteCanvasCleared>(
+      (_, emit) => emit(state.copyWith(strokes: [], remoteStrokes: [], clearActive: true)),
+    );
   }
+
+  /// How often points drawn since the last write are sent to the partner.
+  static const _flushInterval = Duration(milliseconds: 80);
 
   final ICanvasRepository       canvasRepository;
   StreamSubscription<CanvasStroke>? _remoteSub;
-  StreamSubscription<void>?         _clearSub;
+  StreamSubscription<int>?          _clearSub;
+  Timer?  _flushTimer;
+  final   _pending = <Offset>[];
+  int     _seq = 0;
+  int?    _clearedAt; // null until the first value arrives (the baseline)
   String _coupleId = '';
   String _userId   = '';
   final _uuid = const Uuid();
@@ -36,17 +46,30 @@ class CanvasBloc extends Bloc<CanvasEvent, CanvasState> {
     _coupleId = e.coupleId;
     _userId   = e.userId;
 
-    _remoteSub = canvasRepository
-        .watchRemoteStrokes(_coupleId, _userId)
-        .listen((stroke) { if (!isClosed) add(RemoteStrokeReceived(stroke)); });
+    await _remoteSub?.cancel();
+    await _clearSub?.cancel();
 
-    _clearSub = canvasRepository
-        .watchCanvasCleared(_coupleId)
-        .listen((_) { if (!isClosed) add(RemoteCanvasCleared()); });
+    _remoteSub = canvasRepository.watchRemoteStrokes(_coupleId, _userId).listen(
+      (stroke) { if (!isClosed) add(RemoteStrokeReceived(stroke)); },
+      onError: (Object err) => debugPrint('Canvas stroke stream error: $err'),
+    );
+
+    // The first value is the existing clearedAt (or 0), which is only a baseline —
+    // treating it as a clear would wipe strokes that were just replayed.
+    _clearSub = canvasRepository.watchCanvasCleared(_coupleId).listen(
+      (ts) {
+        final baseline = _clearedAt;
+        _clearedAt = ts;
+        if (baseline != null && ts != baseline && !isClosed) add(RemoteCanvasCleared());
+      },
+      onError: (Object err) => debugPrint('Canvas clear stream error: $err'),
+    );
+
+    emit(state.copyWith(isReady: true));
   }
 
   void _onStart(StrokeStarted e, Emitter<CanvasState> emit) {
-    // No RTDB write here — collect points locally until finger lifts.
+    if (!state.isReady) return;
     final stroke = CanvasStroke(
       id:        _uuid.v4(),
       coupleId:  _coupleId,
@@ -58,27 +81,50 @@ class CanvasBloc extends Bloc<CanvasEvent, CanvasState> {
       points:    [e.offset],
     );
     emit(state.copyWith(activeStroke: stroke));
+
+    _pending..clear()..add(e.offset);
+    _seq = 0;
+    _guard(canvasRepository.pushStroke(stroke));
+    _flushTimer?.cancel();
+    _flushTimer = Timer.periodic(_flushInterval, (_) {
+      if (!isClosed) add(_FlushRequested());
+    });
   }
 
   void _onUpdate(StrokeUpdated e, Emitter<CanvasState> emit) {
-    // No RTDB write — append to local active stroke only.
-    if (state.activeStroke == null) return;
-    emit(state.copyWith(activeStroke: state.activeStroke!.appendPoint(e.offset)));
+    final active = state.activeStroke;
+    if (active == null) return;
+    _pending.add(e.offset);
+    emit(state.copyWith(activeStroke: active.appendPoint(e.offset)));
   }
 
   Future<void> _onEnd(StrokeEnded _, Emitter<CanvasState> emit) async {
-    if (state.activeStroke == null) return;
-    final completed = state.activeStroke!.complete();
+    final active = state.activeStroke;
+    if (active == null) return;
+    _flushTimer?.cancel();
+    _flush(strokeId: active.id);
+    final completed = active.complete();
     emit(state.copyWith(strokes: [...state.strokes, completed], clearActive: true));
-    // Push the complete stroke with all points in a single RTDB call.
-    if (_coupleId.isNotEmpty) {
-      canvasRepository.pushCompleteStroke(completed);
-    }
+    _guard(canvasRepository.completeStroke(_coupleId, completed.id));
+  }
+
+  /// Sends points collected since the last flush as one chunk.
+  void _flush({String? strokeId}) {
+    final id = strokeId ?? state.activeStroke?.id;
+    if (id == null || _pending.isEmpty) return;
+    final batch = List<Offset>.of(_pending);
+    _pending.clear();
+    _guard(canvasRepository.pushStrokeChunk(_coupleId, id, _seq++, batch));
   }
 
   Future<void> _onClear(CanvasCleared _, Emitter<CanvasState> emit) async {
-    await canvasRepository.clearCanvas(_coupleId);
-    emit(const CanvasState());
+    emit(state.copyWith(strokes: [], remoteStrokes: [], clearActive: true));
+    try {
+      // Remember our own timestamp so its echo isn't treated as a remote clear.
+      _clearedAt = await canvasRepository.clearCanvas(_coupleId);
+    } catch (err) {
+      debugPrint('Canvas clear failed: $err');
+    }
   }
 
   Future<void> _onSave(MemorySaved e, Emitter<CanvasState> emit) async {
@@ -88,7 +134,7 @@ class CanvasBloc extends Bloc<CanvasEvent, CanvasState> {
   }
 
   void _onRemote(RemoteStrokeReceived e, Emitter<CanvasState> emit) {
-    final current = List<CanvasStroke>.from(state.remoteStrokes);
+    final current = List<CanvasStroke>.of(state.remoteStrokes);
     final idx     = current.indexWhere((s) => s.id == e.stroke.id);
     if (idx >= 0) {
       current[idx] = e.stroke;
@@ -98,8 +144,14 @@ class CanvasBloc extends Bloc<CanvasEvent, CanvasState> {
     emit(state.copyWith(remoteStrokes: current));
   }
 
+  /// Network writes are fire-and-forget for the UI, but failures must not be
+  /// silently lost as unhandled async errors.
+  void _guard(Future<void> write) =>
+      write.catchError((Object err) => debugPrint('Canvas write failed: $err'));
+
   @override
   Future<void> close() {
+    _flushTimer?.cancel();
     _remoteSub?.cancel();
     _clearSub?.cancel();
     return super.close();

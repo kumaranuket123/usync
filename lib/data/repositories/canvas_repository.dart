@@ -1,8 +1,8 @@
 import 'dart:typed_data';
-
-import 'package:rxdart/rxdart.dart';
+import 'dart:ui';
 
 import 'package:firebase_database/firebase_database.dart';
+import 'package:rxdart/rxdart.dart';
 
 import '../../domain/entities/canvas_stroke.dart';
 import '../../domain/repositories/i_canvas_repository.dart';
@@ -10,43 +10,36 @@ import '../datasources/remote/rtdb_source.dart';
 import '../models/canvas_stroke_model.dart';
 
 class CanvasRepository implements ICanvasRepository {
-  CanvasRepository({required this.rtdbSource, Object? storage});
+  CanvasRepository({required this.rtdbSource});
 
   final RtdbSource rtdbSource;
 
   @override
-  Future<void> pushStroke(CanvasStroke stroke) async {
-    await rtdbSource.strokeRef(stroke.coupleId, stroke.id).set({
-      'coupleId':   stroke.coupleId,
-      'userId':     stroke.userId,
-      'color':      stroke.color.toARGB32().toString(),
-      'width':      stroke.width,
-      'isEraser':   stroke.isEraser,
-      'isComplete': false,
-      'timestamp':  stroke.timestamp.millisecondsSinceEpoch,
-    });
-  }
+  Future<void> pushStroke(CanvasStroke stroke) =>
+      rtdbSource.strokeRef(stroke.coupleId, stroke.id).set({
+        'coupleId':   stroke.coupleId,
+        'userId':     stroke.userId,
+        'color':      stroke.color.toARGB32().toString(),
+        'width':      stroke.width,
+        'isEraser':   stroke.isEraser,
+        'isComplete': false,
+        'timestamp':  stroke.timestamp.millisecondsSinceEpoch,
+      });
 
   @override
-  Future<void> pushStrokePoint(String coupleId, String strokeId, double x, double y) =>
-      rtdbSource.strokePointsRef(coupleId, strokeId).push().set({'x': x, 'y': y});
-
-  @override
-  Future<void> pushCompleteStroke(CanvasStroke stroke) async {
-    // Write the full stroke with ordered points in a single RTDB call.
-    await rtdbSource.strokeRef(stroke.coupleId, stroke.id).set({
-      'coupleId':   stroke.coupleId,
-      'userId':     stroke.userId,
-      'color':      stroke.color.toARGB32().toString(),
-      'width':      stroke.width,
-      'isEraser':   stroke.isEraser,
-      'isComplete': true,
-      'timestamp':  stroke.timestamp.millisecondsSinceEpoch,
-      // Plain list — no push-key scrambling, always correct order.
-      'points': stroke.points
-          .map((o) => {'x': o.dx, 'y': o.dy})
-          .toList(),
-    });
+  Future<void> pushStrokeChunk(
+    String coupleId,
+    String strokeId,
+    int seq,
+    List<Offset> points,
+  ) {
+    // Flat [x0, y0, x1, y1, …] — one small write per batch. The padded key
+    // keeps chunks a Map in RTDB (sequential int keys would turn into a List).
+    final flat = <double>[for (final p in points) ...[p.dx, p.dy]];
+    return rtdbSource
+        .strokeRef(coupleId, strokeId)
+        .child('chunks/${CanvasStrokeModel.chunkKey(seq)}')
+        .set(flat);
   }
 
   @override
@@ -57,36 +50,45 @@ class CanvasRepository implements ICanvasRepository {
   Stream<CanvasStroke> watchRemoteStrokes(String coupleId, String excludeUserId) {
     final ref = rtdbSource.canvasRef(coupleId).child('strokes');
 
+    // A single malformed stroke must not kill the whole stream.
     CanvasStroke? parse(DatabaseEvent event) {
-      final val = event.snapshot.value;
-      if (val == null) return null;
-      final data   = Map<String, dynamic>.from(val as Map);
-      final stroke = CanvasStrokeModel.fromJson(event.snapshot.key!, data);
-      return stroke.userId == excludeUserId ? null : stroke;
+      try {
+        final val = event.snapshot.value;
+        if (val is! Map) return null;
+        final stroke = CanvasStrokeModel.fromJson(
+          event.snapshot.key!,
+          Map<String, dynamic>.from(val),
+        );
+        return stroke.userId == excludeUserId ? null : stroke;
+      } catch (_) {
+        return null;
+      }
     }
 
-    // Merge onChildAdded (new strokes) + onChildChanged (point updates)
-    final added   = ref.onChildAdded.map(parse).where((s) => s != null).cast<CanvasStroke>();
-    final changed = ref.onChildChanged.map(parse).where((s) => s != null).cast<CanvasStroke>();
-
-    return added.mergeWith([changed]);
+    // onChildAdded replays existing strokes; onChildChanged delivers live chunks.
+    return ref.onChildAdded
+        .map(parse)
+        .mergeWith([ref.onChildChanged.map(parse)])
+        .whereType<CanvasStroke>();
   }
 
   @override
-  Future<void> clearCanvas(String coupleId) async {
-    // Remove all strokes then write a clear timestamp so both phones detect the event.
+  Future<int> clearCanvas(String coupleId) async {
+    final ts = DateTime.now().millisecondsSinceEpoch;
+    // Timestamp first, so the partner's baseline check sees a new value even
+    // if the strokes removal arrives separately.
+    await rtdbSource.canvasClearedRef(coupleId).set(ts);
     await rtdbSource.canvasRef(coupleId).child('strokes').remove();
-    await rtdbSource.canvasClearedRef(coupleId)
-        .set(DateTime.now().millisecondsSinceEpoch);
+    return ts;
   }
 
   @override
-  Stream<void> watchCanvasCleared(String coupleId) {
+  Stream<int> watchCanvasCleared(String coupleId) {
     return rtdbSource
         .canvasClearedRef(coupleId)
         .onValue
-        .where((event) => event.snapshot.value != null)
-        .map((_) {});
+        .map((event) => (event.snapshot.value as num?)?.toInt() ?? 0)
+        .distinct();
   }
 
   @override

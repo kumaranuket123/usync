@@ -11,3 +11,4 @@ final class CanvasCleared         extends CanvasEvent {}
 final class MemorySaved           extends CanvasEvent { MemorySaved(this.imageBytes); final Uint8List imageBytes; }
 final class RemoteStrokeReceived  extends CanvasEvent { RemoteStrokeReceived(this.stroke); final CanvasStroke stroke; }
 final class RemoteCanvasCleared   extends CanvasEvent {}
+final class _FlushRequested       extends CanvasEvent {}

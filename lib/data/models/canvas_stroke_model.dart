@@ -15,22 +15,36 @@ class CanvasStrokeModel extends CanvasStroke {
     super.isComplete,
   });
 
+  /// Zero-padded so lexicographic order == chunk order.
+  static String chunkKey(int seq) => seq.toString().padLeft(6, '0');
+
   factory CanvasStrokeModel.fromJson(String id, Map<String, dynamic> json) {
-    // RTDB push() stores points as Map<autoKey, {x,y}>, not a List.
-    final rawPoints = json['points'];
     final points = <Offset>[];
-    if (rawPoints is Map) {
-      // Sort by Firebase push key (lexicographic = chronological) before building points
-      final entries = rawPoints.entries.toList()
-        ..sort((a, b) => a.key.toString().compareTo(b.key.toString()));
-      for (final entry in entries) {
-        final m = Map<String, dynamic>.from(entry.value as Map);
-        points.add(Offset((m['x'] as num).toDouble(), (m['y'] as num).toDouble()));
+
+    // Live format: chunks/{paddedSeq} = [x0, y0, x1, y1, …]
+    final rawChunks = json['chunks'];
+    if (rawChunks is Map) {
+      final keys = rawChunks.keys.map((k) => k.toString()).toList()..sort();
+      for (final k in keys) {
+        _addFlat(points, rawChunks[k]);
       }
-    } else if (rawPoints is List) {
-      for (final p in rawPoints) {
-        final m = Map<String, dynamic>.from(p as Map);
-        points.add(Offset((m['x'] as num).toDouble(), (m['y'] as num).toDouble()));
+    } else if (rawChunks is List) {
+      for (final c in rawChunks) {
+        _addFlat(points, c);
+      }
+    }
+
+    // Legacy format: points as a List or push-key Map of {x, y}.
+    final rawPoints = json['points'];
+    if (points.isEmpty && rawPoints != null) {
+      final items = rawPoints is Map
+          ? (rawPoints.entries.toList()
+                ..sort((a, b) => a.key.toString().compareTo(b.key.toString())))
+              .map((e) => e.value)
+          : (rawPoints as List);
+      for (final p in items) {
+        if (p is! Map) continue;
+        points.add(Offset((p['x'] as num).toDouble(), (p['y'] as num).toDouble()));
       }
     }
 
@@ -45,6 +59,14 @@ class CanvasStrokeModel extends CanvasStroke {
       isEraser:   json['isEraser']   as bool? ?? false,
       isComplete: json['isComplete'] as bool? ?? false,
     );
+  }
+
+  static void _addFlat(List<Offset> out, Object? raw) {
+    if (raw is! List) return;
+    for (var i = 0; i + 1 < raw.length; i += 2) {
+      final x = raw[i], y = raw[i + 1];
+      if (x is num && y is num) out.add(Offset(x.toDouble(), y.toDouble()));
+    }
   }
 
   Map<String, dynamic> toJson() => {
