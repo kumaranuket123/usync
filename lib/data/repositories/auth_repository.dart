@@ -109,6 +109,27 @@ class AuthRepository implements IAuthRepository {
 
   static const _tokenRefreshEvery = Duration(days: 14);
 
+  @override
+  Future<void> updateProfile(String uid, {String? username, String? avatarEmoji}) async {
+    final changes = {
+      if (username != null)    'username':     username,
+      if (avatarEmoji != null) 'avatar_emoji': avatarEmoji,
+    };
+    if (changes.isEmpty) return;
+    // select() so a row the policy refused to touch is an error, not a silent no-op.
+    final rows = await client.from('profiles').update(changes).eq('id', uid).select();
+    if (rows.isEmpty) throw Exception('Could not update the profile');
+    identity.profiles.invalidate(uid);
+    if (username != null) {
+      // The name in the session is what notifications are signed with
+      // ("[name] is feeling…"), so keep it in step. Best effort: the profile is
+      // the source of truth.
+      try {
+        await client.auth.updateUser(UserAttributes(data: {'username': username}));
+      } catch (_) {}
+    }
+  }
+
   /// Profiles are remembered for a few minutes, so opening a screen does not ask
   /// the server again for someone we already know.
   Future<AppUser> _fetchUser(String uid) => identity.profiles.get(uid, () => _loadUser(uid));

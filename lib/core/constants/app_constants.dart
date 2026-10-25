@@ -1,4 +1,7 @@
 abstract final class AppConstants {
+  /// The avatars a user can pick, at sign-up and when editing their profile.
+  static const List<String> avatarEmojis = ['🦋', '🌸', '🌙', '⭐', '🔮', '🌊', '🌺', '✨'];
+
   // ── Pairing ───────────────────────────────────────────────────
   static const int inviteCodeLength  = 4;
   static const int inviteCodeTtlHrs  = 24;

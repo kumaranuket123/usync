@@ -20,6 +20,10 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
     on<DisconnectCancelled>(_onDisconnectCancelled);
     on<DisconnectConfirmed>(_onDisconnectConfirmed);
     on<CoupleUpdated>(_onCoupleUpdated);
+    on<UserUpdated>((e, emit) {
+      final current = state;
+      if (current is ProfileReady) emit(ProfileReady(user: e.user, couple: current.couple));
+    });
   }
 
   final IAuthRepository   authRepository;

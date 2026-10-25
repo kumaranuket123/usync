@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/route_names.dart';
+import '../../../../core/constants/app_constants.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_gradients.dart';
 import '../../../../core/theme/app_text_styles.dart';
@@ -24,7 +25,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _passwordCtrl = TextEditingController();
   String _selectedAvatar = '🦋';
 
-  static const _avatars = ['🦋', '🌸', '🌙', '⭐', '🔮', '🌊', '🌺', '✨'];
+  static const _avatars = AppConstants.avatarEmojis;
 
   @override
   void dispose() {

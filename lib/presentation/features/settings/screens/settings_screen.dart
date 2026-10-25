@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' hide User;
 
 import '../../../../core/constants/route_names.dart';
+import '../../../../core/di/injection.dart';
 import '../../../../core/services/app_lock_service.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
@@ -13,6 +15,7 @@ import '../../../shared/widgets/toggle_switch.dart';
 import '../bloc/settings_bloc.dart';
 import 'alert_sounds_screen.dart';
 import '../../auth/bloc/auth_bloc.dart';
+import '../../profile/bloc/profile_bloc.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -31,6 +34,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final auth     = context.read<AuthBloc>().state;
+    final uid      = Supabase.instance.client.auth.currentUser?.id ?? '';
+    final coupleId = auth is Authenticated ? (auth.user.coupleId ?? '') : '';
+    // The couple's disconnect state lives in ProfileBloc; Settings owns the
+    // Disconnect row, so it provides its own copy.
+    return BlocProvider(
+      create: (_) => getIt<ProfileBloc>()..add(ProfileLoaded(userId: uid, coupleId: coupleId)),
+      child: BlocListener<ProfileBloc, ProfileState>(
+        listener: (context, state) {
+          if (state is ProfileDisconnected) {
+            // Refresh the app-wide user so coupleId is cleared, then re-pair.
+            context.read<AuthBloc>().add(const AuthStateChecked());
+            context.go(RouteNames.pairInvite);
+          }
+        },
+        child: _scaffold(context),
+      ),
+    );
+  }
+
+  Widget _scaffold(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.bg1,
       body: SafeArea(
@@ -53,22 +77,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   return ListView(
                     padding: const EdgeInsets.fromLTRB(20, 0, 20, 40),
                     children: [
-                      Builder(builder: (context) {
-                        final auth = context.read<AuthBloc>().state;
-                        final user = auth is Authenticated ? auth.user : null;
-                        return Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            _SectionLabel('ACCOUNT'),
-                            _Row('👤', const Color(0x1FFF2D78), 'Profile',
-                                '${user?.username ?? '—'} · ${user?.email ?? ''}',
-                                onTap: () => context.go(RouteNames.profile)),
-                            _Row('💞', const Color(0x1FFF6EC7), 'Couple', 'Pairing and disconnect',
-                                onTap: () => context.go(RouteNames.profile)),
-                          ],
-                        );
-                      }),
-
                       _SectionLabel('NOTIFICATIONS'),
                       _ToggleRow('🔔', const Color(0x1F00D4FF), 'Push notifications', 'Gentle emotional alerts',
                           value: settings.notificationsEnabled,
@@ -106,6 +114,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
                       _SectionLabel('ABOUT'),
                       _Row('ℹ️', const Color(0x0FFFFFFF), 'About Usync', 'Version 1.0.0', onTap: () {}),
+
+                      BlocBuilder<ProfileBloc, ProfileState>(
+                        builder: (context, profile) {
+                          if (profile is! ProfileReady) return const SizedBox.shrink();
+                          final requestedBy = profile.couple.disconnectRequestedBy;
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _SectionLabel('DANGER ZONE'),
+                              _Row('💔', const Color(0x1FFF5252), 'Disconnect Couple',
+                                  requestedBy == null
+                                      ? 'Both partners must confirm'
+                                      : requestedBy == profile.user.id
+                                          ? 'Waiting for your partner to confirm…'
+                                          : 'Your partner asked to disconnect — tap to respond',
+                                  onTap: () => _onDisconnectTap(context, profile)),
+                            ],
+                          );
+                        },
+                      ),
 
                       const SizedBox(height: 20),
                       UsyncOutlineButton(
@@ -221,5 +249,55 @@ class _ToggleRow extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+Future<bool> _askConfirm(BuildContext context, String title, String body, String action) async {
+  final ok = await showDialog<bool>(
+    context: context,
+    builder: (dialogContext) => AlertDialog(
+      backgroundColor: AppColors.bg2,
+      title: Text(title, style: const TextStyle(color: Colors.white)),
+      content: Text(body, style: AppTextStyles.bodyMuted),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(dialogContext, false),
+          child: const Text('Cancel', style: TextStyle(color: AppColors.textMuted)),
+        ),
+        TextButton(
+          onPressed: () => Navigator.pop(dialogContext, true),
+          child: Text(action, style: const TextStyle(color: AppColors.error)),
+        ),
+      ],
+    ),
+  );
+  return ok ?? false;
+}
+
+/// Disconnecting needs both partners: one requests, the other confirms.
+Future<void> _onDisconnectTap(BuildContext context, ProfileReady state) async {
+  final bloc      = context.read<ProfileBloc>();
+  final myId      = state.user.id;
+  final coupleId  = state.couple.id;
+  final requester = state.couple.disconnectRequestedBy;
+
+  if (requester == null) {
+    final ok = await _askConfirm(context, 'Request to disconnect?',
+        'Your partner will be asked to confirm. You stay connected until they do.', 'Send request');
+    if (ok) bloc.add(DisconnectRequested(userId: myId, coupleId: coupleId));
+  } else if (requester == myId) {
+    final ok = await _askConfirm(context, 'Cancel your request?',
+        'You asked to disconnect and are waiting for your partner to confirm.', 'Cancel request');
+    if (ok) bloc.add(DisconnectCancelled(coupleId: coupleId));
+  } else {
+    final ok = await _askConfirm(context, 'Your partner wants to disconnect',
+        'Confirming unlinks you both and ends live access to the shared canvas, touch and mood. You can pair again with a new invite code.', 'Confirm');
+    if (ok) {
+      bloc.add(DisconnectConfirmed(userId: myId, coupleId: coupleId));
+    } else if (context.mounted) {
+      final decline = await _askConfirm(context, 'Decline the request?',
+          'Your partner will stay connected to you.', 'Decline');
+      if (decline) bloc.add(DisconnectCancelled(coupleId: coupleId));
+    }
   }
 }
