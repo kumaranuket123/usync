@@ -51,7 +51,9 @@ class _HomeBody extends StatelessWidget {
         final ownEmoji     = s?.user.avatarEmoji     ?? '';
         final partnerEmoji = s?.partner.avatarEmoji  ?? '🌙';
         final partnerName  = s?.partner.username     ?? 'Your partner';
-        final moodText     = s?.partnerMood?.label   ?? 'Here with you…';
+        final partnerMood  = s?.partnerMood;
+        final moodEmoji    = partnerMood?.emoji;
+        final moodText     = partnerMood == null ? '"Here with you…"' : '"${partnerMood.label}"';
         final isOnline     = s?.isOnline             ?? false;
         final recentMoods  = s?.recentMoods          ?? [];
 
@@ -133,7 +135,12 @@ class _HomeBody extends StatelessWidget {
                     PartnerOrb(avatarEmoji: partnerEmoji, isOnline: isOnline),
                     Text(partnerName, style: AppTextStyles.partnerName),
                     const SizedBox(height: 6),
-                    Text('"$moodText"', style: AppTextStyles.moodText),
+                    // Emoji above the words.
+                    if (moodEmoji != null) ...[
+                      Text(moodEmoji, style: const TextStyle(fontSize: 30)),
+                      const SizedBox(height: 2),
+                    ],
+                    Text(moodText, style: AppTextStyles.moodText, textAlign: TextAlign.center),
 
                     const SizedBox(height: 12),
                     const HeartbeatVisualizer(),

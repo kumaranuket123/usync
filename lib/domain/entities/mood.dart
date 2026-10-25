@@ -6,7 +6,9 @@ enum MoodType {
   missingYou,
   sleeping,
   relaxing,
-  busy;
+    busy,
+  /// Typed by the user; the text and emoji travel with the mood.
+  custom;
 
   String get label => switch (this) {
     MoodType.happy            => 'Happy',
@@ -15,6 +17,7 @@ enum MoodType {
     MoodType.sleeping         => 'Sleeping',
     MoodType.relaxing         => 'Relaxing',
     MoodType.busy             => 'Busy',
+    MoodType.custom           => 'Custom',
   };
 
   String get emoji => switch (this) {
@@ -24,6 +27,7 @@ enum MoodType {
     MoodType.sleeping         => '😴',
     MoodType.relaxing         => '🌸',
     MoodType.busy             => '⚡',
+    MoodType.custom           => '✨',
   };
 
   static MoodType fromString(String value) =>
@@ -35,15 +39,30 @@ class Mood extends Equatable {
     required this.type,
     required this.userId,
     required this.sentAt,
+    this.customLabel,
+    this.customEmoji,
   });
 
   final MoodType type;
   final String   userId;
   final DateTime sentAt;
+  /// Only set when [type] is [MoodType.custom].
+  final String?  customLabel;
+  final String?  customEmoji;
 
-  String get label => type.label;
-  String get emoji => type.emoji;
+  String get label => type == MoodType.custom ? (customLabel ?? type.label) : type.label;
+  String get emoji => type == MoodType.custom ? (customEmoji ?? type.emoji) : type.emoji;
 
   @override
-  List<Object?> get props => [type, userId, sentAt];
+  List<Object?> get props => [type, userId, sentAt, customLabel, customEmoji];
+}
+
+/// A mood a user made up, offered again the next time they pick a mood.
+class CustomMood extends Equatable {
+  const CustomMood({required this.label, required this.emoji});
+  final String label;
+  final String emoji;
+
+  @override
+  List<Object?> get props => [label, emoji];
 }

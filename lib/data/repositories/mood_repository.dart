@@ -13,15 +13,21 @@ class MoodRepository implements IMoodRepository {
   final INotificationRepository notifications;
 
   @override
-  Future<void> sendMood(String coupleId, String userId, MoodType type) async {
-    final mood = MoodModel(type: type, userId: userId, sentAt: DateTime.now());
+  Future<void> sendMood(String coupleId, String userId, MoodType type, {CustomMood? custom}) async {
+    final mood = MoodModel(
+      type:        type,
+      userId:      userId,
+      sentAt:      DateTime.now(),
+      customLabel: custom?.label,
+      customEmoji: custom?.emoji,
+    );
     // The row is both history and the "current" mood the partner's stream sees.
     await client.from('moods').insert(mood.toRow(coupleId));
     await notifications.notifyPartner(
       coupleId:   coupleId,
       fromUserId: userId,
       type:       NotifType.moodChange,
-      body:       (name) => '$name is feeling ${type.label} ${type.emoji}',
+      body:       (name) => '$name is feeling ${mood.label} ${mood.emoji}',
     );
   }
 
@@ -63,5 +69,24 @@ class MoodRepository implements IMoodRepository {
         .limit(1)
         .maybeSingle();
     return row == null ? null : MoodModel.fromRow(row);
+  }
+
+  @override
+  Future<List<CustomMood>> getMyCustomMoods(String userId, {int limit = 6}) async {
+    final rows = await client
+        .from('moods')
+        .select('custom_label, custom_emoji')
+        .eq('user_id', userId)
+        .eq('type', 'custom')
+        .order('sent_at', ascending: false)
+        .limit(40);
+    final seen = <CustomMood>{};
+    for (final row in rows) {
+      final label = row['custom_label'] as String?;
+      if (label == null || label.isEmpty) continue;
+      seen.add(CustomMood(label: label, emoji: (row['custom_emoji'] as String?) ?? MoodType.custom.emoji));
+      if (seen.length == limit) break;
+    }
+    return seen.toList();
   }
 }
