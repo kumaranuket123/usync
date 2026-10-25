@@ -233,7 +233,9 @@ class CanvasRepository implements ICanvasRepository {
       subs.add(channel.on(CoupleChannel.canvasClear).listen((_) => live.clear()));
 
       try {
-        await channel.ready;
+        // Wait for the live channel so nothing is missed while the history loads,
+        // but not forever: offline, the history can still be tried.
+        await channel.whenReady();
         final rows = await client
             .from('canvas_strokes')
             .select()

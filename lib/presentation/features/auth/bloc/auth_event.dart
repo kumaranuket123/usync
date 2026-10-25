@@ -12,6 +12,8 @@ final class SignUpRequested extends AuthEvent {
   final String email, password, username, avatarEmoji;
 }
 final class SignOutRequested extends AuthEvent { const SignOutRequested() : super(); }
+/// The session ended without the user asking (the server revoked it).
+final class SessionEnded extends AuthEvent { const SessionEnded() : super(); }
 final class PasswordResetRequested extends AuthEvent {
   const PasswordResetRequested({required this.email}) : super();
   final String email;

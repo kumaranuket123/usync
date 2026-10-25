@@ -15,6 +15,7 @@ import '../../../shared/widgets/outline_button.dart';
 import '../../../../core/di/injection.dart';
 import '../../../features/auth/bloc/auth_bloc.dart';
 import '../bloc/memory_bloc.dart';
+import 'confirm_delete_memory.dart';
 
 class MemorySpaceScreen extends StatelessWidget {
   const MemorySpaceScreen({super.key});
@@ -86,6 +87,12 @@ class _MemoryCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: () => context.push('/memories/${memory.id}', extra: memory),
+      onLongPress: () async {
+        final bloc = context.read<MemoryBloc>();
+        if (await confirmDeleteMemory(context, memory)) {
+          bloc.add(MemoryDeleted(id: memory.id, coupleId: memory.coupleId));
+        }
+      },
       child: Container(
         margin: const EdgeInsets.only(bottom: 14),
         decoration: BoxDecoration(

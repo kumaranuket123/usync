@@ -25,7 +25,21 @@ class AppLockService extends ChangeNotifier with WidgetsBindingObserver {
 
   void init() {
     WidgetsBinding.instance.addObserver(this);
-    if (enabled) _locked = true;
+    if (enabled) {
+      _locked = true;
+      _disableIfUnavailable();
+    }
+  }
+
+  /// The lock needs a fingerprint, face or screen lock on the phone. If the
+  /// user later removes it there is nothing to unlock with, so the lock is
+  /// switched off instead of leaving them out of their own app.
+  Future<void> _disableIfUnavailable() async {
+    if (await isAvailable) return;
+    await prefs.setAppLockEnabled(false);
+    _locked   = false;
+    _obscured = false;
+    notifyListeners();
   }
 
   @override
@@ -72,7 +86,11 @@ class AppLockService extends ChangeNotifier with WidgetsBindingObserver {
   /// Prompts to unlock. Returns whether the app is now unlocked.
   Future<bool> unlock() async {
     if (!_locked) return true;
-    if (!await _prompt('Unlock Usync')) return false;
+    if (!await _prompt('Unlock Usync')) {
+      // A failed prompt may mean the phone no longer has anything to unlock with.
+      await _disableIfUnavailable();
+      return !_locked;
+    }
     _locked = false;
     _obscured = false;
     notifyListeners();

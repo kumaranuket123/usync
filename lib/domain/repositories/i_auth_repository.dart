@@ -5,6 +5,8 @@ abstract interface class IAuthRepository {
   Future<AppUser>  signIn(String email, String password);
   Future<AppUser>  signUp(String email, String password, String username, String avatarEmoji);
   Future<void>     signOut();
+  /// Emits when the session ends for any reason (including the server revoking it).
+  Stream<void>     get signedOut;
   Future<void>     sendPasswordReset(String email);
   Future<AppUser?> getCurrentUser();
   Future<AppUser?> getUserById(String uid);

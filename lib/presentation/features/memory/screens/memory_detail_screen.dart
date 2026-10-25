@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../core/di/injection.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../domain/entities/memory.dart';
+import '../../../../domain/repositories/i_memory_repository.dart';
 import '../../../shared/widgets/memory_art.dart';
 import '../../../shared/widgets/neon_back_button.dart';
+import 'confirm_delete_memory.dart';
 
 class MemoryDetailScreen extends StatelessWidget {
   const MemoryDetailScreen({super.key, required this.memoryId, this.memory});
@@ -44,6 +47,18 @@ class MemoryDetailScreen extends StatelessWidget {
                     children: [
                       NeonBackButton(onTap: () => context.pop()),
                       const Spacer(),
+                      if (m != null) ...[
+                        GestureDetector(
+                          onTap: () async {
+                            final router = GoRouter.of(context);
+                            if (!await confirmDeleteMemory(context, m)) return;
+                            await getIt<IMemoryRepository>().deleteMemory(m.id, m.coupleId);
+                            router.pop();
+                          },
+                          child: const Icon(Icons.delete_outline, color: Colors.white, size: 24),
+                        ),
+                        const SizedBox(width: 18),
+                      ],
                       GestureDetector(
                         onTap: () {},
                         child: const Text('♡', style: TextStyle(color: Colors.white, fontSize: 22)),

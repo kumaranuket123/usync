@@ -1,7 +1,10 @@
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../../core/utils/auth_messages.dart';
 import '../../../../domain/entities/user.dart';
 import '../../../../domain/repositories/i_auth_repository.dart';
 
@@ -15,9 +18,24 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     on<SignUpRequested>(_onSignUp);
     on<SignOutRequested>(_onSignOut);
     on<PasswordResetRequested>(_onPasswordReset);
+    on<SessionEnded>((_, emit) {
+      if (state is Authenticated) emit(Unauthenticated());
+    });
+    // The server can end a session (revoked, password changed elsewhere): the
+    // app must notice and go back to sign-in instead of failing quietly.
+    _signedOutSub = authRepository.signedOut.listen((_) {
+      if (!isClosed) add(const SessionEnded());
+    });
   }
 
   final IAuthRepository authRepository;
+  StreamSubscription<void>? _signedOutSub;
+
+  @override
+  Future<void> close() {
+    _signedOutSub?.cancel();
+    return super.close();
+  }
 
   Future<void> _onChecked(AuthStateChecked _, Emitter<AuthState> emit) async {
     try {
@@ -36,7 +54,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       emit(Authenticated(user));
       _saveFcmToken(user.id);
     } catch (err) {
-      emit(AuthError(err.toString()));
+      emit(AuthError(friendlyAuthMessage(err)));
     }
   }
 
@@ -47,7 +65,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       emit(Authenticated(user));
       _saveFcmToken(user.id);
     } catch (err) {
-      emit(AuthError(err.toString()));
+      emit(AuthError(friendlyAuthMessage(err)));
     }
   }
 
@@ -69,7 +87,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       await authRepository.sendPasswordReset(e.email);
       emit(PasswordResetSent(e.email));
     } catch (err) {
-      emit(AuthError(err.toString()));
+      emit(AuthError(friendlyAuthMessage(err)));
     }
   }
 }

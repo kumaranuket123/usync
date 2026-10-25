@@ -117,28 +117,27 @@ class NotificationRepository implements INotificationRepository {
     } catch (_) {}
   }
 
+  /// Turns pushes on or off for THIS device only; the account's other devices
+  /// are not affected.
   @override
   Future<void> toggleFcm({required bool enabled, required String uid}) async {
+    final token = await FirebaseMessaging.instance.getToken();
     if (enabled) {
-      final token = await FirebaseMessaging.instance.getToken();
-      if (token != null) {
-        await client.from('device_tokens').upsert({
-          'user_id':    uid,
-          'fcm_token':  token,
-          'updated_at': DateTime.now().toUtc().toIso8601String(),
-        });
-      }
+      if (token != null) await client.rpc('register_device_token', params: {'p_token': token});
     } else {
+      // Remove the server row first (it needs the token), then the token itself.
+      if (token != null) await client.from('device_tokens').delete().eq('fcm_token', token);
       await FirebaseMessaging.instance.deleteToken();
-      await client.from('device_tokens').delete().eq('user_id', uid);
     }
   }
 
+  /// Which alerts arrive quietly: one choice per person, kept on their profile
+  /// so every device of theirs follows it.
   @override
   Future<Set<String>> getSilentTypes() async {
     final uid = _me;
     if (uid == null) return NotifType.defaultSilent;
-    final row = await client.from('device_tokens').select('silent_types').eq('user_id', uid).maybeSingle();
+    final row = await client.from('profiles').select('silent_types').eq('id', uid).maybeSingle();
     final types = row?['silent_types'];
     return types is List ? types.cast<String>().toSet() : NotifType.defaultSilent;
   }
@@ -147,6 +146,6 @@ class NotificationRepository implements INotificationRepository {
   Future<void> setSilentTypes(Set<String> types) async {
     final uid = _me;
     if (uid == null) return;
-    await client.from('device_tokens').update({'silent_types': types.toList()}).eq('user_id', uid);
+    await client.from('profiles').update({'silent_types': types.toList()}).eq('id', uid);
   }
 }

@@ -88,6 +88,7 @@ Future<void> setupLocator() async {
       sessionCache: getIt(),
       outbox: getIt(),
       identity: getIt(),
+      channels: getIt(),
     ),
   );
   getIt.registerLazySingleton<ICoupleRepository>(

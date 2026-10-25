@@ -40,6 +40,9 @@ class UsyncApp extends StatelessWidget {
               return AppLockGate(child: Stack(fit: StackFit.expand, children: [BlocListener<AuthBloc, AuthState>(
                 listener: (context, state) {
                   if (state is Unauthenticated) {
+                    // Settings held the previous account's choices (alert sounds,
+                    // the push switch): start over for whoever signs in next.
+                    context.read<SettingsBloc>().add(const SettingsLoaded());
                     AppRouter.router.go(RouteNames.login);
                   }
                 },

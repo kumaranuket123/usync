@@ -8,6 +8,11 @@ class SupabaseAuthSource {
 
   Stream<User?> get authStateChanges => _auth.onAuthStateChange.map((s) => s.session?.user);
 
+  /// Fires when the session ends, whether the user signed out or the server
+  /// revoked it (password changed elsewhere, account removed, refresh failed).
+  Stream<void> get signedOut =>
+      _auth.onAuthStateChange.where((s) => s.event == AuthChangeEvent.signedOut);
+
   User? get currentUser => _auth.currentUser;
 
   Future<User> signIn(String email, String password) async {

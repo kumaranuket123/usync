@@ -31,7 +31,8 @@ class TouchSyncBloc extends Bloc<TouchSyncEvent, TouchSyncState> {
     _userId    = e.userId;
     _partnerId = e.partnerUserId;
 
-    await touchRepository.registerDisconnectClear(_coupleId, _userId);
+    // Announce we are here, but do not hold the screen back waiting for the connection.
+    touchRepository.registerDisconnectClear(_coupleId, _userId).ignore();
     _sub = touchRepository
         .watchPartnerTouch(_coupleId, _partnerId)
         .listen((active) { if (!isClosed) add(RemoteTouchReceived(active)); });

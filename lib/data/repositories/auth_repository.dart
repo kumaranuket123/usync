@@ -8,6 +8,7 @@ import '../../domain/repositories/i_auth_repository.dart';
 import '../datasources/local/identity_cache.dart';
 import '../datasources/local/prefs_source.dart';
 import '../datasources/local/session_cache.dart';
+import '../datasources/remote/couple_channel_source.dart';
 import '../datasources/remote/supabase_auth_source.dart';
 import '../models/user_model.dart';
 
@@ -19,6 +20,7 @@ class AuthRepository implements IAuthRepository {
     required this.sessionCache,
     required this.outbox,
     required this.identity,
+    required this.channels,
   });
 
   final SupabaseAuthSource authSource;
@@ -27,6 +29,7 @@ class AuthRepository implements IAuthRepository {
   final SessionCache       sessionCache;
   final OutboxService      outbox;
   final IdentityCache      identity;
+  final CoupleChannelSource channels;
 
   @override
   Stream<AppUser?> watchAuthState() {
@@ -58,22 +61,52 @@ class AuthRepository implements IAuthRepository {
   }
 
   @override
+  Stream<void> get signedOut => authSource.signedOut.map((_) {
+        // The session may already be gone (revoked), so only local state can be cleaned here.
+        _clearLocalAccountState();
+      });
+
+  @override
   Future<void> signOut() async {
-    // Drop the FCM token server-side and on the device before signing out.
     final uid = authSource.currentUser?.id;
     if (uid != null) {
-      try {
-        await client.from('device_tokens').delete().eq('user_id', uid);
-        await prefsSource.clearFcmSaved(uid);
-        await FirebaseMessaging.instance.deleteToken();
-      } catch (_) {}
+      // Server-side clean-up needs the session, so it comes before signing out.
+      // Every step is best effort and independent: one failing (say, offline)
+      // must not skip the others.
+      // Stop showing this account's location to the partner.
+      await _quietly(() => client.from('locations').delete().eq('user_id', uid));
+      // Only THIS device is removed; the account's other phones keep their pushes.
+      String? token;
+      await _quietly(() async => token = await FirebaseMessaging.instance.getToken());
+      if (token != null) {
+        await _quietly(() => client.from('device_tokens').delete().eq('fcm_token', token!));
+      }
+      await prefsSource.clearFcmSaved(uid);
+      // Always invalidate the device's push token, even if the server row could not
+      // be removed: otherwise the old account keeps getting pushes on this phone.
+      // (A leftover row then holds a dead token, which the push function drops.)
+      await _quietly(() => FirebaseMessaging.instance.deleteToken());
     }
-    await authSource.signOut();
+    // Locally the session is removed first; a network error while telling the
+    // server only means the revoke did not reach it.
+    await _quietly(authSource.signOut);
+    await _clearLocalAccountState();
+  }
+
+  /// Nothing of this account may stay behind for the next one.
+  Future<void> _clearLocalAccountState() async {
     await prefsSource.clearSession();
-    // Nothing of this account may stay behind for the next one.
     await sessionCache.clear();
     await outbox.clear();
     identity.clear();
+    // The live channel belongs to this session; the next one needs its own.
+    channels.close();
+  }
+
+  static Future<void> _quietly(Future<Object?> Function() step) async {
+    try {
+      await step();
+    } catch (_) {}
   }
 
   @override
@@ -91,6 +124,8 @@ class AuthRepository implements IAuthRepository {
 
   @override
   Future<void> updateFcmToken(String uid, String token) async {
+    // The user switched push notifications off in Settings: do not register this device.
+    if (!prefsSource.notificationsEnabled) return;
     // The app does this at every start; the server already has it unless the
     // token changed, so only write when it did (or once in a while to refresh).
     final saved = prefsSource.fcmSaved(uid);
@@ -99,11 +134,9 @@ class AuthRepository implements IAuthRepository {
         DateTime.now().millisecondsSinceEpoch - saved.savedAt < _tokenRefreshEvery.inMilliseconds) {
       return;
     }
-    await client.from('device_tokens').upsert({
-      'user_id':    uid,
-      'fcm_token':  token,
-      'updated_at': DateTime.now().toUtc().toIso8601String(),
-    });
+    // A function, not an upsert: it also handles a phone that changed hands
+    // (same token, new account) and keeps a few devices per account.
+    await client.rpc('register_device_token', params: {'p_token': token});
     await prefsSource.setFcmSaved(uid, token);
   }
 

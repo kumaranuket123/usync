@@ -50,6 +50,13 @@ class PrefsSource {
   // ── Clear (sign-out) ──────────────────────────────────────────
   Future<void> clearSession() async {
     await prefs.remove('onboarding_seen');
-    // Preserve theme_id across sign-out — intentional.
+    // Choices that belong to the account, not the phone: the next person to sign
+    // in must start from the defaults (and must never inherit "share my
+    // location" or a switched-off push setting).
+    await prefs.remove('setting_notifications');
+    await prefs.remove('location_sharing');
+    await prefs.remove('location_view_notified_at');
+    await prefs.remove('app_lock');
+    // Preserve theme_id, haptics and animations across sign-out: those are about the phone.
   }
 }

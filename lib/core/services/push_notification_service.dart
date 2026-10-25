@@ -2,6 +2,7 @@ import 'package:supabase_flutter/supabase_flutter.dart' hide User;
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 
+import '../../data/datasources/local/prefs_source.dart';
 import '../../domain/repositories/i_auth_repository.dart';
 import '../constants/route_names.dart';
 import '../di/injection.dart';
@@ -52,6 +53,8 @@ abstract final class PushNotificationService {
   }
 
   static void _showBanner(RemoteMessage message) {
+    // The user switched push notifications off: no banners either.
+    if (!getIt<PrefsSource>().notificationsEnabled) return;
     if (message.data['action'] == 'locate') {
       LocationSyncService.answerLocateRequest();
       return;

@@ -1,4 +1,5 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' hide User;
 
 import '../../../../data/datasources/local/prefs_source.dart';
 import '../../../../domain/entities/notification_item.dart';
@@ -40,6 +41,22 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
   Future<void> _onToggle(ToggleChanged e, Emitter<SettingsState> emit) async {
     emit(state.withToggle(e.key, e.value));
     await prefsSource.setToggle(e.key, e.value);
+    if (e.key == 'notifications') await _applyPushSwitch(e.value, emit);
+  }
+
+  /// The switch must actually start or stop pushes on this device: off removes its
+  /// token (so the server has nowhere to send), on registers it again.
+  Future<void> _applyPushSwitch(bool on, Emitter<SettingsState> emit) async {
+    final uid = Supabase.instance.client.auth.currentUser?.id;
+    if (uid == null) return;
+    try {
+      // Affects this device only; the alert-sound choices live on the profile and stay.
+      await notifications.toggleFcm(enabled: on, uid: uid);
+    } catch (_) {
+      // Could not reach the server: show (and keep) what is really in effect.
+      emit(state.withToggle('notifications', !on));
+      await prefsSource.setToggle('notifications', !on);
+    }
   }
 
   Future<void> _onAlertSilence(AlertSilenceChanged e, Emitter<SettingsState> emit) async {

@@ -74,7 +74,7 @@ class TouchRepository implements ITouchRepository {
   @override
   Future<void> notifyIfPartnerAway(String coupleId, String userId, String partnerUserId) async {
     final channel = channelSource.open(coupleId);
-    await channel.ready;
+    await channel.whenReady(const Duration(seconds: 3));
     // Before the first Presence sync we cannot tell whether they are here.
     if (!channel.presenceSynced) return;
     if (channel.presenceScreens[partnerUserId] == 'touch') return;
