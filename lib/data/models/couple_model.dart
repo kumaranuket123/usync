@@ -8,22 +8,21 @@ class CoupleModel extends Couple {
     required super.pairedAt,
     super.streakDays,
     super.totalMoments,
+    super.disconnectRequestedBy,
+    super.disconnectedAt,
   });
 
-  factory CoupleModel.fromJson(String id, Map<String, dynamic> json) => CoupleModel(
-    id:           id,
-    userAId:      json['userAId']      as String,
-    userBId:      json['userBId']      as String,
-    pairedAt:     DateTime.parse(json['pairedAt'] as String),
-    streakDays:   (json['streakDays']   as num?)?.toInt() ?? 0,
-    totalMoments: (json['totalMoments'] as num?)?.toInt() ?? 0,
+  /// Row from the Supabase `couples` table.
+  factory CoupleModel.fromRow(Map<String, dynamic> row) => CoupleModel(
+    id:           row['id']                as String,
+    userAId:      row['user_a_id']         as String,
+    userBId:      row['user_b_id']         as String,
+    pairedAt:     DateTime.parse(row['paired_at'] as String),
+    streakDays:   (row['streak_days']      as num?)?.toInt() ?? 0,
+    totalMoments: (row['total_moments']    as num?)?.toInt() ?? 0,
+    disconnectRequestedBy: row['disconnect_requested_by'] as String?,
+    disconnectedAt: row['disconnected_at'] == null
+        ? null
+        : DateTime.parse(row['disconnected_at'] as String),
   );
-
-  Map<String, dynamic> toJson() => {
-    'userAId':      userAId,
-    'userBId':      userBId,
-    'pairedAt':     pairedAt.toIso8601String(),
-    'streakDays':   streakDays,
-    'totalMoments': totalMoments,
-  };
 }

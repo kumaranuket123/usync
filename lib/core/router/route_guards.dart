@@ -1,5 +1,5 @@
 import 'package:flutter/widgets.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' hide User;
 import 'package:go_router/go_router.dart';
 
 import '../constants/route_names.dart';
@@ -24,7 +24,7 @@ abstract final class RouteGuards {
     // Splash always renders regardless.
     if (path == RouteNames.splash) return null;
 
-    final user = FirebaseAuth.instance.currentUser;
+    final user = Supabase.instance.client.auth.currentUser;
     final isPublic  = _publicRoutes.contains(path);
     final isPairing = _pairingRoutes.contains(path);
 

@@ -1,4 +1,8 @@
 part of 'profile_bloc.dart';
 sealed class ProfileEvent { const ProfileEvent(); }
 final class ProfileLoaded  extends ProfileEvent { ProfileLoaded({required this.userId, required this.coupleId}); final String userId, coupleId; }
+final class DisconnectRequested extends ProfileEvent { DisconnectRequested({required this.userId, required this.coupleId}); final String userId, coupleId; }
+final class DisconnectCancelled extends ProfileEvent { DisconnectCancelled({required this.coupleId}); final String coupleId; }
+final class DisconnectConfirmed extends ProfileEvent { DisconnectConfirmed({required this.userId, required this.coupleId}); final String userId, coupleId; }
+final class CoupleUpdated       extends ProfileEvent { CoupleUpdated(this.couple); final Couple couple; }
 final class AvatarChanged  extends ProfileEvent { AvatarChanged({required this.userId, required this.emoji}); final String userId, emoji; }

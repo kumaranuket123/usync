@@ -1,53 +1,66 @@
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../domain/entities/mood.dart';
+import '../../domain/entities/notification_item.dart';
 import '../../domain/repositories/i_mood_repository.dart';
-import '../datasources/remote/firestore_source.dart';
-import '../datasources/remote/rtdb_source.dart';
+import '../../domain/repositories/i_notification_repository.dart';
 import '../models/mood_model.dart';
 
 class MoodRepository implements IMoodRepository {
-  MoodRepository({required this.firestoreSource, required this.rtdbSource});
+  MoodRepository({required this.client, required this.notifications});
 
-  final FirestoreSource firestoreSource;
-  final RtdbSource      rtdbSource;
+  final SupabaseClient          client;
+  final INotificationRepository notifications;
 
   @override
   Future<void> sendMood(String coupleId, String userId, MoodType type) async {
     final mood = MoodModel(type: type, userId: userId, sentAt: DateTime.now());
-    // Live sync to partner home screen.
-    await rtdbSource.currentMoodRef(coupleId, userId).set(mood.toJson());
-    // Persist for history, notification trigger, and strip.
-    await firestoreSource.moodHistory(coupleId).add(mood.toJson());
+    // The row is both history and the "current" mood the partner's stream sees.
+    await client.from('moods').insert(mood.toRow(coupleId));
+    await notifications.notifyPartner(
+      coupleId:   coupleId,
+      fromUserId: userId,
+      type:       NotifType.moodChange,
+      body:       (name) => '$name is feeling ${type.label} ${type.emoji}',
+    );
   }
 
   @override
   Stream<Mood?> watchPartnerMood(String coupleId, String partnerUserId) {
-    return rtdbSource
-        .currentMoodRef(coupleId, partnerUserId)
-        .onValue
-        .map((event) {
-          final val = event.snapshot.value;
-          if (val == null) return null;
-          return MoodModel.fromJson(Map<String, dynamic>.from(val as Map));
+    return client
+        .from('moods')
+        .stream(primaryKey: ['id'])
+        .eq('couple_id', coupleId)
+        .order('sent_at', ascending: false)
+        .limit(20)
+        .map((rows) {
+          for (final row in rows) {
+            if (row['user_id'] == partnerUserId) return MoodModel.fromRow(row);
+          }
+          return null;
         });
   }
 
   @override
   Future<List<Mood>> getMoodHistory(String coupleId, {int limit = 10}) async {
-    final snap = await firestoreSource
-        .moodHistory(coupleId)
-        .orderBy('sentAt', descending: true)
-        .limit(limit)
-        .get();
-    return snap.docs
-        .map((d) => MoodModel.fromJson(d.data()))
-        .toList();
+    final rows = await client
+        .from('moods')
+        .select()
+        .eq('couple_id', coupleId)
+        .order('sent_at', ascending: false)
+        .limit(limit);
+    return rows.map(MoodModel.fromRow).toList();
   }
 
   @override
   Future<Mood?> getLastSentMood(String userId) async {
-    // Queried across all couple mood histories — simplified by filtering on userId.
-    // In practice, the app always knows the coupleId; this signature could accept it.
-    return null;
+    final row = await client
+        .from('moods')
+        .select()
+        .eq('user_id', userId)
+        .order('sent_at', ascending: false)
+        .limit(1)
+        .maybeSingle();
+    return row == null ? null : MoodModel.fromRow(row);
   }
 }

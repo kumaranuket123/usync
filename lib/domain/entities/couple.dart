@@ -8,6 +8,8 @@ class Couple extends Equatable {
     required this.pairedAt,
     this.streakDays    = 0,
     this.totalMoments  = 0,
+    this.disconnectRequestedBy,
+    this.disconnectedAt,
   });
 
   final String   id;
@@ -16,6 +18,11 @@ class Couple extends Equatable {
   final DateTime pairedAt;
   final int      streakDays;
   final int      totalMoments;
+  /// uid of the partner who asked to disconnect; null when no request is pending.
+  final String?  disconnectRequestedBy;
+  final DateTime? disconnectedAt;
+
+  bool get isDisconnected => disconnectedAt != null;
 
   int get daysTogether => DateTime.now().difference(pairedAt).inDays;
 
@@ -23,5 +30,5 @@ class Couple extends Equatable {
       userId == userAId ? userBId : userAId;
 
   @override
-  List<Object?> get props => [id, userAId, userBId, pairedAt, streakDays, totalMoments];
+  List<Object?> get props => [id, userAId, userBId, pairedAt, streakDays, totalMoments, disconnectRequestedBy, disconnectedAt];
 }

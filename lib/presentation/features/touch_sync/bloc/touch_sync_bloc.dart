@@ -24,6 +24,7 @@ class TouchSyncBloc extends Bloc<TouchSyncEvent, TouchSyncState> {
   String    _coupleId  = '';
   String    _userId    = '';
   String    _partnerId = '';
+  bool      _partnerWasActive = false;
 
   Future<void> _onMounted(TouchScreenMounted e, Emitter<TouchSyncState> emit) async {
     _coupleId  = e.coupleId;
@@ -55,11 +56,17 @@ class TouchSyncBloc extends Bloc<TouchSyncEvent, TouchSyncState> {
   }
 
   Future<void> _onRemote(RemoteTouchReceived e, Emitter<TouchSyncState> emit) async {
+    _partnerWasActive = e.isActive;
     if (state is TouchSyncReady) {
       emit((state as TouchSyncReady).copyWith(isPartnerTouching: e.isActive));
     }
+    // Always stop the previous pulse first: a repeated "active" message must not
+    // leave an orphaned timer vibrating forever.
+    _hapticTimer?.cancel();
+    _hapticTimer = null;
     if (e.isActive) {
       await HapticUtil.touchLanding();
+      if (isClosed || !_partnerWasActive) return; // released while the landing buzz played
       _hapticTimer = Timer.periodic(
         const Duration(milliseconds: 1200),
         (_) => HapticUtil.touchPulse(),

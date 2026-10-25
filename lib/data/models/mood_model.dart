@@ -7,18 +7,18 @@ class MoodModel extends Mood {
     required super.sentAt,
   });
 
-  factory MoodModel.fromJson(Map<String, dynamic> json) => MoodModel(
-    type:   MoodType.fromString(json['type'] as String),
-    userId: json['userId'] as String,
-    sentAt: DateTime.parse(json['sentAt'] as String),
+  /// Row from the Supabase `moods` table.
+  factory MoodModel.fromRow(Map<String, dynamic> row) => MoodModel(
+    type:   MoodType.fromString(row['type'] as String),
+    userId: row['user_id'] as String,
+    sentAt: DateTime.parse(row['sent_at'] as String),
   );
 
-  Map<String, dynamic> toJson() => {
-    'type':   type.name,
-    'label':  label,
-    'emoji':  emoji,
-    'userId': userId,
-    'sentAt': sentAt.toIso8601String(),
+  Map<String, dynamic> toRow(String coupleId) => {
+    'couple_id': coupleId,
+    'user_id':   userId,
+    'type':      type.name,
+    'sent_at':   sentAt.toUtc().toIso8601String(),
   };
 
   factory MoodModel.fromEntity(Mood mood) => MoodModel(

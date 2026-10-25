@@ -1,14 +1,12 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_database/firebase_database.dart';
 import 'package:get_it/get_it.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../data/datasources/local/hive_source.dart';
 import '../../data/datasources/local/prefs_source.dart';
-import '../../data/datasources/remote/firebase_auth_source.dart';
-import '../../data/datasources/remote/firestore_source.dart';
-import '../../data/datasources/remote/rtdb_source.dart';
+import '../../data/datasources/remote/couple_channel_source.dart';
+import '../../data/datasources/remote/storage_source.dart';
+import '../../data/datasources/remote/supabase_auth_source.dart';
 import '../../data/repositories/auth_repository.dart';
 import '../../data/repositories/canvas_repository.dart';
 import '../../data/repositories/couple_repository.dart';
@@ -43,19 +41,15 @@ Future<void> setupLocator() async {
   // ── External ──────────────────────────────────────────────────
   final prefs = await SharedPreferences.getInstance();
   getIt.registerSingleton<SharedPreferences>(prefs);
-  getIt.registerSingleton<FirebaseAuth>(FirebaseAuth.instance);
-  getIt.registerSingleton<FirebaseFirestore>(FirebaseFirestore.instance);
-  getIt.registerSingleton<FirebaseDatabase>(FirebaseDatabase.instance);
+  getIt.registerSingleton<SupabaseClient>(Supabase.instance.client);
 
   // ── Data sources ──────────────────────────────────────────────
-  getIt.registerLazySingleton<FirebaseAuthSource>(
-    () => FirebaseAuthSource(auth: getIt()),
+  getIt.registerLazySingleton<SupabaseAuthSource>(
+    () => SupabaseAuthSource(client: getIt()),
   );
-  getIt.registerLazySingleton<FirestoreSource>(
-    () => FirestoreSource(firestore: getIt()),
-  );
-  getIt.registerLazySingleton<RtdbSource>(
-    () => RtdbSource(database: getIt()),
+  getIt.registerLazySingleton<StorageSource>(() => StorageSource(client: getIt()));
+  getIt.registerLazySingleton<CoupleChannelSource>(
+    () => CoupleChannelSource(client: getIt()),
   );
   getIt.registerLazySingleton<HiveSource>(() => HiveSource());
   getIt.registerLazySingleton<PrefsSource>(
@@ -66,33 +60,34 @@ Future<void> setupLocator() async {
   getIt.registerLazySingleton<IAuthRepository>(
     () => AuthRepository(
       authSource: getIt(),
-      firestoreSource: getIt(),
+      client: getIt(),
       prefsSource: getIt(),
     ),
   );
   getIt.registerLazySingleton<ICoupleRepository>(
     () => CoupleRepository(
-      firestoreSource: getIt(),
-      rtdbSource: getIt(),
+      client: getIt(),
+      channelSource: getIt(),
+      notifications: getIt(),
     ),
   );
   getIt.registerLazySingleton<IMoodRepository>(
     () => MoodRepository(
-      firestoreSource: getIt(),
-      rtdbSource: getIt(),
+      client: getIt(),
+      notifications: getIt(),
     ),
   );
   getIt.registerLazySingleton<IMemoryRepository>(
-    () => MemoryRepository(firestoreSource: getIt()),
+    () => MemoryRepository(client: getIt(), storage: getIt(), notifications: getIt()),
   );
   getIt.registerLazySingleton<ICanvasRepository>(
-    () => CanvasRepository(rtdbSource: getIt()),
+    () => CanvasRepository(client: getIt(), channelSource: getIt(), storage: getIt()),
   );
   getIt.registerLazySingleton<ITouchRepository>(
-    () => TouchRepository(rtdbSource: getIt()),
+    () => TouchRepository(channelSource: getIt()),
   );
   getIt.registerLazySingleton<INotificationRepository>(
-    () => NotificationRepository(firestoreSource: getIt()),
+    () => NotificationRepository(client: getIt()),
   );
 
   // ── BLoCs (factory — new instance per registration request) ───
@@ -138,7 +133,7 @@ Future<void> setupLocator() async {
     ),
   );
   getIt.registerFactory<TimelineBloc>(
-    () => TimelineBloc(coupleRepository: getIt()),
+    () => TimelineBloc(coupleRepository: getIt(), client: getIt()),
   );
   getIt.registerFactory<WidgetsBloc>(
     () => WidgetsBloc(

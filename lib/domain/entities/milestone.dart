@@ -8,7 +8,7 @@ enum MilestoneType {
   streak100,
   moments100,
   custom,
-  today; // synthetic — never stored in Firestore
+  today; // synthetic — never stored
 
   String get emoji => switch (this) {
     MilestoneType.firstConnect => '🎉',

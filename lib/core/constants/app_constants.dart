@@ -14,7 +14,6 @@ abstract final class AppConstants {
   // ── Canvas ────────────────────────────────────────────────────
   static const double penWidth       = 3.0;
   static const double eraserWidth    = 30.0;
-  static const int   rtdbFlushMs     = 16; // one frame @ 60 Hz
 
   // ── Notifications ─────────────────────────────────────────────
   static const int  notifQueryLimit  = 50;

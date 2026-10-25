@@ -8,3 +8,4 @@ final class ProfileReady   extends ProfileState {
   final int     doodleCount;
 }
 final class ProfileError   extends ProfileState { ProfileError(this.message); final String message; }
+final class ProfileDisconnected   extends ProfileState {}

@@ -1,28 +1,28 @@
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' hide User;
 
 import '../../domain/entities/user.dart';
 import '../../domain/repositories/i_auth_repository.dart';
 import '../datasources/local/prefs_source.dart';
-import '../datasources/remote/firebase_auth_source.dart';
-import '../datasources/remote/firestore_source.dart';
+import '../datasources/remote/supabase_auth_source.dart';
 import '../models/user_model.dart';
 
 class AuthRepository implements IAuthRepository {
   AuthRepository({
     required this.authSource,
-    required this.firestoreSource,
+    required this.client,
     required this.prefsSource,
   });
 
-  final FirebaseAuthSource authSource;
-  final FirestoreSource    firestoreSource;
+  final SupabaseAuthSource authSource;
+  final SupabaseClient     client;
   final PrefsSource        prefsSource;
 
   @override
   Stream<AppUser?> watchAuthState() {
-    return authSource.authStateChanges.asyncMap((firebaseUser) async {
-      if (firebaseUser == null) return null;
-      return _fetchUser(firebaseUser.uid);
+    return authSource.authStateChanges.asyncMap((user) async {
+      if (user == null) return null;
+      return _fetchUser(user.id);
     });
   }
 
@@ -30,37 +30,28 @@ class AuthRepository implements IAuthRepository {
   Future<AppUser?> getCurrentUser() async {
     final cu = authSource.currentUser;
     if (cu == null) return null;
-    return _fetchUser(cu.uid);
+    return _fetchUser(cu.id);
   }
 
   @override
   Future<AppUser> signIn(String email, String password) async {
-    final cred = await authSource.signIn(email, password);
-    return _fetchUser(cred.user!.uid);
+    final user = await authSource.signIn(email, password);
+    return _fetchUser(user.id);
   }
 
   @override
   Future<AppUser> signUp(String email, String password, String username, String avatarEmoji) async {
-    final cred = await authSource.signUp(email, password);
-    final uid  = cred.user!.uid;
-    final user = UserModel(
-      id:          uid,
-      username:    username,
-      email:       email,
-      avatarEmoji: avatarEmoji,
-      createdAt:   DateTime.now(),
-    );
-    await firestoreSource.userDoc(uid).set(user.toJson());
-    return user;
+    final user = await authSource.signUp(email, password, username, avatarEmoji);
+    return _fetchUser(user.id);
   }
 
   @override
   Future<void> signOut() async {
-    // Clear FCM token from Firestore and revoke it on device before signing out
-    final uid = authSource.currentUser?.uid;
+    // Drop the FCM token server-side and on the device before signing out.
+    final uid = authSource.currentUser?.id;
     if (uid != null) {
       try {
-        await firestoreSource.userDoc(uid).update({'fcmToken': null});
+        await client.from('device_tokens').delete().eq('user_id', uid);
         await FirebaseMessaging.instance.deleteToken();
       } catch (_) {}
     }
@@ -83,11 +74,15 @@ class AuthRepository implements IAuthRepository {
 
   @override
   Future<void> updateFcmToken(String uid, String token) =>
-      firestoreSource.userDoc(uid).update({'fcmToken': token});
+      client.from('device_tokens').upsert({
+        'user_id':    uid,
+        'fcm_token':  token,
+        'updated_at': DateTime.now().toUtc().toIso8601String(),
+      });
 
   Future<AppUser> _fetchUser(String uid) async {
-    final snap = await firestoreSource.userDoc(uid).get();
-    if (!snap.exists) throw Exception('User document not found: $uid');
-    return UserModel.fromJson({'id': uid, ...snap.data()!});
+    final row = await client.from('profiles').select().eq('id', uid).maybeSingle();
+    if (row == null) throw Exception('Profile not found: $uid');
+    return UserModel.fromProfile(row);
   }
 }

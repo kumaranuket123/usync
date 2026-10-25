@@ -1,4 +1,4 @@
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' hide User;
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get_it/get_it.dart';
@@ -46,7 +46,7 @@ class _CanvasBodyState extends State<_CanvasBody> {
 
   Future<void> _mount() async {
     try {
-      final uid  = FirebaseAuth.instance.currentUser?.uid;
+      final uid  = Supabase.instance.client.auth.currentUser?.id;
       if (uid == null) return;
       final user = await GetIt.I<IAuthRepository>().getCurrentUser();
       if (user?.coupleId == null || !mounted) return;

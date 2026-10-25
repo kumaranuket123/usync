@@ -4,6 +4,7 @@ import 'package:get_it/get_it.dart';
 
 import 'core/constants/route_names.dart';
 import 'core/router/app_router.dart';
+import 'core/services/push_notification_service.dart';
 import 'presentation/features/auth/bloc/auth_bloc.dart';
 import 'presentation/features/settings/bloc/settings_bloc.dart';
 import 'presentation/features/settings/bloc/theme_bloc.dart';
@@ -31,6 +32,7 @@ class UsyncApp extends StatelessWidget {
             title: 'Usync',
             debugShowCheckedModeBanner: false,
             theme: themeState.themeData,
+            scaffoldMessengerKey: rootMessengerKey,
             routerConfig: AppRouter.router,
             builder: (context, child) {
               return BlocListener<AuthBloc, AuthState>(

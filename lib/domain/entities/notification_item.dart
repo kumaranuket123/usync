@@ -36,6 +36,7 @@ class NotificationItem extends Equatable {
     required this.bodyText,
     required this.timestamp,
     this.isRead = false,
+    this.fromUserId,
   });
 
   final String    id;
@@ -44,6 +45,8 @@ class NotificationItem extends Equatable {
   final String    bodyText;
   final DateTime  timestamp;
   final bool      isRead;
+  /// Sender; the recipient is their partner. Drives the push in `functions/`.
+  final String?   fromUserId;
 
   NotificationItem markRead() => NotificationItem(
     id:        id,
@@ -52,6 +55,7 @@ class NotificationItem extends Equatable {
     bodyText:  bodyText,
     timestamp: timestamp,
     isRead:    true,
+    fromUserId: fromUserId,
   );
 
   @override
