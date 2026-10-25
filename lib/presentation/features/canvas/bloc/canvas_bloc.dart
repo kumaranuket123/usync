@@ -7,7 +7,6 @@ import 'package:intl/intl.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../../domain/entities/canvas_stroke.dart';
-import '../../../../domain/entities/memory.dart';
 import '../../../../domain/repositories/i_canvas_repository.dart';
 import '../../../../domain/repositories/i_memory_repository.dart';
 
@@ -25,6 +24,7 @@ class CanvasBloc extends Bloc<CanvasEvent, CanvasState> {
     on<ToolChanged>((e, emit)  => emit(state.copyWith(activeTool: e.tool)));
     on<CanvasCleared>(_onClear);
     on<MemorySaved>(_onSave);
+    on<StrokesFlushRequested>((_, __) => _guard(canvasRepository.flushStrokes()));
     on<PartnerHereChanged>((e, emit) => emit(state.copyWith(partnerHere: e.isHere)));
     on<RemoteStrokeReceived>(_onRemote);
     on<RemoteCanvasCleared>(
@@ -33,7 +33,7 @@ class CanvasBloc extends Bloc<CanvasEvent, CanvasState> {
   }
 
   /// How often points drawn since the last write are sent to the partner.
-  static const _flushInterval = Duration(milliseconds: 80);
+  static const _flushInterval = Duration(milliseconds: 150);
 
   final ICanvasRepository       canvasRepository;
   final IMemoryRepository       memoryRepository;
@@ -143,22 +143,17 @@ class CanvasBloc extends Bloc<CanvasEvent, CanvasState> {
 
   Future<void> _onSave(MemorySaved e, Emitter<CanvasState> emit) async {
     if (state.isSaving) return;
-    emit(state.copyWith(isSaving: true, saveFailed: false));
+    emit(state.copyWith(isSaving: true, saveFailed: false, saveQueued: false));
     try {
-      final path = await canvasRepository.saveCanvasBitmap(_coupleId, e.imageBytes);
-      final now  = DateTime.now();
-      // Saving the memory also notifies the partner ("saved a new doodle").
-      await memoryRepository.saveMemory(Memory(
-        id:              '',
-        coupleId:        _coupleId,
-        type:            MemoryType.canvas,
-        thumbnailEmoji:  MemoryType.canvas.defaultEmoji,
-        title:           'Doodle · ${DateFormat('d MMM, h:mm a').format(now)}',
-        createdAt:       now,
-        createdByUserId: _userId,
-        thumbnailUrl:    path,
-      ));
-      emit(state.copyWith(isSaving: false));
+      // Uploads the picture and saves the memory (which notifies the partner);
+      // without a connection both wait on the device and are sent later.
+      final sentNow = await memoryRepository.saveDoodle(
+        coupleId: _coupleId,
+        userId:   _userId,
+        png:      e.imageBytes,
+        title:    'Doodle · ${DateFormat('d MMM, h:mm a').format(DateTime.now())}',
+      );
+      emit(state.copyWith(isSaving: false, saveQueued: !sentNow));
     } catch (err) {
       debugPrint('Canvas save failed: $err');
       emit(state.copyWith(isSaving: false, saveFailed: true));
@@ -187,6 +182,7 @@ class CanvasBloc extends Bloc<CanvasEvent, CanvasState> {
     _remoteSub?.cancel();
     _clearSub?.cancel();
     _presenceSub?.cancel();
+    canvasRepository.flushStrokes().ignore();
     if (_coupleId.isNotEmpty) canvasRepository.leaveCanvas(_coupleId, _userId).ignore();
     return super.close();
   }

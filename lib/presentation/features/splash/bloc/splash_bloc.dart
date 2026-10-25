@@ -1,5 +1,8 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' hide User;
 
+import '../../../../domain/entities/user.dart';
 import '../../../../domain/repositories/i_auth_repository.dart';
 import '../../../../data/datasources/local/prefs_source.dart';
 
@@ -18,7 +21,18 @@ class SplashBloc extends Bloc<SplashEvent, SplashState> {
   Future<void> _onStarted(SplashStarted event, Emitter<SplashState> emit) async {
     await Future.delayed(const Duration(seconds: 3));
 
-    final user = await authRepository.getCurrentUser();
+    AppUser? user;
+    try {
+      user = await authRepository.getCurrentUser();
+    } catch (err) {
+      // No connection and nothing saved from an earlier run: if there is a
+      // signed-in session, go on to Home (it explains the problem) rather
+      // than stay on this screen.
+      debugPrint('Splash could not load the profile: $err');
+      final signedIn = Supabase.instance.client.auth.currentUser != null;
+      emit(SplashNavigating(signedIn ? SplashDestination.home : SplashDestination.login));
+      return;
+    }
 
     if (user == null) {
       final seen = prefsSource.onboardingSeen;

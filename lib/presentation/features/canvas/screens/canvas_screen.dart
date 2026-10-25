@@ -33,7 +33,7 @@ class _CanvasBody extends StatefulWidget {
   State<_CanvasBody> createState() => _CanvasBodyState();
 }
 
-class _CanvasBodyState extends State<_CanvasBody> {
+class _CanvasBodyState extends State<_CanvasBody> with WidgetsBindingObserver {
   static const _colors = [
     Color(0xFFFF6EC7), Color(0xFFC77DFF),
     Color(0xFF00D4FF), Colors.white, Color(0xFFFFD700),
@@ -47,7 +47,23 @@ class _CanvasBodyState extends State<_CanvasBody> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _mount();
+  }
+
+  /// Strokes are saved in batches; make sure none are still waiting when the
+  /// app goes to the background (where it may be closed).
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) {
+      context.read<CanvasBloc>().add(StrokesFlushRequested());
+    }
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
   }
 
   Future<void> _mount() async {
@@ -114,7 +130,9 @@ class _CanvasBodyState extends State<_CanvasBody> {
         listener: (context, state) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text(state.saveFailed
               ? 'Could not save the doodle'
-              : 'Saved to Memories — $_partnerName was notified ✏️'),
+              : state.saveQueued
+                  ? 'Saved on this device. It will go to Memories and $_partnerName when you are back online.'
+                  : 'Saved to Memories — $_partnerName was notified ✏️'),
         )),
         child: BlocBuilder<CanvasBloc, CanvasState>(
         // The canvas below has its own builder; this one only drives the toolbar.

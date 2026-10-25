@@ -36,8 +36,20 @@ class LocationBloc extends Bloc<LocationEvent, LocationState> {
     // Let the partner know we looked; it never blocks or fails the screen.
     locationRepository.notifyPartnerViewing(_coupleId, _userId).ignore();
 
-    final results = await Future.wait([
-      _loadPartner(),
+    // One subscription gives the partner's position now and every later change
+    // (including a requested fix), so there is no separate read first.
+    final firstPartner = Completer<SharedLocation?>();
+    await _partnerSub?.cancel();
+    _partnerSub = locationRepository.watchPartnerLocation(_partnerId).listen(
+      (l) {
+        if (!firstPartner.isCompleted) firstPartner.complete(l);
+        if (!isClosed) add(PartnerLocationChanged(l));
+      },
+      onError: (_) {},
+    );
+
+    final results = await Future.wait<Object?>([
+      firstPartner.future.timeout(const Duration(seconds: 5), onTimeout: () => null),
       if (sharing) _sync(prompt: false),
     ]);
     final partner = results[0] as SharedLocation?;
@@ -49,11 +61,6 @@ class LocationBloc extends Bloc<LocationEvent, LocationState> {
       partner:   partner,
       access:    sync?.access ?? LocationAccess.granted,
     ));
-
-    // A requested fix (or any later update) arrives here without a refresh.
-    _partnerSub = locationRepository
-        .watchPartnerLocation(_partnerId)
-        .listen((l) { if (!isClosed) add(PartnerLocationChanged(l)); }, onError: (_) {});
   }
 
   void _onPartnerChanged(PartnerLocationChanged e, Emitter<LocationState> emit) {

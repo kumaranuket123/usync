@@ -13,13 +13,10 @@ class UsyncShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // The shared canvas takes the whole screen: it has its own back button and
-    // the bar would only cost drawing space.
-    final onCanvas = GoRouterState.of(context).matchedLocation.startsWith(RouteNames.canvas);
     return Scaffold(
       backgroundColor: AppColors.bg1,
       body: child,
-      bottomNavigationBar: onCanvas ? null : const _UsyncBottomNav(),
+      bottomNavigationBar: const _UsyncBottomNav(),
     );
   }
 }

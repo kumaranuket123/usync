@@ -1,4 +1,5 @@
 import 'package:get_it/get_it.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -13,7 +14,12 @@ import '../../data/repositories/couple_repository.dart';
 import '../../data/repositories/memory_repository.dart';
 import '../../data/repositories/mood_repository.dart';
 import '../../data/repositories/notification_repository.dart';
+import '../../data/datasources/local/identity_cache.dart';
+import '../../data/datasources/local/session_cache.dart';
 import '../../data/repositories/location_repository.dart';
+import '../../data/repositories/milestone_repository.dart';
+import '../../domain/repositories/i_milestone_repository.dart';
+import '../services/outbox_service.dart';
 import '../services/app_lock_service.dart';
 import '../../data/repositories/touch_repository.dart';
 import '../../domain/repositories/i_auth_repository.dart';
@@ -62,12 +68,26 @@ Future<void> setupLocator() async {
 
   getIt.registerLazySingleton<AppLockService>(() => AppLockService(prefs: getIt()));
 
+  // ── Offline support ───────────────────────────────────────────
+  // Changes made without a connection wait in the outbox; the session cache
+  // keeps who you are, your couple and recent data so the app can start offline.
+  getIt.registerSingleton<SessionCache>(
+    SessionCache(box: await Hive.openBox<dynamic>(SessionCache.boxName)),
+  );
+  getIt.registerSingleton<IdentityCache>(IdentityCache());
+  getIt.registerSingleton<OutboxService>(
+    OutboxService(box: await Hive.openBox<dynamic>('outbox')),
+  );
+
   // ── Repositories ──────────────────────────────────────────────
   getIt.registerLazySingleton<IAuthRepository>(
     () => AuthRepository(
       authSource: getIt(),
       client: getIt(),
       prefsSource: getIt(),
+      sessionCache: getIt(),
+      outbox: getIt(),
+      identity: getIt(),
     ),
   );
   getIt.registerLazySingleton<ICoupleRepository>(
@@ -75,19 +95,31 @@ Future<void> setupLocator() async {
       client: getIt(),
       channelSource: getIt(),
       notifications: getIt(),
+      sessionCache: getIt(),
+      identity: getIt(),
     ),
   );
   getIt.registerLazySingleton<IMoodRepository>(
     () => MoodRepository(
       client: getIt(),
       notifications: getIt(),
+      outbox: getIt(),
+      sessionCache: getIt(),
+    ),
+  );
+  getIt.registerLazySingleton<IMilestoneRepository>(
+    () => MilestoneRepository(
+      client: getIt(),
+      notifications: getIt(),
+      outbox: getIt(),
+      sessionCache: getIt(),
     ),
   );
   getIt.registerLazySingleton<IMemoryRepository>(
-    () => MemoryRepository(client: getIt(), storage: getIt(), notifications: getIt()),
+    () => MemoryRepository(client: getIt(), storage: getIt(), notifications: getIt(), outbox: getIt()),
   );
   getIt.registerLazySingleton<ICanvasRepository>(
-    () => CanvasRepository(client: getIt(), channelSource: getIt(), storage: getIt()),
+    () => CanvasRepository(client: getIt(), channelSource: getIt(), storage: getIt(), outbox: getIt()),
   );
   getIt.registerLazySingleton<ITouchRepository>(
     () => TouchRepository(channelSource: getIt(), notifications: getIt()),
@@ -144,7 +176,7 @@ Future<void> setupLocator() async {
     ),
   );
   getIt.registerFactory<TimelineBloc>(
-    () => TimelineBloc(coupleRepository: getIt(), client: getIt(), notifications: getIt()),
+    () => TimelineBloc(coupleRepository: getIt(), milestoneRepository: getIt()),
   );
   getIt.registerFactory<WidgetsBloc>(
     () => WidgetsBloc(

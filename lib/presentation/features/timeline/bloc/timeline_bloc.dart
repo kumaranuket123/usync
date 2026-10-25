@@ -2,28 +2,26 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../../../../data/models/milestone_model.dart';
 import '../../../../domain/entities/milestone.dart';
-import '../../../../domain/entities/notification_item.dart';
 import '../../../../domain/repositories/i_couple_repository.dart';
-import '../../../../domain/repositories/i_notification_repository.dart';
+import '../../../../domain/repositories/i_milestone_repository.dart';
 
 part 'timeline_event.dart';
 part 'timeline_state.dart';
 
 class TimelineBloc extends Bloc<TimelineEvent, TimelineState> {
-  TimelineBloc({required this.coupleRepository, required this.client, required this.notifications})
+  TimelineBloc({required this.coupleRepository, required this.milestoneRepository})
       : super(TimelineLoading()) {
     on<TimelineLoaded>(_onLoaded);
     on<DateAdded>(_onAdded);
     on<DateDeleted>(_onDeleted);
   }
 
-  final ICoupleRepository       coupleRepository;
-  final SupabaseClient          client;
-  final INotificationRepository notifications;
+  final ICoupleRepository    coupleRepository;
+  final IMilestoneRepository milestoneRepository;
 
   String _coupleId = '';
+  final _auth = Supabase.instance.client.auth;
 
   Future<void> _onLoaded(TimelineLoaded e, Emitter<TimelineState> emit) async {
     _coupleId = e.coupleId;
@@ -33,18 +31,14 @@ class TimelineBloc extends Bloc<TimelineEvent, TimelineState> {
   }
 
   /// Loads the timeline; [notice] is shown once by the screen if it is set.
-  Future<void> _load(Emitter<TimelineState> emit, {String? notice}) async {
+  /// [pending] are dates saved on the device but not yet sent, shown meanwhile.
+  Future<void> _load(Emitter<TimelineState> emit, {String? notice, List<Milestone> pending = const []}) async {
     try {
       final couple = await coupleRepository.getCouple(_coupleId);
       final days   = couple.daysTogether;
 
-      final rows = await client
-          .from('milestones')
-          .select()
-          .eq('couple_id', _coupleId)
-          .order('occurred_at');
-      // Typed as Milestone (not MilestoneModel) so the synthetic "today" item can be added.
-      final milestones = <Milestone>[for (final row in rows) MilestoneModel.fromRow(row)];
+      final milestones = await milestoneRepository.getMilestones(_coupleId);
+      milestones.addAll(pending.where((p) => !milestones.any((m) => m.id == p.id)));
 
       // Insert the synthetic "today" item in date order: later dates are upcoming.
       milestones.add(Milestone(
@@ -66,40 +60,34 @@ class TimelineBloc extends Bloc<TimelineEvent, TimelineState> {
   }
 
   Future<void> _onAdded(DateAdded e, Emitter<TimelineState> emit) async {
-    final uid = client.auth.currentUser?.id;
+    final uid = _auth.currentUser?.id;
     if (uid == null || _coupleId.isEmpty) return;
-    String? notice;
     try {
-      // Noon UTC keeps the calendar day the same in every timezone.
-      final occurredAt = DateTime.utc(e.date.year, e.date.month, e.date.day, 12);
-      await client.from('milestones').insert({
-        'couple_id':      _coupleId,
-        'type':           MilestoneType.custom.name,
-        'title':          e.title,
-        'note':           e.note,
-        'emoji':          e.emoji,
-        'repeats_yearly': e.repeatsYearly,
-        'occurred_at':    occurredAt.toIso8601String(),
-        'created_by':     uid,
-      });
-      await notifications.notifyPartner(
-        coupleId:   _coupleId,
-        fromUserId: uid,
-        type:       NotifType.milestone,
-        body:       (name) => '$name added "${e.title}" to your timeline ${e.emoji}',
+      final result = await milestoneRepository.addDate(
+        coupleId:      _coupleId,
+        userId:        uid,
+        title:         e.title,
+        date:          e.date,
+        note:          e.note,
+        emoji:         e.emoji,
+        repeatsYearly: e.repeatsYearly,
+      );
+      await _load(
+        emit,
+        pending: result.sentNow ? const [] : [result.milestone],
+        notice:  result.sentNow ? null : 'Saved on this device. It will be sent when you are back online.',
       );
     } catch (_) {
-      notice = 'Could not save this date';
+      await _load(emit, notice: 'Could not save this date');
     }
-    await _load(emit, notice: notice);
   }
 
   Future<void> _onDeleted(DateDeleted e, Emitter<TimelineState> emit) async {
     String? notice;
     try {
-      await client.from('milestones').delete().eq('id', e.id);
+      await milestoneRepository.deleteMilestone(e.id);
     } catch (_) {
-      notice = 'Could not delete this date';
+      notice = 'Could not delete this date. Check your connection.';
     }
     await _load(emit, notice: notice);
   }

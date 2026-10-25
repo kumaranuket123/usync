@@ -12,6 +12,7 @@ class CanvasState {
     this.activeTool    = CanvasTool.pen,
     this.isSaving      = false,
     this.saveFailed    = false,
+    this.saveQueued    = false,
     this.partnerHere   = false,
     this.isReady       = false,
   });
@@ -28,6 +29,8 @@ class CanvasState {
   final bool               isSaving;
   /// The last save did not complete; reset when the next one starts.
   final bool               saveFailed;
+  /// The last save was kept on the device (no connection) and will be sent later.
+  final bool               saveQueued;
   /// The partner is on the canvas right now (from Presence).
   final bool               partnerHere;
 
@@ -49,6 +52,7 @@ class CanvasState {
     CanvasTool?         activeTool,
     bool?               isSaving,
     bool?               saveFailed,
+    bool?               saveQueued,
     bool?               partnerHere,
     bool?               isReady,
   }) {
@@ -64,6 +68,7 @@ class CanvasState {
       activeTool:    activeTool  ?? this.activeTool,
       isSaving:      isSaving    ?? this.isSaving,
       saveFailed:    saveFailed  ?? this.saveFailed,
+      saveQueued:    saveQueued  ?? this.saveQueued,
       partnerHere:   partnerHere ?? this.partnerHere,
       isReady:       isReady     ?? this.isReady,
     );

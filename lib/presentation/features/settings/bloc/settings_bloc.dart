@@ -10,6 +10,7 @@ part 'settings_state.dart';
 class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
   SettingsBloc({required this.prefsSource, required this.notifications}) : super(const SettingsState()) {
     on<SettingsLoaded>(_onLoaded);
+    on<AlertTypesRequested>(_onAlertTypesRequested);
     on<ToggleChanged>(_onToggle);
     on<AlertSilenceChanged>(_onAlertSilence);
   }
@@ -23,11 +24,16 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
       'haptic':        prefsSource.hapticEnabled,
       'animations':    prefsSource.animationsEnabled,
     }));
+  }
+
+  /// Stored on the server (the sender's push is built there), so it is read
+  /// when the Settings screen is first opened rather than at every app start.
+  Future<void> _onAlertTypesRequested(AlertTypesRequested _, Emitter<SettingsState> emit) async {
+    if (state.silentTypesLoaded) return;
     try {
-      // Stored on the server: the sender's push is built there, not on this device.
       emit(state.withSilentTypes(await notifications.getSilentTypes()));
     } catch (_) {
-      // Offline or signed out: keep the defaults.
+      // Offline or signed out: keep the defaults; the next visit tries again.
     }
   }
 

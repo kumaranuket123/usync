@@ -9,6 +9,25 @@ class NotificationRepository implements INotificationRepository {
   NotificationRepository({required this.client});
   final SupabaseClient client;
 
+  final _senderNames = <String, String>{};
+
+  /// The sender's display name. The signed-in user's own name is already in
+  /// their session (it was given at sign-up), so the common case costs no
+  /// request; anyone else is looked up once and remembered.
+  Future<String> _senderName(String uid) async {
+    final user = client.auth.currentUser;
+    if (user != null && user.id == uid) {
+      final name = user.userMetadata?['username'];
+      if (name is String && name.isNotEmpty) return name;
+    }
+    final known = _senderNames[uid];
+    if (known != null) return known;
+    final row  = await client.from('profiles').select('username').eq('id', uid).maybeSingle();
+    final name = row?['username'] as String?;
+    if (name == null) return 'Your partner';
+    return _senderNames[uid] = name;
+  }
+
   /// Notifications are stored couple-wide; the ones we sent are for the partner.
   String? get _me => client.auth.currentUser?.id;
 
@@ -87,8 +106,7 @@ class NotificationRepository implements INotificationRepository {
     required String Function(String senderName) body,
   }) async {
     try {
-      final me   = await client.from('profiles').select('username').eq('id', fromUserId).maybeSingle();
-      final name = (me?['username'] as String?) ?? 'Your partner';
+      final name = await _senderName(fromUserId);
       // The recipient is the sender's partner; the push (phase 5) is sent by an Edge Function.
       await client.from('notifications').insert({
         'couple_id':    coupleId,

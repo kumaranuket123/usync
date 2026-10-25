@@ -4,6 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../core/services/push_notification_service.dart' show rootMessengerKey;
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../domain/entities/mood.dart';
@@ -23,7 +24,15 @@ class MoodScreen extends StatelessWidget {
       create: (_) => GetIt.I<MoodBloc>(),
       child: BlocListener<MoodBloc, MoodState>(
         listener: (context, state) {
-          if (state is MoodSentSuccess) context.pop();
+          if (state is MoodSentSuccess) {
+            if (state.queued) {
+              // The screen closes, so the message goes on the app-level messenger.
+              rootMessengerKey.currentState?.showSnackBar(const SnackBar(
+                content: Text('You are offline. Your mood will be sent when you are back online.'),
+              ));
+            }
+            context.pop();
+          }
           if (state is MoodError) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(content: Text(state.message)),

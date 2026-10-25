@@ -9,6 +9,7 @@ import 'presentation/features/auth/bloc/auth_bloc.dart';
 import 'presentation/features/settings/bloc/settings_bloc.dart';
 import 'presentation/features/settings/bloc/theme_bloc.dart';
 import 'presentation/shared/widgets/app_lock_gate.dart';
+import 'presentation/shared/widgets/offline_banner.dart';
 
 class UsyncApp extends StatelessWidget {
   const UsyncApp({super.key});
@@ -36,14 +37,14 @@ class UsyncApp extends StatelessWidget {
             scaffoldMessengerKey: rootMessengerKey,
             routerConfig: AppRouter.router,
             builder: (context, child) {
-              return AppLockGate(child: BlocListener<AuthBloc, AuthState>(
+              return AppLockGate(child: Stack(fit: StackFit.expand, children: [BlocListener<AuthBloc, AuthState>(
                 listener: (context, state) {
                   if (state is Unauthenticated) {
                     AppRouter.router.go(RouteNames.login);
                   }
                 },
                 child: child!,
-              ));
+              ), const OfflineBanner()]));
             },
           );
         },

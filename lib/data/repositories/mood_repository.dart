@@ -1,62 +1,90 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:uuid/uuid.dart';
 
+import '../../core/services/outbox_service.dart';
 import '../../domain/entities/mood.dart';
 import '../../domain/entities/notification_item.dart';
 import '../../domain/repositories/i_mood_repository.dart';
 import '../../domain/repositories/i_notification_repository.dart';
+import '../datasources/local/session_cache.dart';
 import '../models/mood_model.dart';
 
 class MoodRepository implements IMoodRepository {
-  MoodRepository({required this.client, required this.notifications});
+  MoodRepository({
+    required this.client,
+    required this.notifications,
+    required this.outbox,
+    required this.sessionCache,
+  }) {
+    outbox.register(_outboxType, _deliver);
+  }
+
+  static const _outboxType = 'mood';
 
   final SupabaseClient          client;
   final INotificationRepository notifications;
+  final OutboxService           outbox;
+  final SessionCache            sessionCache;
+  final _uuid = const Uuid();
 
+  /// Sends now when there is a connection; otherwise the mood waits on the
+  /// device (with the time it was made) and goes out when the connection is
+  /// back. The id is chosen here so a retry can never create a second mood.
   @override
-  Future<void> sendMood(String coupleId, String userId, MoodType type, {CustomMood? custom}) async {
+  Future<bool> sendMood(String coupleId, String userId, MoodType type, {CustomMood? custom}) =>
+      outbox.submit(_outboxType, {
+        'id':          _uuid.v4(),
+        'coupleId':    coupleId,
+        'userId':      userId,
+        'type':        type.name,
+        'customLabel': custom?.label,
+        'customEmoji': custom?.emoji,
+        'sentAt':      DateTime.now().toUtc().toIso8601String(),
+      });
+
+  Future<void> _deliver(Map<String, dynamic> p) async {
+    final type = MoodType.fromString(p['type'] as String);
     final mood = MoodModel(
       type:        type,
-      userId:      userId,
-      sentAt:      DateTime.now(),
-      customLabel: custom?.label,
-      customEmoji: custom?.emoji,
+      userId:      p['userId'] as String,
+      sentAt:      DateTime.parse(p['sentAt'] as String),
+      customLabel: p['customLabel'] as String?,
+      customEmoji: p['customEmoji'] as String?,
     );
-    // The row is both history and the "current" mood the partner's stream sees.
-    await client.from('moods').insert(mood.toRow(coupleId));
+    try {
+      await client.from('moods').insert({'id': p['id'], ...mood.toRow(p['coupleId'] as String)});
+    } on PostgrestException catch (e) {
+      if (e.code == '23505') return; // an earlier attempt already got through
+      rethrow;
+    }
     await notifications.notifyPartner(
-      coupleId:   coupleId,
-      fromUserId: userId,
+      coupleId:   p['coupleId'] as String,
+      fromUserId: p['userId'] as String,
       type:       NotifType.moodChange,
       body:       (name) => '$name is feeling ${mood.label} ${mood.emoji}',
     );
   }
 
+  static const _recentLimit = 20;
+
   @override
-  Stream<Mood?> watchPartnerMood(String coupleId, String partnerUserId) {
-    return client
+  Stream<List<Mood>> watchRecentMoods(String coupleId) async* {
+    final key = SessionCache.moods(coupleId);
+    // The last list we saw, so Home has something to show at once (and offline).
+    final cached = sessionCache.getList(key);
+    if (cached != null) yield cached.map(MoodModel.fromRow).toList();
+
+    yield* client
         .from('moods')
         .stream(primaryKey: ['id'])
         .eq('couple_id', coupleId)
         .order('sent_at', ascending: false)
-        .limit(20)
+        .limit(_recentLimit)
         .map((rows) {
-          for (final row in rows) {
-            if (row['user_id'] == partnerUserId) return MoodModel.fromRow(row);
-          }
-          return null;
+          sessionCache.put(key, rows).ignore();
+          return rows.map(MoodModel.fromRow).toList();
         })
         .handleError((Object _) {}); // dropped Realtime connection: keep the screen alive
-  }
-
-  @override
-  Future<List<Mood>> getMoodHistory(String coupleId, {int limit = 10}) async {
-    final rows = await client
-        .from('moods')
-        .select()
-        .eq('couple_id', coupleId)
-        .order('sent_at', ascending: false)
-        .limit(limit);
-    return rows.map(MoodModel.fromRow).toList();
   }
 
   @override

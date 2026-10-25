@@ -1,4 +1,5 @@
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../domain/entities/user.dart';
@@ -19,8 +20,13 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   final IAuthRepository authRepository;
 
   Future<void> _onChecked(AuthStateChecked _, Emitter<AuthState> emit) async {
-    final user = await authRepository.getCurrentUser();
-    emit(user != null ? Authenticated(user) : Unauthenticated());
+    try {
+      final user = await authRepository.getCurrentUser();
+      emit(user != null ? Authenticated(user) : Unauthenticated());
+    } catch (err) {
+      // Offline with nothing saved yet: stay as we are rather than sign the user out.
+      debugPrint('Could not check the signed-in user: $err');
+    }
   }
 
   Future<void> _onSignIn(SignInRequested e, Emitter<AuthState> emit) async {

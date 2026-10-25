@@ -24,5 +24,9 @@ final class MoodReady       extends MoodState {
         isSending:      isSending      ?? this.isSending,
       );
 }
-final class MoodSentSuccess extends MoodState {}
+final class MoodSentSuccess extends MoodState {
+  MoodSentSuccess({this.queued = false});
+  /// There was no connection: the mood is saved on the device and goes out later.
+  final bool queued;
+}
 final class MoodError       extends MoodState { MoodError(this.message); final String message; }

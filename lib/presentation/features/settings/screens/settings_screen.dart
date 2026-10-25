@@ -14,8 +14,20 @@ import '../bloc/settings_bloc.dart';
 import 'alert_sounds_screen.dart';
 import '../../auth/bloc/auth_bloc.dart';
 
-class SettingsScreen extends StatelessWidget {
+class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
+
+  @override
+  State<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends State<SettingsScreen> {
+  @override
+  void initState() {
+    super.initState();
+    // The alert sound choices live on the server; fetch them now, once.
+    context.read<SettingsBloc>().add(const AlertTypesRequested());
+  }
 
   @override
   Widget build(BuildContext context) {

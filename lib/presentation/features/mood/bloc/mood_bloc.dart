@@ -39,7 +39,12 @@ class MoodBloc extends Bloc<MoodEvent, MoodState> {
     _coupleId = e.coupleId;
     _userId   = e.userId;
     emit(MoodLoading());
-    final last = await moodRepository.getLastSentMood(_userId);
+    Mood? last;
+    try {
+      last = await moodRepository.getLastSentMood(_userId);
+    } catch (_) {
+      // Offline: start with nothing selected.
+    }
     var customs = <CustomMood>[];
     try {
       customs = await moodRepository.getMyCustomMoods(_userId);
@@ -67,8 +72,8 @@ class MoodBloc extends Bloc<MoodEvent, MoodState> {
     }
     emit(ready.copyWith(isSending: true));
     try {
-      await moodRepository.sendMood(_coupleId, _userId, ready.selectedMood!, custom: ready.selectedCustom);
-      emit(MoodSentSuccess());
+      final sentNow = await moodRepository.sendMood(_coupleId, _userId, ready.selectedMood!, custom: ready.selectedCustom);
+      emit(MoodSentSuccess(queued: !sentNow));
     } catch (err) {
       emit(MoodError(err.toString()));
     }

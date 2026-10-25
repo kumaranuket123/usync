@@ -20,6 +20,21 @@ class PrefsSource {
   Future<void> setToggle(String key, bool value) =>
       prefs.setBool('setting_$key', value);
 
+  // ── Push token ────────────────────────────────────────────────
+  /// The token last written to the server for [uid] and when (ms since epoch).
+  ({String token, int savedAt})? fcmSaved(String uid) {
+    final raw = prefs.getString('fcm_saved:$uid');
+    final i   = raw?.lastIndexOf('|') ?? -1;
+    if (raw == null || i < 0) return null;
+    final at = int.tryParse(raw.substring(i + 1));
+    return at == null ? null : (token: raw.substring(0, i), savedAt: at);
+  }
+
+  Future<void> setFcmSaved(String uid, String token) =>
+      prefs.setString('fcm_saved:$uid', '$token|${DateTime.now().millisecondsSinceEpoch}');
+
+  Future<void> clearFcmSaved(String uid) => prefs.remove('fcm_saved:$uid');
+
   // ── App lock ──────────────────────────────────────────────────
   bool get appLockEnabled => prefs.getBool('app_lock') ?? false;
   Future<void> setAppLockEnabled(bool value) => prefs.setBool('app_lock', value);
