@@ -13,6 +13,7 @@ import '../../data/repositories/couple_repository.dart';
 import '../../data/repositories/memory_repository.dart';
 import '../../data/repositories/mood_repository.dart';
 import '../../data/repositories/notification_repository.dart';
+import '../../data/repositories/location_repository.dart';
 import '../../data/repositories/touch_repository.dart';
 import '../../domain/repositories/i_auth_repository.dart';
 import '../../domain/repositories/i_canvas_repository.dart';
@@ -20,6 +21,7 @@ import '../../domain/repositories/i_couple_repository.dart';
 import '../../domain/repositories/i_memory_repository.dart';
 import '../../domain/repositories/i_mood_repository.dart';
 import '../../domain/repositories/i_notification_repository.dart';
+import '../../domain/repositories/i_location_repository.dart';
 import '../../domain/repositories/i_touch_repository.dart';
 import '../../presentation/features/auth/bloc/auth_bloc.dart';
 import '../../presentation/features/canvas/bloc/canvas_bloc.dart';
@@ -32,6 +34,7 @@ import '../../presentation/features/profile/bloc/profile_bloc.dart';
 import '../../presentation/features/settings/bloc/settings_bloc.dart';
 import '../../presentation/features/settings/bloc/theme_bloc.dart';
 import '../../presentation/features/timeline/bloc/timeline_bloc.dart';
+import '../../presentation/features/location/bloc/location_bloc.dart';
 import '../../presentation/features/touch_sync/bloc/touch_sync_bloc.dart';
 import '../../presentation/features/widgets_showcase/bloc/widgets_bloc.dart';
 
@@ -86,6 +89,9 @@ Future<void> setupLocator() async {
   getIt.registerLazySingleton<ITouchRepository>(
     () => TouchRepository(channelSource: getIt()),
   );
+  getIt.registerLazySingleton<ILocationRepository>(
+    () => LocationRepository(client: getIt(), prefs: getIt(), notifications: getIt()),
+  );
   getIt.registerLazySingleton<INotificationRepository>(
     () => NotificationRepository(client: getIt()),
   );
@@ -115,6 +121,9 @@ Future<void> setupLocator() async {
   );
   getIt.registerFactory<TouchSyncBloc>(
     () => TouchSyncBloc(touchRepository: getIt()),
+  );
+  getIt.registerFactory<LocationBloc>(
+    () => LocationBloc(locationRepository: getIt()),
   );
   getIt.registerFactory<MoodBloc>(
     () => MoodBloc(moodRepository: getIt()),

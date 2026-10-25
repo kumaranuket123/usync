@@ -20,6 +20,14 @@ class PrefsSource {
   Future<void> setToggle(String key, bool value) =>
       prefs.setBool('setting_$key', value);
 
+  // ── Location sharing ──────────────────────────────────────────
+  bool get locationSharing => prefs.getBool('location_sharing') ?? false;
+  Future<void> setLocationSharing(bool value) => prefs.setBool('location_sharing', value);
+
+  /// When we last told the partner we looked at their location (ms since epoch).
+  int get locationViewNotifiedAt => prefs.getInt('location_view_notified_at') ?? 0;
+  Future<void> setLocationViewNotifiedAt(int ms) => prefs.setInt('location_view_notified_at', ms);
+
   // ── Clear (sign-out) ──────────────────────────────────────────
   Future<void> clearSession() async {
     await prefs.remove('onboarding_seen');

@@ -5,6 +5,7 @@ import '../../presentation/features/auth/screens/login_screen.dart';
 import '../../presentation/features/auth/screens/register_screen.dart';
 import '../../presentation/features/canvas/screens/canvas_screen.dart';
 import '../../presentation/features/home/screens/home_screen.dart';
+import '../../presentation/features/location/screens/location_screen.dart';
 import '../../presentation/features/memory/screens/memory_detail_screen.dart';
 import '../../presentation/features/memory/screens/memory_space_screen.dart';
 import '../../presentation/features/mood/screens/mood_screen.dart';
@@ -98,6 +99,11 @@ abstract final class AppRouter {
         path: RouteNames.touchSync,
         parentNavigatorKey: _rootKey,
         builder: (_, __) => const TouchSyncScreen(),
+      ),
+      GoRoute(
+        path: RouteNames.location,
+        parentNavigatorKey: _rootKey,
+        builder: (_, __) => const LocationScreen(),
       ),
       GoRoute(
         path: RouteNames.mood,

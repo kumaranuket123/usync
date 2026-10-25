@@ -6,14 +6,18 @@ import '../../domain/repositories/i_auth_repository.dart';
 import '../constants/route_names.dart';
 import '../di/injection.dart';
 import '../router/app_router.dart';
+import 'location_sync_service.dart';
 
 /// Used by the app shell to show pushes that arrive while the app is open.
 final GlobalKey<ScaffoldMessengerState> rootMessengerKey = GlobalKey<ScaffoldMessengerState>();
 
-/// Runs in its own isolate when a data-only push arrives with the app killed.
-/// Notification messages are shown by the OS, so there is nothing to do here.
+/// Runs in its own isolate when a data-only push arrives with the app in the
+/// background or killed. Notification messages are shown by the OS; the only
+/// data-only message is the partner's "locate" request.
 @pragma('vm:entry-point')
-Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {}
+Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  if (message.data['action'] == 'locate') await LocationSyncService.answerLocateRequest();
+}
 
 abstract final class PushNotificationService {
   static Future<void> init() async {
@@ -48,6 +52,10 @@ abstract final class PushNotificationService {
   }
 
   static void _showBanner(RemoteMessage message) {
+    if (message.data['action'] == 'locate') {
+      LocationSyncService.answerLocateRequest();
+      return;
+    }
     final n = message.notification;
     if (n == null) return;
     rootMessengerKey.currentState

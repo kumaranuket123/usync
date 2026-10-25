@@ -9,12 +9,16 @@ class NotificationRepository implements INotificationRepository {
   NotificationRepository({required this.client});
   final SupabaseClient client;
 
+  /// Notifications are stored couple-wide; the ones we sent are for the partner.
+  String? get _me => client.auth.currentUser?.id;
+
   @override
   Future<List<NotificationItem>> getNotifications(String coupleId) async {
     final rows = await client
         .from('notifications')
         .select()
         .eq('couple_id', coupleId)
+        .neq('from_user_id', _me ?? '')
         .order('created_at', ascending: false)
         .limit(50);
     return rows.map(NotificationModel.fromRow).toList();
@@ -28,7 +32,11 @@ class NotificationRepository implements INotificationRepository {
         .eq('couple_id', coupleId)
         .order('created_at', ascending: false)
         .limit(50)
-        .map((rows) => rows.map(NotificationModel.fromRow).toList());
+        .map((rows) => rows
+            .where((r) => r['from_user_id'] != _me)
+            .map(NotificationModel.fromRow)
+            .toList())
+        .handleError((Object _) {}); // dropped Realtime connection: keep the screen alive
   }
 
   @override
@@ -40,6 +48,7 @@ class NotificationRepository implements INotificationRepository {
       .from('notifications')
       .update({'is_read': true})
       .eq('couple_id', coupleId)
+      .neq('from_user_id', _me ?? '')
       .eq('is_read', false);
 
   @override
@@ -48,7 +57,8 @@ class NotificationRepository implements INotificationRepository {
         .from('notifications')
         .stream(primaryKey: ['id'])
         .eq('couple_id', coupleId)
-        .map((rows) => rows.where((r) => r['is_read'] == false).length);
+        .map((rows) => rows.where((r) => r['is_read'] == false && r['from_user_id'] != _me).length)
+        .handleError((Object _) {});
   }
 
   @override

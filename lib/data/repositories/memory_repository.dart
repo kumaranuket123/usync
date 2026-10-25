@@ -23,7 +23,8 @@ class MemoryRepository implements IMemoryRepository {
         .stream(primaryKey: ['id'])
         .eq('couple_id', coupleId)
         .order('created_at', ascending: false)
-        .asyncMap(_withSignedUrls);
+        .asyncMap(_withSignedUrls)
+        .handleError((Object _) {}); // dropped Realtime connection: keep the screen alive
   }
 
   @override

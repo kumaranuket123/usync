@@ -13,6 +13,8 @@ const TITLES: Record<string, string> = {
   moodChange: 'Mood update 💭',
   streak: 'Streak 🔥',
   milestone: 'Usync 💖',
+  location: 'Location 📍',
+  locate: 'Location 📍',
 };
 
 const db = createClient(
@@ -82,24 +84,25 @@ Deno.serve(async (req) => {
   if (!raw) return new Response('FCM_SERVICE_ACCOUNT not set', { status: 500 });
   const sa = JSON.parse(raw);
 
-  const res = await fetch(`https://fcm.googleapis.com/v1/projects/${sa.project_id}/messages:send`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${await fcmAccessToken(sa)}`,
-    },
-    body: JSON.stringify({
-      message: {
-        token: device.fcm_token,
-        notification: { title: TITLES[record.type] ?? 'Usync', body: record.body_text },
-        data: { route: '/notifications', type: String(record.type) },
-        android: { priority: 'high', notification: { channel_id: 'usync_default' } },
-        apns: { payload: { aps: { sound: 'default' } } },
-      },
-    }),
-  });
+  // A locate request only goes through if the recipient opted in to background location.
+  const isLocate = record.type === 'locate';
+  if (isLocate) {
+    const { data: loc } = await db
+      .from('locations')
+      .select('allow_background')
+      .eq('user_id', recipientId)
+      .maybeSingle();
+    if (!loc?.allow_background) return new Response('not allowed', { status: 200 });
+  }
 
-  if (!res.ok) {
+  const accessToken = await fcmAccessToken(sa);
+  const send = async (message: Record<string, unknown>) => {
+    const res = await fetch(`https://fcm.googleapis.com/v1/projects/${sa.project_id}/messages:send`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+      body: JSON.stringify({ message: { token: device.fcm_token, ...message } }),
+    });
+    if (res.ok) return;
     const body = await res.text();
     // Dead token: drop it so we stop sending to a stale device.
     if (res.status === 404 || body.includes('UNREGISTERED')) {
@@ -107,6 +110,26 @@ Deno.serve(async (req) => {
     } else {
       console.error('FCM send failed', res.status, body);
     }
+  };
+
+  // Visible notification: the partner always sees that they were located.
+  await send({
+    notification: { title: TITLES[record.type] ?? 'Usync', body: record.body_text },
+    data: { route: '/notifications', type: String(record.type) },
+    android: { priority: 'high', notification: { channel_id: 'usync_default' } },
+    apns: { payload: { aps: { sound: 'default' } } },
+  });
+
+  // Data-only message that wakes the app to read its location.
+  if (isLocate) {
+    await send({
+      data: { action: 'locate', couple_id: String(record.couple_id) },
+      android: { priority: 'high' },
+      apns: {
+        headers: { 'apns-priority': '5', 'apns-push-type': 'background' },
+        payload: { aps: { 'content-available': 1 } },
+      },
+    });
   }
   return new Response('ok', { status: 200 });
 });

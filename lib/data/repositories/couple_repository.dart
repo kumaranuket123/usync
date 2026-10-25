@@ -59,7 +59,8 @@ class CoupleRepository implements ICoupleRepository {
       .stream(primaryKey: ['id'])
       .eq('id', coupleId)
       .where((rows) => rows.isNotEmpty)
-      .map((rows) => CoupleModel.fromRow(rows.first));
+      .map((rows) => CoupleModel.fromRow(rows.first))
+      .handleError((Object _) {}); // dropped Realtime connection: keep the screen alive
 
   @override
   Future<void> requestDisconnect(String coupleId, String userId) async {

@@ -38,7 +38,8 @@ class MoodRepository implements IMoodRepository {
             if (row['user_id'] == partnerUserId) return MoodModel.fromRow(row);
           }
           return null;
-        });
+        })
+        .handleError((Object _) {}); // dropped Realtime connection: keep the screen alive
   }
 
   @override

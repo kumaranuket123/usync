@@ -149,6 +149,7 @@ class _HomeBody extends StatelessWidget {
                         runSpacing: 8,
                         children: [
                           _ActionPill('👆', 'Touch',  () => context.push(RouteNames.touchSync)),
+                          _ActionPill('📍', 'Location', () => context.push(RouteNames.location)),
                           _ActionPill('💭', 'Mood',   () => context.push(RouteNames.mood)),
                           _ActionPill('✏️', 'Draw',   () => context.go(RouteNames.canvas)),
                           _ActionPill('🫧', 'Memory', () => context.go(RouteNames.memories)),

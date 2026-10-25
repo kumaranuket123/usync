@@ -6,7 +6,9 @@ enum NotifType {
   doodle,
   moodChange,
   streak,
-  milestone;
+  milestone,
+  location,
+  locate;
 
   String get emoji => switch (this) {
     NotifType.touch      => '👆',
@@ -14,6 +16,8 @@ enum NotifType {
     NotifType.moodChange => '💭',
     NotifType.streak     => '🔥',
     NotifType.milestone  => '💖',
+    NotifType.location   => '📍',
+    NotifType.locate     => '📍',
   };
 
   Color get iconBackground => switch (this) {
@@ -22,6 +26,8 @@ enum NotifType {
     NotifType.moodChange => const Color(0x1F9D4EDD),
     NotifType.streak     => const Color(0x1AFFD700),
     NotifType.milestone  => const Color(0x1FC77DFF),
+    NotifType.location   => const Color(0x1F00E676),
+    NotifType.locate     => const Color(0x1F00E676),
   };
 
   static NotifType fromString(String value) =>
