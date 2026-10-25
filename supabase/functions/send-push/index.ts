@@ -75,7 +75,7 @@ Deno.serve(async (req) => {
 
   const { data: device } = await db
     .from('device_tokens')
-    .select('fcm_token')
+    .select('fcm_token, silent_types')
     .eq('user_id', recipientId)
     .maybeSingle();
   if (!device?.fcm_token) return new Response('no token', { status: 200 });
@@ -112,12 +112,20 @@ Deno.serve(async (req) => {
     }
   };
 
+  // Types the recipient chose to silence get no sound and no heads-up popup (the
+  // app creates the `usync_silent` channel with low importance); they still show
+  // in the notification shade. 'locate' is part of the 'location' group.
+  const group = isLocate ? 'location' : String(record.type);
+  const quiet = ((device.silent_types as string[] | null) ?? ['location']).includes(group);
+
   // Visible notification: the partner always sees that they were located.
   await send({
     notification: { title: TITLES[record.type] ?? 'Usync', body: record.body_text },
     data: { route: '/notifications', type: String(record.type) },
-    android: { priority: 'high', notification: { channel_id: 'usync_default' } },
-    apns: { payload: { aps: { sound: 'default' } } },
+    android: quiet
+      ? { priority: 'normal', notification: { channel_id: 'usync_silent' } }
+      : { priority: 'high', notification: { channel_id: 'usync_default' } },
+    apns: { payload: { aps: quiet ? {} : { sound: 'default' } } },
   });
 
   // Data-only message that wakes the app to read its location.

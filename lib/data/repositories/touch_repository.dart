@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import '../../domain/entities/notification_item.dart';
+import '../../domain/repositories/i_notification_repository.dart';
 import '../../domain/repositories/i_touch_repository.dart';
 import '../datasources/remote/couple_channel_source.dart';
 
@@ -7,8 +9,12 @@ import '../datasources/remote/couple_channel_source.dart';
 /// `onDisconnect`; instead the partner counts as not touching once their
 /// Presence leaves the channel.
 class TouchRepository implements ITouchRepository {
-  TouchRepository({required this.channelSource});
-  final CoupleChannelSource channelSource;
+  TouchRepository({required this.channelSource, required this.notifications});
+  final CoupleChannelSource     channelSource;
+  final INotificationRepository notifications;
+
+  static const _notifyEvery = Duration(minutes: 2);
+  DateTime? _lastNotified;
 
   @override
   Future<void> setTouchActive(String coupleId, String userId, {required bool isActive}) =>
@@ -54,6 +60,34 @@ class TouchRepository implements ITouchRepository {
       // Announce ourselves on Presence so the partner can detect us leaving.
       channelSource.open(coupleId).track({
         'user_id':    userId,
+        'screen':     'touch',
         'updated_at': DateTime.now().millisecondsSinceEpoch,
       });
+
+  @override
+  Future<void> leaveTouchScreen(String coupleId, String userId) =>
+      channelSource.open(coupleId).track({
+        'user_id':    userId,
+        'updated_at': DateTime.now().millisecondsSinceEpoch,
+      });
+
+  @override
+  Future<void> notifyIfPartnerAway(String coupleId, String userId, String partnerUserId) async {
+    final channel = channelSource.open(coupleId);
+    await channel.ready;
+    // Before the first Presence sync we cannot tell whether they are here.
+    if (!channel.presenceSynced) return;
+    if (channel.presenceScreens[partnerUserId] == 'touch') return;
+
+    final last = _lastNotified;
+    if (last != null && DateTime.now().difference(last) < _notifyEvery) return;
+    _lastNotified = DateTime.now();
+
+    await notifications.notifyPartner(
+      coupleId:   coupleId,
+      fromUserId: userId,
+      type:       NotifType.touch,
+      body:       (name) => '$name wants to feel you 💞',
+    );
+  }
 }

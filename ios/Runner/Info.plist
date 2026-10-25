@@ -10,6 +10,8 @@
 	<array>
 		<string>remote-notification</string>
 	</array>
+	<key>NSFaceIDUsageDescription</key>
+	<string>Usync uses Face ID to keep your private moments locked.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Usync shows your location to your partner while you share it.</string>
 	<key>CFBundleDevelopmentRegion</key>

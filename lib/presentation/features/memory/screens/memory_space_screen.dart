@@ -6,6 +6,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_gradients.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../domain/entities/memory.dart';
+import '../../../shared/widgets/memory_art.dart';
 import '../../../shared/animations/breathe_animation.dart';
 import '../../../shared/widgets/glow_button.dart';
 import '../../../shared/widgets/loading_dots.dart';
@@ -107,8 +108,9 @@ class _MemoryCard extends StatelessWidget {
                   MemoryType.milestone => AppGradients.memoryMilestone,
                 },
               ),
-              child: Center(
-                child: Text(memory.thumbnailEmoji, style: const TextStyle(fontSize: 72)),
+              child: ClipRRect(
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
+                child: MemoryArt(memory: memory, emojiSize: 72, fill: true),
               ),
             ),
             // Footer

@@ -97,4 +97,20 @@ class NotificationRepository implements INotificationRepository {
       await client.from('device_tokens').delete().eq('user_id', uid);
     }
   }
+
+  @override
+  Future<Set<String>> getSilentTypes() async {
+    final uid = _me;
+    if (uid == null) return NotifType.defaultSilent;
+    final row = await client.from('device_tokens').select('silent_types').eq('user_id', uid).maybeSingle();
+    final types = row?['silent_types'];
+    return types is List ? types.cast<String>().toSet() : NotifType.defaultSilent;
+  }
+
+  @override
+  Future<void> setSilentTypes(Set<String> types) async {
+    final uid = _me;
+    if (uid == null) return;
+    await client.from('device_tokens').update({'silent_types': types.toList()}).eq('user_id', uid);
+  }
 }

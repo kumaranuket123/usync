@@ -1,14 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/route_names.dart';
+import '../../../../core/services/app_lock_service.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../shared/widgets/neon_back_button.dart';
 import '../../../shared/widgets/outline_button.dart';
 import '../../../shared/widgets/toggle_switch.dart';
 import '../bloc/settings_bloc.dart';
+import 'alert_sounds_screen.dart';
 import '../../auth/bloc/auth_bloc.dart';
 
 class SettingsScreen extends StatelessWidget {
@@ -47,25 +50,45 @@ class SettingsScreen extends StatelessWidget {
                             _SectionLabel('ACCOUNT'),
                             _Row('👤', const Color(0x1FFF2D78), 'Profile',
                                 '${user?.username ?? '—'} · ${user?.email ?? ''}',
-                                onTap: () {}),
-                            _Row('🔒', const Color(0x1F9D4EDD), 'Privacy', 'Manage visibility', onTap: () {}),
+                                onTap: () => context.go(RouteNames.profile)),
+                            _Row('💞', const Color(0x1FFF6EC7), 'Couple', 'Pairing and disconnect',
+                                onTap: () => context.go(RouteNames.profile)),
                           ],
                         );
                       }),
 
-                      _SectionLabel('CONNECTION'),
-                      _Row('💞', const Color(0x1FFF6EC7), 'Couple Settings', 'Connected', onTap: () {}),
-                      _ToggleRow('🔔', const Color(0x1F00D4FF), 'Notifications', 'Gentle emotional alerts',
+                      _SectionLabel('NOTIFICATIONS'),
+                      _ToggleRow('🔔', const Color(0x1F00D4FF), 'Push notifications', 'Gentle emotional alerts',
                           value: settings.notificationsEnabled,
                           onChanged: (v) => context.read<SettingsBloc>().add(ToggleChanged(key: 'notifications', value: v))),
+                      _Row('🔊', const Color(0x1F00E676), 'Alert sounds',
+                          '${settings.silentTypes.length} of ${AlertSoundsScreen.groups.length} alerts silent',
+                          onTap: () => context.push(RouteNames.alertSounds)),
 
-                      _SectionLabel('EXPERIENCE'),
-                      _Row('🎨', const Color(0x1AFFD700), 'Themes', 'Midnight Purple', onTap: () => context.push(RouteNames.themes)),
+                      _SectionLabel('PRIVACY & SECURITY'),
+                      _Row('📍', const Color(0x1F00E676), 'Location sharing', 'Who sees where you are, and when',
+                          onTap: () => context.push(RouteNames.location)),
+                      ListenableBuilder(
+                        listenable: GetIt.I<AppLockService>(),
+                        builder: (context, _) => _ToggleRow('🔐', const Color(0x1F9D4EDD), 'Biometric lock',
+                            'Fingerprint, face or device PIN to open Usync',
+                            value: GetIt.I<AppLockService>().enabled,
+                            onChanged: (v) async {
+                              final changed = await GetIt.I<AppLockService>().setEnabled(v);
+                              if (!changed && v && context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                                  content: Text('Set up a fingerprint, face or screen lock on this device first'),
+                                ));
+                              }
+                            }),
+                      ),
+
+                      _SectionLabel('APPEARANCE & FEEL'),
+                      _Row('🎨', const Color(0x1AFFD700), 'Themes', 'Choose your colours', onTap: () => context.push(RouteNames.themes)),
                       _ToggleRow('✨', const Color(0x1F9D4EDD), 'Animations', 'Rich particle effects',
                           value: settings.animationsEnabled,
                           onChanged: (v) => context.read<SettingsBloc>().add(ToggleChanged(key: 'animations', value: v))),
-                      _ToggleRow('🌙', const Color(0x1F00D4FF), 'Dark Mode', 'Always on', value: true, onChanged: (_) {}),
-                      _ToggleRow('📳', const Color(0x1FFF2D78), 'Haptic Feedback', 'Vibrate on partner touch',
+                      _ToggleRow('📳', const Color(0x1FFF2D78), 'Haptic feedback', 'Vibrate on partner touch',
                           value: settings.hapticEnabled,
                           onChanged: (v) => context.read<SettingsBloc>().add(ToggleChanged(key: 'haptic', value: v))),
 

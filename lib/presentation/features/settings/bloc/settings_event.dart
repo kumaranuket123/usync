@@ -6,3 +6,9 @@ final class ToggleChanged extends SettingsEvent {
   final String key;
   final bool value;
 }
+/// Sets one alert group (see NotifType.soundGroup) to silent or to make a sound.
+final class AlertSilenceChanged extends SettingsEvent {
+  const AlertSilenceChanged({required this.group, required this.silent}) : super();
+  final String group;
+  final bool silent;
+}

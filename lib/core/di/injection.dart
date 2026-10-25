@@ -14,6 +14,7 @@ import '../../data/repositories/memory_repository.dart';
 import '../../data/repositories/mood_repository.dart';
 import '../../data/repositories/notification_repository.dart';
 import '../../data/repositories/location_repository.dart';
+import '../services/app_lock_service.dart';
 import '../../data/repositories/touch_repository.dart';
 import '../../domain/repositories/i_auth_repository.dart';
 import '../../domain/repositories/i_canvas_repository.dart';
@@ -59,6 +60,8 @@ Future<void> setupLocator() async {
     () => PrefsSource(prefs: getIt()),
   );
 
+  getIt.registerLazySingleton<AppLockService>(() => AppLockService(prefs: getIt()));
+
   // ── Repositories ──────────────────────────────────────────────
   getIt.registerLazySingleton<IAuthRepository>(
     () => AuthRepository(
@@ -87,7 +90,7 @@ Future<void> setupLocator() async {
     () => CanvasRepository(client: getIt(), channelSource: getIt(), storage: getIt()),
   );
   getIt.registerLazySingleton<ITouchRepository>(
-    () => TouchRepository(channelSource: getIt()),
+    () => TouchRepository(channelSource: getIt(), notifications: getIt()),
   );
   getIt.registerLazySingleton<ILocationRepository>(
     () => LocationRepository(client: getIt(), prefs: getIt(), notifications: getIt()),
@@ -101,7 +104,7 @@ Future<void> setupLocator() async {
     () => AuthBloc(authRepository: getIt()),
   );
   getIt.registerFactory<SettingsBloc>(
-    () => SettingsBloc(prefsSource: getIt()),
+    () => SettingsBloc(prefsSource: getIt(), notifications: getIt()),
   );
   getIt.registerFactory<ThemeBloc>(
     () => ThemeBloc(prefsSource: getIt()),
@@ -117,7 +120,7 @@ Future<void> setupLocator() async {
     ),
   );
   getIt.registerFactory<CanvasBloc>(
-    () => CanvasBloc(canvasRepository: getIt()),
+    () => CanvasBloc(canvasRepository: getIt(), memoryRepository: getIt()),
   );
   getIt.registerFactory<TouchSyncBloc>(
     () => TouchSyncBloc(touchRepository: getIt()),

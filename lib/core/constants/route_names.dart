@@ -23,4 +23,5 @@ abstract final class RouteNames {
   static const String timeline     = '/timeline';
   static const String settings     = '/settings';
   static const String themes       = '/themes';
+  static const String alertSounds  = '/alert-sounds';
 }

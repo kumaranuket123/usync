@@ -8,6 +8,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'app.dart';
 import 'core/constants/supabase_config.dart';
 import 'core/di/injection.dart';
+import 'core/services/app_lock_service.dart';
 import 'core/services/location_sync_service.dart';
 import 'core/services/push_notification_service.dart';
 import 'firebase_options.dart';
@@ -21,6 +22,7 @@ void main() async {
 
   await Hive.initFlutter();
   await setupLocator();
+  getIt<AppLockService>().init();
 
   FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
   await PushNotificationService.init();

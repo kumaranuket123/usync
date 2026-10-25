@@ -3,16 +3,19 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:intl/intl.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../../domain/entities/canvas_stroke.dart';
+import '../../../../domain/entities/memory.dart';
 import '../../../../domain/repositories/i_canvas_repository.dart';
+import '../../../../domain/repositories/i_memory_repository.dart';
 
 part 'canvas_event.dart';
 part 'canvas_state.dart';
 
 class CanvasBloc extends Bloc<CanvasEvent, CanvasState> {
-  CanvasBloc({required this.canvasRepository}) : super(const CanvasState()) {
+  CanvasBloc({required this.canvasRepository, required this.memoryRepository}) : super(const CanvasState()) {
     on<CanvasMounted>(_onMounted);
     on<StrokeStarted>(_onStart);
     on<StrokeUpdated>(_onUpdate);
@@ -32,6 +35,7 @@ class CanvasBloc extends Bloc<CanvasEvent, CanvasState> {
   static const _flushInterval = Duration(milliseconds: 80);
 
   final ICanvasRepository       canvasRepository;
+  final IMemoryRepository       memoryRepository;
   StreamSubscription<CanvasStroke>? _remoteSub;
   StreamSubscription<int>?          _clearSub;
   Timer?  _flushTimer;
@@ -128,9 +132,27 @@ class CanvasBloc extends Bloc<CanvasEvent, CanvasState> {
   }
 
   Future<void> _onSave(MemorySaved e, Emitter<CanvasState> emit) async {
-    emit(state.copyWith(isSaving: true));
-    await canvasRepository.saveCanvasBitmap(_coupleId, e.imageBytes);
-    emit(state.copyWith(isSaving: false));
+    if (state.isSaving) return;
+    emit(state.copyWith(isSaving: true, saveFailed: false));
+    try {
+      final path = await canvasRepository.saveCanvasBitmap(_coupleId, e.imageBytes);
+      final now  = DateTime.now();
+      // Saving the memory also notifies the partner ("saved a new doodle").
+      await memoryRepository.saveMemory(Memory(
+        id:              '',
+        coupleId:        _coupleId,
+        type:            MemoryType.canvas,
+        thumbnailEmoji:  MemoryType.canvas.defaultEmoji,
+        title:           'Doodle · ${DateFormat('d MMM, h:mm a').format(now)}',
+        createdAt:       now,
+        createdByUserId: _userId,
+        thumbnailUrl:    path,
+      ));
+      emit(state.copyWith(isSaving: false));
+    } catch (err) {
+      debugPrint('Canvas save failed: $err');
+      emit(state.copyWith(isSaving: false, saveFailed: true));
+    }
   }
 
   void _onRemote(RemoteStrokeReceived e, Emitter<CanvasState> emit) {

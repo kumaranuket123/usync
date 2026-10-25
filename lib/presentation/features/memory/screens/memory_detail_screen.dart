@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../domain/entities/memory.dart';
+import '../../../shared/widgets/memory_art.dart';
 import '../../../shared/widgets/neon_back_button.dart';
 
 class MemoryDetailScreen extends StatelessWidget {
@@ -53,10 +54,15 @@ class MemoryDetailScreen extends StatelessWidget {
 
                 // Art
                 Expanded(
-                  child: Center(
-                    child: Text(
-                      m?.thumbnailEmoji ?? '🫧',
-                      style: const TextStyle(fontSize: 110),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: Center(
+                      child: m == null
+                          ? const Text('🫧', style: TextStyle(fontSize: 110))
+                          : ClipRRect(
+                              borderRadius: BorderRadius.circular(20),
+                              child: MemoryArt(memory: m, emojiSize: 110),
+                            ),
                     ),
                   ),
                 ),

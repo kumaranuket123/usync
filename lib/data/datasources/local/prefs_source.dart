@@ -20,6 +20,10 @@ class PrefsSource {
   Future<void> setToggle(String key, bool value) =>
       prefs.setBool('setting_$key', value);
 
+  // ── App lock ──────────────────────────────────────────────────
+  bool get appLockEnabled => prefs.getBool('app_lock') ?? false;
+  Future<void> setAppLockEnabled(bool value) => prefs.setBool('app_lock', value);
+
   // ── Location sharing ──────────────────────────────────────────
   bool get locationSharing => prefs.getBool('location_sharing') ?? false;
   Future<void> setLocationSharing(bool value) => prefs.setBool('location_sharing', value);

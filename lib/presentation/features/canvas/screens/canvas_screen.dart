@@ -1,5 +1,8 @@
+import 'dart:ui' as ui;
+
 import 'package:supabase_flutter/supabase_flutter.dart' hide User;
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get_it/get_it.dart';
 
@@ -37,6 +40,7 @@ class _CanvasBodyState extends State<_CanvasBody> {
   ];
 
   String _partnerName = '…';
+  final _canvasKey = GlobalKey();
 
   @override
   void initState() {
@@ -65,11 +69,48 @@ class _CanvasBodyState extends State<_CanvasBody> {
     }
   }
 
+  /// Renders the drawing onto the app background and hands the PNG to the bloc,
+  /// which stores it as a memory and notifies the partner.
+  Future<void> _save() async {
+    final bloc = context.read<CanvasBloc>();
+    if (bloc.state.isSaving) return;
+    if (bloc.state.committed.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Draw something first')),
+      );
+      return;
+    }
+    final boundary = _canvasKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
+    if (boundary == null) return;
+
+    final drawing = await boundary.toImage(pixelRatio: 2);
+    // The strokes are transparent where nothing is drawn; flatten onto the dark background.
+    final recorder = ui.PictureRecorder();
+    final canvas   = Canvas(recorder);
+    canvas.drawRect(
+      Rect.fromLTWH(0, 0, drawing.width.toDouble(), drawing.height.toDouble()),
+      Paint()..color = AppColors.bg1,
+    );
+    canvas.drawImage(drawing, Offset.zero, Paint());
+    final flat = await recorder.endRecording().toImage(drawing.width, drawing.height);
+    final data = await flat.toByteData(format: ui.ImageByteFormat.png);
+    if (data == null || !mounted) return;
+
+    bloc.add(MemorySaved(data.buffer.asUint8List()));
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.bg1,
-      body: BlocBuilder<CanvasBloc, CanvasState>(
+      body: BlocListener<CanvasBloc, CanvasState>(
+        listenWhen: (a, b) => a.isSaving && !b.isSaving,
+        listener: (context, state) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(state.saveFailed
+              ? 'Could not save the doodle'
+              : 'Saved to Memories — $_partnerName was notified ✏️'),
+        )),
+        child: BlocBuilder<CanvasBloc, CanvasState>(
         // The canvas below has its own builder; this one only drives the toolbar.
         buildWhen: (a, b) =>
             a.activeTool != b.activeTool ||
@@ -87,6 +128,7 @@ class _CanvasBodyState extends State<_CanvasBody> {
                   onPanEnd:   (_) => context.read<CanvasBloc>().add(StrokeEnded()),
                   onPanCancel: () => context.read<CanvasBloc>().add(StrokeEnded()),
                   child: RepaintBoundary(
+                    key: _canvasKey,
                     child: BlocBuilder<CanvasBloc, CanvasState>(
                       buildWhen: (a, b) =>
                           !identical(a.committed, b.committed) ||
@@ -160,7 +202,7 @@ class _CanvasBodyState extends State<_CanvasBody> {
                         )),
                         const _Divider(),
                         _ToolBtn('🗑️', onTap: () => context.read<CanvasBloc>().add(CanvasCleared())),
-                        _ToolBtn(state.isSaving ? '⏳' : '💾', onTap: () {}),
+                        _ToolBtn(state.isSaving ? '⏳' : '💾', onTap: _save),
                       ],
                     ),
                   ),
@@ -169,6 +211,7 @@ class _CanvasBodyState extends State<_CanvasBody> {
             ],
           );
         },
+        ),
       ),
     );
   }

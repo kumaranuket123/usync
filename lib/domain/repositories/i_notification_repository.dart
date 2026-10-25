@@ -15,4 +15,7 @@ abstract interface class INotificationRepository {
     required String Function(String senderName) body,
   });
   Future<void>  toggleFcm({required bool enabled, required String uid});
+  /// Alert groups (see [NotifType.soundGroup]) that arrive without sound or popup.
+  Future<Set<String>> getSilentTypes();
+  Future<void>        setSilentTypes(Set<String> types);
 }

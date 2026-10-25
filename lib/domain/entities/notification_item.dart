@@ -30,6 +30,12 @@ enum NotifType {
     NotifType.locate     => const Color(0x1F00E676),
   };
 
+  /// Settings group: 'locate' (a requested fix) is controlled together with 'location'.
+  String get soundGroup => this == NotifType.locate ? NotifType.location.name : name;
+
+  /// Groups that start out silent for a new user.
+  static const Set<String> defaultSilent = {'location'};
+
   static NotifType fromString(String value) =>
       NotifType.values.firstWhere((e) => e.name == value, orElse: () => NotifType.milestone);
 }

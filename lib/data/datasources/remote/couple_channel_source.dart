@@ -18,6 +18,14 @@ class CoupleChannel {
           for (final p in state.presences)
             if (p.payload['user_id'] is String) p.payload['user_id'] as String,
       };
+      // Which screen each user announced (e.g. 'touch'); null when none.
+      presenceScreens = {
+        for (final state in ch.presenceState())
+          for (final p in state.presences)
+            if (p.payload['user_id'] is String)
+              p.payload['user_id'] as String: p.payload['screen'] as String?,
+      };
+      presenceSynced = true;
       if (!onlineUsers.isClosed) onlineUsers.add(online);
     });
 
@@ -43,6 +51,11 @@ class CoupleChannel {
   final SupabaseClient _client;
   late final RealtimeChannel _channel;
   late final Future<void>    ready;
+
+  /// Latest screen announced by each online user (from Presence).
+  Map<String, String?> presenceScreens = const {};
+  /// False until the first Presence sync, when [presenceScreens] is still empty.
+  bool presenceSynced = false;
 
   /// Latest set of online user ids (from Presence).
   final onlineUsers = StreamController<Set<String>>.broadcast();

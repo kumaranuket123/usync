@@ -45,3 +45,8 @@ android {
 flutter {
     source = "../.."
 }
+
+dependencies {
+    // The launch themes extend Theme.AppCompat, which local_auth's biometric prompt needs.
+    implementation("androidx.appcompat:appcompat:1.7.0")
+}
