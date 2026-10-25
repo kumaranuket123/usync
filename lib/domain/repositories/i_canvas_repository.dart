@@ -19,4 +19,11 @@ abstract interface class ICanvasRepository {
   /// Emits the current `clearedAt` timestamp (0 if never cleared), then every change.
   Stream<int>           watchCanvasCleared(String coupleId);
   Future<String>        saveCanvasBitmap(String coupleId, Uint8List bytes);
+
+  /// Announces us on Presence as being on the canvas.
+  Future<void>          enterCanvas(String coupleId, String userId);
+  /// Back to plain Presence once we leave the canvas.
+  Future<void>          leaveCanvas(String coupleId, String userId);
+  /// Whether the partner is on the canvas right now, with every change.
+  Stream<bool>          watchPartnerOnCanvas(String coupleId, String partnerUserId);
 }

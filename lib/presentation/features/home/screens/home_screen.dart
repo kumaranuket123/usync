@@ -151,8 +151,6 @@ class _HomeBody extends StatelessWidget {
                           _ActionPill('👆', 'Touch',  () => context.push(RouteNames.touchSync)),
                           _ActionPill('📍', 'Location', () => context.push(RouteNames.location)),
                           _ActionPill('💭', 'Mood',   () => context.push(RouteNames.mood)),
-                          _ActionPill('✏️', 'Draw',   () => context.go(RouteNames.canvas)),
-                          _ActionPill('🫧', 'Memory', () => context.go(RouteNames.memories)),
                         ],
                       ),
                     ),
@@ -167,24 +165,20 @@ class _HomeBody extends StatelessWidget {
                         children: [
                           const Text('RECENT MOODS', style: AppTextStyles.labelCaps),
                           const SizedBox(height: 10),
-                          SingleChildScrollView(
-                            scrollDirection: Axis.horizontal,
-                            child: Row(
-                              children: [
-                                if (recentMoods.isEmpty) ...[
-                                  const MoodChip(emoji: '💭', label: 'Thinking about you'),
-                                  const SizedBox(width: 8),
-                                  const MoodChip(emoji: '🌸', label: 'Relaxing'),
-                                  const SizedBox(width: 8),
-                                  const MoodChip(emoji: '💖', label: 'Missing you'),
-                                ] else
+                          if (recentMoods.isEmpty)
+                            Text('No moods shared yet', style: AppTextStyles.bodyMuted)
+                          else
+                            SingleChildScrollView(
+                              scrollDirection: Axis.horizontal,
+                              child: Row(
+                                children: [
                                   ...recentMoods.map((m) => Padding(
                                     padding: const EdgeInsets.only(right: 8),
                                     child: MoodChip(emoji: m.emoji, label: m.label),
                                   )),
-                              ],
+                                ],
+                              ),
                             ),
-                          ),
                         ],
                       ),
                     ),

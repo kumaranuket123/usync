@@ -61,13 +61,8 @@ class _ProfileBody extends StatelessWidget {
                     children: [
                       _SectionLabel('YOUR CONNECTION'),
                       _NavRow('🕰️', const Color(0x1FFF2D78), 'Relationship Timeline', 'View your shared journey', () => context.push(RouteNames.timeline)),
-                      _NavRow('🫧', const Color(0x1F00D4FF), 'Memory Space',
-                          state is ProfileReady ? '${state.couple.totalMoments} moments' : 'Your archive',
-                          () => context.go(RouteNames.memories)),
-                      _NavRow('📱', const Color(0x1F9D4EDD), 'Widgets', 'Manage home screen widgets', () => context.go(RouteNames.widgets)),
                       _SectionLabel('PREFERENCES'),
-                      _NavRow('🎨', const Color(0x1AFFD700), 'Themes', 'Midnight Purple (active)', () => context.push(RouteNames.themes)),
-                      _NavRow('⚙️', const Color(0x0FFFFFFF), 'Settings', 'Account, privacy, notifications', () => context.push(RouteNames.settings)),
+                      _NavRow('⚙️', const Color(0x0FFFFFFF), 'Settings', 'Themes, notifications, privacy, security', () => context.push(RouteNames.settings)),
                       if (state is ProfileReady) ...[
                         _SectionLabel('DANGER ZONE'),
                         _NavRow('💔', const Color(0x1FFF5252), 'Disconnect Couple',
@@ -218,7 +213,7 @@ class _ProfileHeroState extends State<_ProfileHero> with SingleTickerProviderSta
               const SizedBox(width: 12),
               _Stat(ready.couple.totalMoments.toString(),   'Moments'),
               const SizedBox(width: 12),
-              _Stat(ready.doodleCount.toString(),            'Doodles'),
+              _Stat(ready.couple.daysTogether.toString(),    'Days Together'),
             ],
           ),
         ],

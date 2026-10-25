@@ -25,6 +25,7 @@ class CanvasBloc extends Bloc<CanvasEvent, CanvasState> {
     on<ToolChanged>((e, emit)  => emit(state.copyWith(activeTool: e.tool)));
     on<CanvasCleared>(_onClear);
     on<MemorySaved>(_onSave);
+    on<PartnerHereChanged>((e, emit) => emit(state.copyWith(partnerHere: e.isHere)));
     on<RemoteStrokeReceived>(_onRemote);
     on<RemoteCanvasCleared>(
       (_, emit) => emit(state.copyWith(strokes: [], remoteStrokes: [], clearActive: true)),
@@ -38,6 +39,7 @@ class CanvasBloc extends Bloc<CanvasEvent, CanvasState> {
   final IMemoryRepository       memoryRepository;
   StreamSubscription<CanvasStroke>? _remoteSub;
   StreamSubscription<int>?          _clearSub;
+  StreamSubscription<bool>?         _presenceSub;
   Timer?  _flushTimer;
   final   _pending = <Offset>[];
   int     _seq = 0;
@@ -52,6 +54,14 @@ class CanvasBloc extends Bloc<CanvasEvent, CanvasState> {
 
     await _remoteSub?.cancel();
     await _clearSub?.cancel();
+    await _presenceSub?.cancel();
+
+    // Tell the partner we are here, and watch for them.
+    canvasRepository.enterCanvas(_coupleId, _userId).ignore();
+    _presenceSub = canvasRepository.watchPartnerOnCanvas(_coupleId, e.partnerUserId).listen(
+      (here) { if (!isClosed) add(PartnerHereChanged(here)); },
+      onError: (Object err) => debugPrint('Canvas presence error: $err'),
+    );
 
     _remoteSub = canvasRepository.watchRemoteStrokes(_coupleId, _userId).listen(
       (stroke) { if (!isClosed) add(RemoteStrokeReceived(stroke)); },
@@ -176,6 +186,8 @@ class CanvasBloc extends Bloc<CanvasEvent, CanvasState> {
     _flushTimer?.cancel();
     _remoteSub?.cancel();
     _clearSub?.cancel();
+    _presenceSub?.cancel();
+    if (_coupleId.isNotEmpty) canvasRepository.leaveCanvas(_coupleId, _userId).ignore();
     return super.close();
   }
 }

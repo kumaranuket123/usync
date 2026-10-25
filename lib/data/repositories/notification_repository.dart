@@ -12,6 +12,23 @@ class NotificationRepository implements INotificationRepository {
   /// Notifications are stored couple-wide; the ones we sent are for the partner.
   String? get _me => client.auth.currentUser?.id;
 
+  /// Touch and location alerts repeat every time someone taps or looks, which
+  /// floods the list with identical lines. Show only the newest one per sender
+  /// and kind; other types (doodles, moods, milestones) are distinct events.
+  /// Returns the rows newest first.
+  static List<Map<String, dynamic>> _collapseRepeats(List<Map<String, dynamic>> rows) {
+    const repeating = {'touch': 'touch', 'location': 'location', 'locate': 'location'};
+    final seen = <String>{};
+    final newestFirst = [...rows]
+      ..sort((a, b) => (b['created_at'] as String).compareTo(a['created_at'] as String));
+    return [
+      for (final row in newestFirst)
+        if (!repeating.containsKey(row['type']) ||
+            seen.add('${row['from_user_id']}:${repeating[row['type']]}'))
+          row,
+    ];
+  }
+
   @override
   Future<List<NotificationItem>> getNotifications(String coupleId) async {
     final rows = await client
@@ -21,7 +38,7 @@ class NotificationRepository implements INotificationRepository {
         .neq('from_user_id', _me ?? '')
         .order('created_at', ascending: false)
         .limit(50);
-    return rows.map(NotificationModel.fromRow).toList();
+    return _collapseRepeats(rows).map(NotificationModel.fromRow).toList();
   }
 
   @override
@@ -32,8 +49,7 @@ class NotificationRepository implements INotificationRepository {
         .eq('couple_id', coupleId)
         .order('created_at', ascending: false)
         .limit(50)
-        .map((rows) => rows
-            .where((r) => r['from_user_id'] != _me)
+        .map((rows) => _collapseRepeats(rows.where((r) => r['from_user_id'] != _me).toList())
             .map(NotificationModel.fromRow)
             .toList())
         .handleError((Object _) {}); // dropped Realtime connection: keep the screen alive
@@ -57,7 +73,9 @@ class NotificationRepository implements INotificationRepository {
         .from('notifications')
         .stream(primaryKey: ['id'])
         .eq('couple_id', coupleId)
-        .map((rows) => rows.where((r) => r['is_read'] == false && r['from_user_id'] != _me).length)
+        .map((rows) => _collapseRepeats(rows.where((r) => r['from_user_id'] != _me).toList())
+            .where((r) => r['is_read'] == false)
+            .length)
         .handleError((Object _) {});
   }
 

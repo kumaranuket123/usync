@@ -141,11 +141,10 @@ Future<void> setupLocator() async {
     () => ProfileBloc(
       authRepository: getIt(),
       coupleRepository: getIt(),
-      memoryRepository: getIt(),
     ),
   );
   getIt.registerFactory<TimelineBloc>(
-    () => TimelineBloc(coupleRepository: getIt(), client: getIt()),
+    () => TimelineBloc(coupleRepository: getIt(), client: getIt(), notifications: getIt()),
   );
   getIt.registerFactory<WidgetsBloc>(
     () => WidgetsBloc(

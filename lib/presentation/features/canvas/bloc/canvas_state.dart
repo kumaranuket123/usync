@@ -12,6 +12,7 @@ class CanvasState {
     this.activeTool    = CanvasTool.pen,
     this.isSaving      = false,
     this.saveFailed    = false,
+    this.partnerHere   = false,
     this.isReady       = false,
   });
 
@@ -27,6 +28,8 @@ class CanvasState {
   final bool               isSaving;
   /// The last save did not complete; reset when the next one starts.
   final bool               saveFailed;
+  /// The partner is on the canvas right now (from Presence).
+  final bool               partnerHere;
 
   /// True once the couple is resolved and sync is running.
   final bool               isReady;
@@ -46,6 +49,7 @@ class CanvasState {
     CanvasTool?         activeTool,
     bool?               isSaving,
     bool?               saveFailed,
+    bool?               partnerHere,
     bool?               isReady,
   }) {
     final newStrokes = strokes       ?? this.strokes;
@@ -60,6 +64,7 @@ class CanvasState {
       activeTool:    activeTool  ?? this.activeTool,
       isSaving:      isSaving    ?? this.isSaving,
       saveFailed:    saveFailed  ?? this.saveFailed,
+      partnerHere:   partnerHere ?? this.partnerHere,
       isReady:       isReady     ?? this.isReady,
     );
   }

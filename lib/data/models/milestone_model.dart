@@ -9,6 +9,8 @@ class MilestoneModel extends Milestone {
     required super.occurredAt,
     super.note,
     super.linkedMemoryId,
+    super.emoji,
+    super.repeatsYearly,
   });
 
   /// Row from the Supabase `milestones` table.
@@ -20,5 +22,7 @@ class MilestoneModel extends Milestone {
     occurredAt:     DateTime.parse(row['occurred_at'] as String),
     note:           row['note']             as String?,
     linkedMemoryId: row['linked_memory_id'] as String?,
+    emoji:          row['emoji']            as String?,
+    repeatsYearly:  row['repeats_yearly']   as bool? ?? false,
   );
 }

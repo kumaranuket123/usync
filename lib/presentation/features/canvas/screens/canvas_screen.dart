@@ -41,6 +41,8 @@ class _CanvasBodyState extends State<_CanvasBody> {
 
   String _partnerName = '…';
   final _canvasKey = GlobalKey();
+  /// Hides the header and toolbar so the whole screen is canvas.
+  bool _showChrome = true;
 
   @override
   void initState() {
@@ -58,7 +60,11 @@ class _CanvasBodyState extends State<_CanvasBody> {
       final partner = await GetIt.I<IAuthRepository>().getUserById(couple.partnerIdFor(uid));
       if (!mounted) return;
       setState(() => _partnerName = partner?.username ?? 'Partner');
-      context.read<CanvasBloc>().add(CanvasMounted(coupleId: couple.id, userId: uid));
+      context.read<CanvasBloc>().add(CanvasMounted(
+        coupleId:      couple.id,
+        userId:        uid,
+        partnerUserId: couple.partnerIdFor(uid),
+      ));
     } catch (err) {
       debugPrint('Canvas mount failed: $err');
       if (!mounted) return;
@@ -115,6 +121,7 @@ class _CanvasBodyState extends State<_CanvasBody> {
         buildWhen: (a, b) =>
             a.activeTool != b.activeTool ||
             a.activeColor != b.activeColor ||
+            a.partnerHere != b.partnerHere ||
             a.isSaving != b.isSaving,
         builder: (context, state) {
           return Stack(
@@ -146,6 +153,7 @@ class _CanvasBodyState extends State<_CanvasBody> {
               ),
 
               // Header
+              if (_showChrome)
               Positioned(
                 top: 0, left: 0, right: 0,
                 child: Container(
@@ -166,7 +174,17 @@ class _CanvasBodyState extends State<_CanvasBody> {
                           const SizedBox(width: 14),
                           Text('Shared Canvas', style: AppTextStyles.h4),
                           const Spacer(),
-                          LiveIndicator(label: '$_partnerName is here', color: AppColors.cyan),
+                          LiveIndicator(
+                            label: state.partnerHere ? '$_partnerName is here' : '$_partnerName is away',
+                            color: AppColors.cyan,
+                            isActive: state.partnerHere,
+                          ),
+                          const SizedBox(width: 10),
+                          _ChromeButton(
+                            icon: Icons.fullscreen,
+                            tooltip: 'Full screen',
+                            onTap: () => setState(() => _showChrome = false),
+                          ),
                         ],
                       ),
                     ),
@@ -174,9 +192,22 @@ class _CanvasBodyState extends State<_CanvasBody> {
                 ),
               ),
 
+              // Brings the header and toolbar back from full screen.
+              if (!_showChrome)
+                Positioned(
+                  top: MediaQuery.paddingOf(context).top + 8,
+                  right: 12,
+                  child: _ChromeButton(
+                    icon: Icons.fullscreen_exit,
+                    tooltip: 'Show tools',
+                    onTap: () => setState(() => _showChrome = true),
+                  ),
+                ),
+
               // Toolbar
+              if (_showChrome)
               Positioned(
-                bottom: 100,
+                bottom: MediaQuery.paddingOf(context).bottom + 16,
                 left: 0, right: 0,
                 child: Center(
                   child: Container(
@@ -211,6 +242,32 @@ class _CanvasBodyState extends State<_CanvasBody> {
             ],
           );
         },
+        ),
+      ),
+    );
+  }
+}
+
+class _ChromeButton extends StatelessWidget {
+  const _ChromeButton({required this.icon, required this.tooltip, required this.onTap});
+  final IconData icon;
+  final String   tooltip;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          width: 40, height: 40,
+          decoration: BoxDecoration(
+            color: AppColors.glass,
+            shape: BoxShape.circle,
+            border: Border.all(color: AppColors.glassBorder),
+          ),
+          child: Icon(icon, color: Colors.white, size: 20),
         ),
       ),
     );

@@ -1,7 +1,8 @@
 part of 'canvas_bloc.dart';
 
 sealed class CanvasEvent { const CanvasEvent(); }
-final class CanvasMounted         extends CanvasEvent { CanvasMounted({required this.coupleId, required this.userId}); final String coupleId, userId; }
+final class CanvasMounted         extends CanvasEvent { CanvasMounted({required this.coupleId, required this.userId, required this.partnerUserId}); final String coupleId, userId, partnerUserId; }
+final class PartnerHereChanged   extends CanvasEvent { PartnerHereChanged(this.isHere); final bool isHere; }
 final class StrokeStarted         extends CanvasEvent { StrokeStarted(this.offset); final Offset offset; }
 final class StrokeUpdated         extends CanvasEvent { StrokeUpdated(this.offset); final Offset offset; }
 final class StrokeEnded           extends CanvasEvent {}

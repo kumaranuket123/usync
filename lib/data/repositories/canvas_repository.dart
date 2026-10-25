@@ -154,6 +154,30 @@ class CanvasRepository implements ICanvasRepository {
   }
 
   @override
+  Future<void> enterCanvas(String coupleId, String userId) =>
+      channelSource.open(coupleId).track({
+        'user_id':    userId,
+        'screen':     'canvas',
+        'updated_at': DateTime.now().millisecondsSinceEpoch,
+      });
+
+  @override
+  Future<void> leaveCanvas(String coupleId, String userId) =>
+      channelSource.open(coupleId).track({
+        'user_id':    userId,
+        'updated_at': DateTime.now().millisecondsSinceEpoch,
+      });
+
+  @override
+  Stream<bool> watchPartnerOnCanvas(String coupleId, String partnerUserId) async* {
+    final channel = channelSource.open(coupleId);
+    await channel.ready;
+    bool here() => channel.presenceScreens[partnerUserId] == 'canvas';
+    yield here();
+    yield* channel.onlineUsers.stream.map((_) => here()).distinct();
+  }
+
+  @override
   Future<String> saveCanvasBitmap(String coupleId, Uint8List bytes) =>
       storage.uploadPng(coupleId, bytes);
 

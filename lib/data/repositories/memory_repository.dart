@@ -87,11 +87,4 @@ class MemoryRepository implements IMemoryRepository {
   @override
   Future<String> uploadCanvasBitmap(String coupleId, Uint8List bytes) =>
       storage.uploadPng(coupleId, bytes);
-
-  @override
-  Future<int> getDoodleCount(String coupleId) => client
-      .from('memories')
-      .count(CountOption.exact)
-      .eq('couple_id', coupleId)
-      .eq('type', 'canvas');
 }

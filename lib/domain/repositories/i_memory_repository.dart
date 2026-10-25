@@ -9,5 +9,4 @@ abstract interface class IMemoryRepository {
   Future<void>          toggleFavourite(String memoryId, String coupleId, {required bool isFavourited});
   Future<void>          deleteMemory(String memoryId, String coupleId);
   Future<String>        uploadCanvasBitmap(String coupleId, Uint8List bytes);
-  Future<int>           getDoodleCount(String coupleId);
 }
