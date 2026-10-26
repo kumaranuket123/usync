@@ -53,6 +53,14 @@ class StorageSource {
     });
   }
 
+  /// Deletes every image of a couple. Only an active member may, so this has to
+  /// run before the couple is disconnected.
+  Future<void> removeFolder(String coupleId) async {
+    final objects = await _files.list(path: coupleId, searchOptions: const SearchOptions(limit: 1000));
+    if (objects.isEmpty) return;
+    await _files.remove([for (final o in objects) '$coupleId/${o.name}']);
+  }
+
   Future<void> remove(String path) async {
     if (path.isEmpty || path.startsWith('http')) return;
     await _files.remove([path]);

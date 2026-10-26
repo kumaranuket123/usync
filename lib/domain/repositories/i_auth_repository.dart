@@ -4,6 +4,8 @@ abstract interface class IAuthRepository {
   Stream<AppUser?> watchAuthState();
   Future<AppUser>  signInWithGoogle();
   Future<void>     signOut();
+  /// Permanently deletes the account and everything it shared, then signs out this device.
+  Future<void>     deleteAccount();
   /// Emits when the session ends for any reason (including the server revoking it).
   Stream<void>     get signedOut;
   Future<AppUser?> getCurrentUser();

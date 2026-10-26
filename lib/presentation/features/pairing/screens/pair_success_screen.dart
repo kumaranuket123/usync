@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/constants/route_names.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
+import '../../../shared/widgets/centered_scroll.dart';
 import '../../../shared/widgets/glow_button.dart';
 import '../../auth/bloc/auth_bloc.dart';
 import '../../../shared/widgets/particle_field.dart';
@@ -41,7 +42,7 @@ class _PairSuccessScreenState extends State<PairSuccessScreen>
       body: Stack(
         children: [
           const ParticleField(count: 50),
-          Center(
+          CenteredScroll(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 32),
               child: Column(

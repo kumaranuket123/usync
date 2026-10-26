@@ -115,20 +115,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       _SectionLabel('ABOUT'),
                       _Row('ℹ️', const Color(0x0FFFFFFF), 'About Usync', 'Version 1.0.0', onTap: () {}),
 
+                      _SectionLabel('DANGER ZONE'),
                       BlocBuilder<ProfileBloc, ProfileState>(
                         builder: (context, profile) {
                           if (profile is! ProfileReady) return const SizedBox.shrink();
-                          return Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              _SectionLabel('DANGER ZONE'),
-                              _Row('💔', const Color(0x1FFF5252), 'Disconnect Couple',
-                                  'Unlink and delete all shared data',
-                                  onTap: () => _onDisconnectTap(context, profile)),
-                            ],
-                          );
+                          return _Row('💔', const Color(0x1FFF5252), 'Disconnect Couple',
+                              'Unlink and delete all shared data',
+                              onTap: () => _onDisconnectTap(context, profile));
                         },
                       ),
+                      _Row('🗑️', const Color(0x1FFF5252), 'Delete Account',
+                          'Permanently delete your account and all your data',
+                          onTap: () => _onDeleteAccountTap(context)),
 
                       const SizedBox(height: 20),
                       UsyncOutlineButton(
@@ -275,4 +273,69 @@ Future<void> _onDisconnectTap(BuildContext context, ProfileReady state) async {
   final ok = await _askConfirm(context, 'Disconnect from your partner?',
       'This unlinks you both right away and permanently deletes everything you shared: moods, memories, timeline and canvas. This cannot be undone. You can pair again with a new invite code.', 'Disconnect');
   if (ok) bloc.add(DisconnectCouple(userId: state.user.id, coupleId: state.couple.id));
+}
+
+/// Deleting the account cannot be undone, so the person has to type DELETE.
+Future<void> _onDeleteAccountTap(BuildContext context) async {
+  final auth = context.read<AuthBloc>();
+  final ok = await showDialog<bool>(
+    context: context,
+    builder: (_) => const _DeleteAccountDialog(),
+  );
+  if (ok == true) auth.add(const DeleteAccountRequested());
+}
+
+class _DeleteAccountDialog extends StatefulWidget {
+  const _DeleteAccountDialog();
+  @override
+  State<_DeleteAccountDialog> createState() => _DeleteAccountDialogState();
+}
+
+class _DeleteAccountDialogState extends State<_DeleteAccountDialog> {
+  final _ctrl = TextEditingController();
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final confirmed = _ctrl.text.trim().toUpperCase() == 'DELETE';
+    return AlertDialog(
+      backgroundColor: AppColors.bg2,
+      title: const Text('Delete your account?', style: TextStyle(color: Colors.white)),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'This permanently deletes your account and everything you shared with your partner: moods, memories, timeline and canvas. Your partner is disconnected. This cannot be undone.',
+            style: AppTextStyles.bodyMuted,
+          ),
+          const SizedBox(height: 16),
+          Text('Type DELETE to confirm', style: AppTextStyles.labelSmall),
+          const SizedBox(height: 6),
+          TextField(
+            controller: _ctrl,
+            autofocus: true,
+            textCapitalization: TextCapitalization.characters,
+            style: const TextStyle(color: Colors.white),
+            onChanged: (_) => setState(() {}),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context, false),
+          child: const Text('Cancel', style: TextStyle(color: AppColors.textMuted)),
+        ),
+        TextButton(
+          onPressed: confirmed ? () => Navigator.pop(context, true) : null,
+          child: Text('Delete', style: TextStyle(color: confirmed ? const Color(0xFFFF5050) : AppColors.textDim)),
+        ),
+      ],
+    );
+  }
 }

@@ -68,7 +68,7 @@ class _TimelineBody extends StatelessWidget {
                 children: [
                   const NeonBackButton(),
                   const SizedBox(width: 14),
-                  Column(
+                  Expanded(child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text('Our Journey', style: AppTextStyles.h2.copyWith(fontSize: 24)),
@@ -81,8 +81,8 @@ class _TimelineBody extends StatelessWidget {
                         ),
                       ),
                     ],
-                  ),
-                  const Spacer(),
+                  )),
+                  const SizedBox(width: 12),
                   BlocBuilder<TimelineBloc, TimelineState>(
                     builder: (context, state) => state is TimelineReady
                         ? GestureDetector(

@@ -191,11 +191,16 @@ class _CanvasBodyState extends State<_CanvasBody> with WidgetsBindingObserver {
                           NeonBackButton(),
                           const SizedBox(width: 14),
                           Text('Shared Canvas', style: AppTextStyles.h4),
-                          const Spacer(),
-                          LiveIndicator(
-                            label: state.partnerHere ? '$_partnerName is here' : '$_partnerName is away',
-                            color: AppColors.cyan,
-                            isActive: state.partnerHere,
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Align(
+                              alignment: Alignment.centerRight,
+                              child: LiveIndicator(
+                                label: state.partnerHere ? '$_partnerName is here' : '$_partnerName is away',
+                                color: AppColors.cyan,
+                                isActive: state.partnerHere,
+                              ),
+                            ),
                           ),
                           const SizedBox(width: 10),
                           _ChromeButton(

@@ -35,7 +35,10 @@ class LoginScreen extends StatelessWidget {
             Container(decoration: const BoxDecoration(gradient: AppGradients.background)),
             const ParticleField(count: 25),
             SafeArea(
-              child: Padding(
+              // Fills the screen, but scrolls instead of overflowing on a small phone or large font.
+              child: CustomScrollView(slivers: [SliverFillRemaining(
+                hasScrollBody: false,
+                child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 28),
                 child: Column(
                   children: [
@@ -60,7 +63,7 @@ class LoginScreen extends StatelessWidget {
                     const SizedBox(height: 28),
                   ],
                 ),
-              ),
+              ))]),
             ),
           ],
         ),
@@ -143,10 +146,16 @@ class _GoogleButton extends StatelessWidget {
                         children: [
                           const SizedBox(width: 22, height: 22, child: CustomPaint(painter: _GoogleGPainter())),
                           const SizedBox(width: 12),
-                          const Text(
-                            'Continue with Google',
-                            style: TextStyle(
-                              color: Color(0xFF1F1F1F), fontSize: 16, fontWeight: FontWeight.w600,
+                          // Shrinks instead of overflowing on a narrow phone or a large font.
+                          const Flexible(
+                            child: FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: Text(
+                                'Continue with Google',
+                                style: TextStyle(
+                                  color: Color(0xFF1F1F1F), fontSize: 16, fontWeight: FontWeight.w600,
+                                ),
+                              ),
                             ),
                           ),
                         ],

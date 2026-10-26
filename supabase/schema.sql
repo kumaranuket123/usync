@@ -36,12 +36,13 @@ create table public.device_tokens (
 -- memories/timeline history is kept.
 create table public.couples (
   id                       uuid primary key default gen_random_uuid(),
-  user_a_id                uuid not null references auth.users (id),
-  user_b_id                uuid not null references auth.users (id),
+  -- Null once that user deleted their account; the row stays as a disconnected tombstone.
+  user_a_id                uuid references auth.users (id) on delete set null,
+  user_b_id                uuid references auth.users (id) on delete set null,
   paired_at                timestamptz not null default now(),
   streak_days              int  not null default 0,
   total_moments            int  not null default 0,
-  disconnect_requested_by  uuid references auth.users (id),
+  disconnect_requested_by  uuid references auth.users (id) on delete set null,
   disconnected_at          timestamptz,
   check (user_a_id <> user_b_id)
 );
@@ -222,6 +223,40 @@ end $$;
 
 revoke all on function public.join_with_code(text), public.disconnect_couple(uuid) from public, anon;
 grant execute on function public.join_with_code(text), public.disconnect_couple(uuid) to authenticated;
+
+-- Deletes the caller's account and everything shared in every couple they were in
+-- (current or past), then the auth user itself. The partner is left disconnected.
+-- Memory images in Storage are removed by the app first (SQL cannot delete them).
+create or replace function public.delete_my_account()
+returns void language plpgsql security definer set search_path = public as $$
+declare
+  uid uuid := auth.uid();
+  cid uuid;
+begin
+  if uid is null then raise exception 'Not signed in'; end if;
+
+  for cid in select id from public.couples where uid in (user_a_id, user_b_id) loop
+    delete from public.moods           where couple_id = cid;
+    delete from public.memories        where couple_id = cid;
+    delete from public.milestones      where couple_id = cid;
+    delete from public.notifications   where couple_id = cid;
+    delete from public.canvas_strokes  where couple_id = cid;
+    delete from public.locations       where couple_id = cid;
+    delete from public.couple_activity where couple_id = cid;
+
+    update public.couples
+       set disconnected_at = coalesce(disconnected_at, now()), disconnect_requested_by = null,
+           streak_days = 0, streak_last_day = null, total_moments = 0
+     where id = cid;
+    update public.profiles set couple_id = null where couple_id = cid;
+  end loop;
+
+  -- Profile, device tokens, invite codes, location and sessions go with the user (cascade).
+  delete from auth.users where id = uid;
+end $$;
+
+revoke all on function public.delete_my_account() from public, anon;
+grant execute on function public.delete_my_account() to authenticated;
 
 -- Helpers/trigger functions are not meant to be called over the API.
 revoke all on function public.handle_new_user() from public, anon, authenticated;

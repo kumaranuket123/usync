@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -80,16 +81,45 @@ class MemoryRepository implements IMemoryRepository {
     );
   }
 
+  /// Ids deleted on this phone. Realtime does not send deletes to a filtered
+  /// subscription (only the primary key comes with them, so the couple filter
+  /// cannot match), so the list would keep showing a memory removed from its
+  /// detail screen. Hearing about our own deletes fixes that.
+  final _deleted = StreamController<String>.broadcast();
+
   @override
   Stream<List<Memory>> watchMemories(String coupleId) {
-    return client
-        .from('memories')
-        .stream(primaryKey: ['id'])
-        .eq('couple_id', coupleId)
-        .order('created_at', ascending: false)
-        .limit(_pageSize)
-        .asyncMap(_withSignedUrls)
-        .handleError((Object _) {}); // dropped Realtime connection: keep the screen alive
+    late final StreamController<List<Memory>> out;
+    StreamSubscription<List<Memory>>? live;
+    StreamSubscription<String>? local;
+    var latest = <Memory>[];
+
+    out = StreamController<List<Memory>>(
+      onListen: () {
+        live = client
+            .from('memories')
+            .stream(primaryKey: ['id'])
+            .eq('couple_id', coupleId)
+            .order('created_at', ascending: false)
+            .limit(_pageSize)
+            .asyncMap(_withSignedUrls)
+            .listen((list) {
+          latest = list;
+          out.add(list);
+        }, onError: (Object _) {}); // dropped Realtime connection: keep the screen alive
+        local = _deleted.stream.listen((id) {
+          if (latest.any((m) => m.id == id)) {
+            latest = [for (final m in latest) if (m.id != id) m];
+            out.add(latest);
+          }
+        });
+      },
+      onCancel: () async {
+        await live?.cancel();
+        await local?.cancel();
+      },
+    );
+    return out.stream;
   }
 
   @override
@@ -144,6 +174,7 @@ class MemoryRepository implements IMemoryRepository {
   Future<void> deleteMemory(String memoryId, String coupleId) async {
     final row = await client.from('memories').select('thumbnail_url').eq('id', memoryId).maybeSingle();
     await client.from('memories').delete().eq('id', memoryId);
+    _deleted.add(memoryId);
     final path = row?['thumbnail_url'] as String?;
     if (path != null) {
       try { await storage.remove(path); } catch (_) {}

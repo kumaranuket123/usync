@@ -9,6 +9,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_gradients.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../shared/animations/breathe_animation.dart';
+import '../../../shared/widgets/centered_scroll.dart';
 import '../../../shared/widgets/glow_button.dart';
 import '../../../shared/widgets/outline_button.dart';
 import '../../../shared/widgets/particle_field.dart';
@@ -62,7 +63,7 @@ class _PairInviteBodyState extends State<_PairInviteBody> {
           children: [
             const ParticleField(count: 25),
             SafeArea(
-              child: Center(
+              child: CenteredScroll(
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 32),
                   child: Column(

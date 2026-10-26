@@ -15,8 +15,8 @@ class CoupleModel extends Couple {
   /// Row from the Supabase `couples` table.
   factory CoupleModel.fromRow(Map<String, dynamic> row) => CoupleModel(
     id:           row['id']                as String,
-    userAId:      row['user_a_id']         as String,
-    userBId:      row['user_b_id']         as String,
+    userAId:      (row['user_a_id'] as String?) ?? '', // null once that user deleted their account
+    userBId:      (row['user_b_id'] as String?) ?? '',
     pairedAt:     DateTime.parse(row['paired_at'] as String),
     streakDays:   _liveStreak(row),
     totalMoments: (row['total_moments']    as num?)?.toInt() ?? 0,

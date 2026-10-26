@@ -9,6 +9,7 @@ import '../datasources/local/identity_cache.dart';
 import '../datasources/local/prefs_source.dart';
 import '../datasources/local/session_cache.dart';
 import '../datasources/remote/couple_channel_source.dart';
+import '../datasources/remote/storage_source.dart';
 import '../datasources/remote/supabase_auth_source.dart';
 import '../models/user_model.dart';
 
@@ -21,6 +22,7 @@ class AuthRepository implements IAuthRepository {
     required this.outbox,
     required this.identity,
     required this.channels,
+    required this.storage,
   });
 
   final SupabaseAuthSource authSource;
@@ -30,6 +32,7 @@ class AuthRepository implements IAuthRepository {
   final OutboxService      outbox;
   final IdentityCache      identity;
   final CoupleChannelSource channels;
+  final StorageSource       storage;
 
   @override
   Stream<AppUser?> watchAuthState() {
@@ -84,6 +87,18 @@ class AuthRepository implements IAuthRepository {
     // server only means the revoke did not reach it.
     await _quietly(authSource.signOut);
     await _clearLocalAccountState();
+  }
+
+  @override
+  Future<void> deleteAccount() async {
+    final uid = authSource.currentUser?.id;
+    if (uid == null) return;
+    // Images first: only an active couple member may delete them.
+    final coupleId = (await getCurrentUser())?.coupleId;
+    if (coupleId != null) await storage.removeFolder(coupleId);
+    await client.rpc('delete_my_account');
+    // The account is gone; this clears this device (push token, caches, session).
+    await signOut();
   }
 
   /// Nothing of this account may stay behind for the next one.

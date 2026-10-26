@@ -64,18 +64,19 @@ class _SigningOutOverlay extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return BlocBuilder<AuthBloc, AuthState>(
-      buildWhen: (a, b) => (a is SigningOut) != (b is SigningOut),
+      buildWhen: (a, b) => a is SigningOut || b is SigningOut,
       builder: (context, state) {
         if (state is! SigningOut) return const SizedBox.shrink();
         return Material(
           color: AppColors.bg1.withValues(alpha: 0.85),
-          child: const Center(
+          child: Center(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                CircularProgressIndicator(color: AppColors.pink),
-                SizedBox(height: 18),
-                Text('Signing out…', style: TextStyle(color: AppColors.textPrimary, fontSize: 15)),
+                const CircularProgressIndicator(color: AppColors.pink),
+                const SizedBox(height: 18),
+                Text(state.deletingAccount ? 'Deleting your account…' : 'Signing out…',
+                    style: const TextStyle(color: AppColors.textPrimary, fontSize: 15)),
               ],
             ),
           ),

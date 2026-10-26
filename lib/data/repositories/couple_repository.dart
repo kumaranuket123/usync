@@ -10,6 +10,7 @@ import '../../domain/repositories/i_notification_repository.dart';
 import '../datasources/local/identity_cache.dart';
 import '../datasources/local/session_cache.dart';
 import '../datasources/remote/couple_channel_source.dart';
+import '../datasources/remote/storage_source.dart';
 import '../models/couple_model.dart';
 
 class CoupleRepository implements ICoupleRepository {
@@ -17,6 +18,7 @@ class CoupleRepository implements ICoupleRepository {
     required this.client,
     required this.channelSource,
     required this.notifications,
+    required this.storage,
     required this.sessionCache,
     required this.identity,
   });
@@ -24,6 +26,7 @@ class CoupleRepository implements ICoupleRepository {
   final SupabaseClient          client;
   final CoupleChannelSource     channelSource;
   final INotificationRepository notifications;
+  final StorageSource           storage;
   final SessionCache            sessionCache;
   final IdentityCache           identity;
 
@@ -133,11 +136,7 @@ class CoupleRepository implements ICoupleRepository {
   Future<void> disconnect(String coupleId, String userId) async {
     // Memory images live in Storage, which SQL cannot clear, and the storage policy
     // only lets an active member delete them: so they go first. The rows go with the RPC.
-    final files = client.storage.from('memories');
-    final objects = await files.list(path: coupleId, searchOptions: const SearchOptions(limit: 1000));
-    if (objects.isNotEmpty) {
-      await files.remove([for (final o in objects) '$coupleId/${o.name}']);
-    }
+    await storage.removeFolder(coupleId);
     await client.rpc('disconnect_couple', params: {'p_couple': coupleId});
     // Nothing of the couple may stay behind on this phone either.
     await sessionCache.clear();

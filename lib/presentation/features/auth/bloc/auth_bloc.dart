@@ -17,6 +17,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     on<AuthStateChecked>(_onChecked);
     on<GoogleSignInRequested>(_onGoogleSignIn);
     on<SignOutRequested>(_onSignOut);
+    on<DeleteAccountRequested>(_onDeleteAccount);
     on<SessionEnded>((_, emit) {
       if (state is Authenticated) emit(Unauthenticated());
     });
@@ -72,6 +73,19 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       final token = await FirebaseMessaging.instance.getToken();
       if (token != null) await authRepository.updateFcmToken(uid, token);
     } catch (_) {}
+  }
+
+  Future<void> _onDeleteAccount(DeleteAccountRequested _, Emitter<AuthState> emit) async {
+    final previous = state;
+    emit(SigningOut(deletingAccount: true));
+    try {
+      await authRepository.deleteAccount();
+      emit(Unauthenticated());
+    } catch (err) {
+      // Nothing was deleted if it failed before the database call: stay signed in.
+      emit(AuthError(friendlyAuthMessage(err)));
+      if (previous is Authenticated) emit(previous);
+    }
   }
 
   Future<void> _onSignOut(SignOutRequested _, Emitter<AuthState> emit) async {

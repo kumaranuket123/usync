@@ -8,7 +8,10 @@ final class Authenticated      extends AuthState {
   final AppUser user;
 }
 /// Sign-out in progress (it clears server and local data, so it can take a moment).
-final class SigningOut         extends AuthState {}
+final class SigningOut         extends AuthState {
+  SigningOut({this.deletingAccount = false});
+  final bool deletingAccount;
+}
 final class Unauthenticated    extends AuthState {}
 final class AuthError          extends AuthState {
   AuthError(this.message);
