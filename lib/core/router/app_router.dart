@@ -3,7 +3,6 @@ import 'package:go_router/go_router.dart';
 
 import '../../domain/entities/memory.dart';
 import '../../presentation/features/auth/screens/login_screen.dart';
-import '../../presentation/features/auth/screens/register_screen.dart';
 import '../../presentation/features/canvas/screens/canvas_screen.dart';
 import '../../presentation/features/home/screens/home_screen.dart';
 import '../../presentation/features/location/screens/location_screen.dart';
@@ -48,10 +47,6 @@ abstract final class AppRouter {
       GoRoute(
         path: RouteNames.login,
         builder: (_, __) => const LoginScreen(),
-      ),
-      GoRoute(
-        path: RouteNames.register,
-        builder: (_, __) => const RegisterScreen(),
       ),
 
       // ── Pairing ───────────────────────────────────────────────

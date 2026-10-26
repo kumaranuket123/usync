@@ -26,9 +26,9 @@ Status: **complete.** Backend is Supabase; Firebase is used only for FCM deliver
 | Storage | Storage bucket `memories` |
 
 ## Schema highlights (improvements over today)
-- **Mutual disconnect is enforced in the database.** `couples` has no client
-  write policy; `request_disconnect`, `cancel_disconnect`, `confirm_disconnect`
-  are the only way to change it, and confirm requires the *other* partner.
+- **Disconnect is enforced in the database.** `couples` has no client
+  write policy; `disconnect_couple` is the only way to end a couple, and either
+  partner can call it without the other's confirmation.
 - **Pairing is a single transaction** (`join_with_code`), replacing the
   multi-step client writes and the awkward "set partner's coupleId" rule.
 - **Profiles are no longer world-readable** (partner only) and **FCM tokens are

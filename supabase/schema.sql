@@ -194,41 +194,34 @@ begin
   return new_couple;
 end $$;
 
-create or replace function public.request_disconnect(p_couple uuid)
-returns void language plpgsql security definer set search_path = public as $$
-begin
-  if not public.is_active_couple_member(p_couple) then raise exception 'Not an active member'; end if;
-  update public.couples set disconnect_requested_by = auth.uid() where id = p_couple;
-end $$;
-
--- Withdraws your own request or declines your partner's.
-create or replace function public.cancel_disconnect(p_couple uuid)
-returns void language plpgsql security definer set search_path = public as $$
-begin
-  if not public.is_active_couple_member(p_couple) then raise exception 'Not an active member'; end if;
-  update public.couples set disconnect_requested_by = null where id = p_couple;
-end $$;
-
--- Mutual confirmation: only the partner who did NOT request may confirm.
-create or replace function public.confirm_disconnect(p_couple uuid)
+-- Either partner can end the couple on their own; no confirmation needed.
+create or replace function public.disconnect_couple(p_couple uuid)
 returns void language plpgsql security definer set search_path = public as $$
 declare c public.couples;
 begin
   select * into c from public.couples where id = p_couple for update;
   if not found or auth.uid() not in (c.user_a_id, c.user_b_id) then raise exception 'Not a member'; end if;
   if c.disconnected_at is not null then return; end if;
-  if c.disconnect_requested_by is null or c.disconnect_requested_by = auth.uid() then
-    raise exception 'No disconnect request from your partner to confirm';
-  end if;
 
-  update public.couples set disconnected_at = now() where id = p_couple;
+  -- Everything the couple shared goes; the couples row stays as an empty tombstone
+  -- so the partner's app still sees the disconnect. (Storage files are removed by the app.)
+  delete from public.moods           where couple_id = p_couple;
+  delete from public.memories        where couple_id = p_couple;
+  delete from public.milestones      where couple_id = p_couple;
+  delete from public.notifications   where couple_id = p_couple;
+  delete from public.canvas_strokes  where couple_id = p_couple;
+  delete from public.locations       where couple_id = p_couple;
+  delete from public.couple_activity where couple_id = p_couple;
+
+  update public.couples
+     set disconnected_at = now(), disconnect_requested_by = null,
+         streak_days = 0, streak_last_day = null, total_moments = 0
+   where id = p_couple;
   update public.profiles set couple_id = null where couple_id = p_couple;
 end $$;
 
-revoke all on function public.join_with_code(text), public.request_disconnect(uuid),
-  public.cancel_disconnect(uuid), public.confirm_disconnect(uuid) from public, anon;
-grant execute on function public.join_with_code(text), public.request_disconnect(uuid),
-  public.cancel_disconnect(uuid), public.confirm_disconnect(uuid) to authenticated;
+revoke all on function public.join_with_code(text), public.disconnect_couple(uuid) from public, anon;
+grant execute on function public.join_with_code(text), public.disconnect_couple(uuid) to authenticated;
 
 -- Helpers/trigger functions are not meant to be called over the API.
 revoke all on function public.handle_new_user() from public, anon, authenticated;

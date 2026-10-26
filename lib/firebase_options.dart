@@ -51,7 +51,7 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions android = FirebaseOptions(
     apiKey: 'AIzaSyCguSIuOTchvsVzMx1eGha01i5-ijclD1I',
-    appId: '1:375959701381:android:1b66a98ef000b3ee9726ec',
+    appId: '1:375959701381:android:dd6ab7e27d3d89da9726ec',
     messagingSenderId: '375959701381',
     projectId: 'usync-app',
     storageBucket: 'usync-app.firebasestorage.app',
@@ -59,10 +59,10 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions ios = FirebaseOptions(
     apiKey: 'AIzaSyBOs6FaOzZTUrJKNqOy4ZG3d_KcveSGzGY',
-    appId: '1:375959701381:ios:aa6e8db475b66fe19726ec',
+    appId: '1:375959701381:ios:24fe535c06453e879726ec',
     messagingSenderId: '375959701381',
     projectId: 'usync-app',
     storageBucket: 'usync-app.firebasestorage.app',
-    iosBundleId: 'com.example.usync',
+    iosBundleId: 'com.crn.usync',
   );
 }

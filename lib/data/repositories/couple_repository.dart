@@ -1,10 +1,10 @@
+import 'dart:async';
 import 'dart:math';
 
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/utils/network_errors.dart';
 import '../../domain/entities/couple.dart';
-import '../../domain/entities/notification_item.dart';
 import '../../domain/repositories/i_couple_repository.dart';
 import '../../domain/repositories/i_notification_repository.dart';
 import '../datasources/local/identity_cache.dart';
@@ -59,6 +59,46 @@ class CoupleRepository implements ICoupleRepository {
   }
 
   @override
+  Stream<void> watchPartnerJoined(String userId) {
+    late final StreamController<void> out;
+    StreamSubscription<void>? live;
+    Timer? poll;
+
+    void joined() {
+      if (out.isClosed) return;
+      identity.clear(); // the profile now points at the new couple
+      out.add(null);
+      out.close();
+    }
+
+    out = StreamController<void>(
+      onListen: () {
+        // The inviter is `user_a` of the couple the join creates. A disconnected
+        // couple from before does not count.
+        live = client
+            .from('couples')
+            .stream(primaryKey: ['id'])
+            .eq('user_a_id', userId)
+            .listen((rows) {
+          if (rows.any((r) => r['disconnected_at'] == null)) joined();
+        }, onError: (Object _) {});
+        // Realtime can drop or lag; checking the profile now and then is the safety net.
+        poll = Timer.periodic(const Duration(seconds: 4), (_) async {
+          try {
+            final row = await client.from('profiles').select('couple_id').eq('id', userId).maybeSingle();
+            if (row?['couple_id'] != null) joined();
+          } catch (_) {}
+        });
+      },
+      onCancel: () {
+        live?.cancel();
+        poll?.cancel();
+      },
+    );
+    return out.stream;
+  }
+
+  @override
   Future<Couple> getCouple(String coupleId) =>
       identity.couples.get(coupleId, () => _loadCouple(coupleId));
 
@@ -90,27 +130,17 @@ class CoupleRepository implements ICoupleRepository {
       .handleError((Object _) {}); // dropped Realtime connection: keep the screen alive
 
   @override
-  Future<void> requestDisconnect(String coupleId, String userId) async {
-    await client.rpc('request_disconnect', params: {'p_couple': coupleId});
-    identity.couples.invalidate(coupleId);
-    await notifications.notifyPartner(
-      coupleId:   coupleId,
-      fromUserId: userId,
-      type:       NotifType.milestone,
-      body:       (name) => '$name asked to disconnect. Open Profile to respond.',
-    );
-  }
-
-  @override
-  Future<void> cancelDisconnect(String coupleId) async {
-    await client.rpc('cancel_disconnect', params: {'p_couple': coupleId});
-    identity.couples.invalidate(coupleId);
-  }
-
-  /// Only the partner who did not request can confirm; enforced in the database.
-  @override
-  Future<void> confirmDisconnect(String coupleId, String userId) async {
-    await client.rpc('confirm_disconnect', params: {'p_couple': coupleId});
+  Future<void> disconnect(String coupleId, String userId) async {
+    // Memory images live in Storage, which SQL cannot clear, and the storage policy
+    // only lets an active member delete them: so they go first. The rows go with the RPC.
+    final files = client.storage.from('memories');
+    final objects = await files.list(path: coupleId, searchOptions: const SearchOptions(limit: 1000));
+    if (objects.isNotEmpty) {
+      await files.remove([for (final o in objects) '$coupleId/${o.name}']);
+    }
+    await client.rpc('disconnect_couple', params: {'p_couple': coupleId});
+    // Nothing of the couple may stay behind on this phone either.
+    await sessionCache.clear();
     identity.clear(); // the couple ends and both profiles lose their couple_id
   }
 

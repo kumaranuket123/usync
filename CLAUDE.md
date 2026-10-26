@@ -33,11 +33,11 @@ Clean-architecture layering under `lib/`, BLoC for state, GetIt for DI, go_route
 4. Screens obtain BLoCs via `GetIt.I<...>()` inside `BlocProvider`; only `AuthBloc`, `SettingsBloc`, `ThemeBloc` are provided app-wide in `app.dart`.
 
 ### Auth / routing
-`RouteGuards.redirect` reads `Supabase.instance.client.auth.currentUser` directly: unauthenticated users are limited to splash/onboarding/login/register; authenticated users are bounced off those to home. Pairing routes are always reachable. `app.dart` additionally routes to login when `AuthBloc` emits `Unauthenticated`. Sign-up passes `username`/`avatar_emoji` as user metadata; the `handle_new_user` trigger creates the `profiles` row.
+`RouteGuards.redirect` reads `Supabase.instance.client.auth.currentUser` directly: unauthenticated users are limited to splash/onboarding/login; authenticated users are bounced off those to home. Pairing routes are always reachable. `app.dart` additionally routes to login when `AuthBloc` emits `Unauthenticated`. Sign-in is Google only (`google_sign_in` native picker -> `signInWithIdToken`; client IDs in `core/constants/google_config.dart`); the first sign-in creates the user and the `handle_new_user` trigger creates the `profiles` row from the Google name.
 
 ### Data split: Postgres vs Realtime channel
 - **Postgres tables** (durable, all scoped by `couple_id`, protected by RLS using `is_couple_member` / `is_active_couple_member`): `profiles`, `device_tokens`, `couples`, `invite_codes`, `moods`, `memories`, `milestones`, `notifications`, `canvas_strokes`. The "current" partner mood is the latest `moods` row.
-- **Couple state changes go through RPCs**, not direct writes: `join_with_code`, `request_disconnect`, `cancel_disconnect`, `confirm_disconnect` (disconnect needs both partners; only the non-requesting partner can confirm).
+- **Couple state changes go through RPCs**, not direct writes: `join_with_code`, `disconnect_couple` (either partner can disconnect on their own, no confirmation).
 - **Realtime**: one private channel `couple:<id>` (`CoupleChannelSource`) carries Presence (online), Broadcast touch events and live canvas stroke chunks; finished strokes are persisted to `canvas_strokes`. Channel access is enforced by policies on `realtime.messages`. There is no `onDisconnect`: touch ends when the partner's Presence leaves.
 - **Storage**: private `memories` bucket, objects at `<couple_id>/<uuid>.png`; `memories.thumbnail_url` stores the path and the repository swaps in signed URLs.
 - **Push**: inserting a `notifications` row fires the `notify_push` trigger -> `send-push` Edge Function -> FCM to the partner's `device_tokens` row.

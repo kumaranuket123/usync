@@ -47,15 +47,8 @@ class AuthRepository implements IAuthRepository {
   }
 
   @override
-  Future<AppUser> signIn(String email, String password) async {
-    final user = await authSource.signIn(email, password);
-    identity.clear();
-    return _fetchUser(user.id);
-  }
-
-  @override
-  Future<AppUser> signUp(String email, String password, String username, String avatarEmoji) async {
-    final user = await authSource.signUp(email, password, username, avatarEmoji);
+  Future<AppUser> signInWithGoogle() async {
+    final user = await authSource.signInWithGoogle();
     identity.clear();
     return _fetchUser(user.id);
   }
@@ -108,10 +101,6 @@ class AuthRepository implements IAuthRepository {
       await step();
     } catch (_) {}
   }
-
-  @override
-  Future<void> sendPasswordReset(String email) =>
-      authSource.sendPasswordReset(email);
 
   @override
   Future<AppUser?> getUserById(String uid) async {

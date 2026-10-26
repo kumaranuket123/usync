@@ -13,6 +13,7 @@ import '../../../shared/widgets/glow_button.dart';
 import '../../../shared/widgets/outline_button.dart';
 import '../../../shared/widgets/particle_field.dart';
 import '../../../../core/di/injection.dart';
+import '../../auth/bloc/auth_bloc.dart';
 import '../bloc/pairing_bloc.dart';
 
 class PairInviteScreen extends StatelessWidget {
@@ -39,7 +40,9 @@ class _PairInviteBodyState extends State<_PairInviteBody> {
     super.initState();
     final uid = Supabase.instance.client.auth.currentUser?.id;
     if (uid != null) {
-      context.read<PairingBloc>().add(GenerateCodeRequested(uid));
+      context.read<PairingBloc>()
+        ..add(GenerateCodeRequested(uid))
+        ..add(WatchPartnerJoined(uid));
     }
   }
 
@@ -47,7 +50,9 @@ class _PairInviteBodyState extends State<_PairInviteBody> {
   Widget build(BuildContext context) {
     return BlocListener<PairingBloc, PairingState>(
       listener: (context, state) {
-        if (state is PairingError) {
+        if (state is PartnerJoined) {
+          context.go(RouteNames.pairSuccess);
+        } else if (state is PairingError) {
           ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(state.message)));
         }
       },
@@ -155,6 +160,12 @@ class _PairInviteBodyState extends State<_PairInviteBody> {
                         label: 'I have a code instead →',
                         onTap: () => context.go(RouteNames.pairJoin),
                       ),
+                      const SizedBox(height: 4),
+                      // Wrong Google account? Sign out; app.dart then sends the user to login.
+                      TextButton(
+                        onPressed: () => _confirmSignOut(context),
+                        child: Text('Use a different account', style: AppTextStyles.bodyMuted.copyWith(fontSize: 14)),
+                      ),
                     ],
                   ),
                 ),
@@ -166,4 +177,21 @@ class _PairInviteBodyState extends State<_PairInviteBody> {
     );
   }
 }
-// closes _PairInviteBody
+
+Future<void> _confirmSignOut(BuildContext context) async {
+  final auth = context.read<AuthBloc>();
+  final ok = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      backgroundColor: AppColors.bg2,
+      title: const Text('Sign out?', style: TextStyle(color: Colors.white)),
+      content: Text('You can sign in with a different Google account.', style: AppTextStyles.bodyMuted),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel', style: TextStyle(color: AppColors.textMuted))),
+        TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Sign Out', style: TextStyle(color: Color(0xFFFF5050)))),
+      ],
+    ),
+  );
+  if (ok == true) auth.add(const SignOutRequested());
+}
+

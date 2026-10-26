@@ -16,9 +16,7 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
     required this.coupleRepository,
   }) : super(ProfileLoading()) {
     on<ProfileLoaded>(_onLoaded);
-    on<DisconnectRequested>(_onDisconnectRequested);
-    on<DisconnectCancelled>(_onDisconnectCancelled);
-    on<DisconnectConfirmed>(_onDisconnectConfirmed);
+    on<DisconnectCouple>(_onDisconnect);
     on<CoupleUpdated>(_onCoupleUpdated);
     on<UserUpdated>((e, emit) {
       final current = state;
@@ -59,16 +57,10 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
     }
   }
 
-  Future<void> _onDisconnectRequested(DisconnectRequested e, Emitter<ProfileState> emit) =>
-      _run(emit, () => coupleRepository.requestDisconnect(e.coupleId, e.userId));
+  Future<void> _onDisconnect(DisconnectCouple e, Emitter<ProfileState> emit) =>
+      _run(emit, () => coupleRepository.disconnect(e.coupleId, e.userId));
 
-  Future<void> _onDisconnectCancelled(DisconnectCancelled e, Emitter<ProfileState> emit) =>
-      _run(emit, () => coupleRepository.cancelDisconnect(e.coupleId));
-
-  Future<void> _onDisconnectConfirmed(DisconnectConfirmed e, Emitter<ProfileState> emit) =>
-      _run(emit, () => coupleRepository.confirmDisconnect(e.coupleId, e.userId));
-
-  /// Runs a disconnect step; the couple stream drives the resulting state.
+  /// Runs the disconnect; the couple stream drives the resulting state.
   Future<void> _run(Emitter<ProfileState> emit, Future<void> Function() action) async {
     final previous = state;
     try {

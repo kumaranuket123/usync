@@ -36,7 +36,8 @@ class PrefsSource {
   Future<void> clearFcmSaved(String uid) => prefs.remove('fcm_saved:$uid');
 
   // ── App lock ──────────────────────────────────────────────────
-  bool get appLockEnabled => prefs.getBool('app_lock') ?? false;
+  /// On unless the user (or a phone with no screen lock) switched it off.
+  bool get appLockEnabled => prefs.getBool('app_lock') ?? true;
   Future<void> setAppLockEnabled(bool value) => prefs.setBool('app_lock', value);
 
   // ── Location sharing ──────────────────────────────────────────

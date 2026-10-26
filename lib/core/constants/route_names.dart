@@ -2,7 +2,6 @@ abstract final class RouteNames {
   static const String splash       = '/';
   static const String onboarding   = '/onboarding';
   static const String login        = '/login';
-  static const String register     = '/register';
   static const String pairInvite   = '/pair-invite';
   static const String pairJoin     = '/pair-join';
   static const String pairSuccess  = '/pair-success';

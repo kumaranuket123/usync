@@ -9,7 +9,6 @@ abstract final class RouteGuards {
     RouteNames.splash,
     RouteNames.onboarding,
     RouteNames.login,
-    RouteNames.register,
   };
 
   static final _pairingRoutes = {
@@ -34,7 +33,7 @@ abstract final class RouteGuards {
       return RouteNames.login;
     }
 
-    // Authenticated — redirect away from login/register.
+    // Authenticated — redirect away from login.
     if (isPublic) return RouteNames.home;
 
     // Pairing routes are accessible regardless of coupleId

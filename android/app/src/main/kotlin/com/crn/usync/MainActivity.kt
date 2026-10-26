@@ -1,4 +1,4 @@
-package com.example.usync
+package com.crn.usync
 
 import android.app.NotificationChannel
 import android.app.NotificationManager

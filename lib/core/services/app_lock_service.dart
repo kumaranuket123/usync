@@ -1,5 +1,6 @@
 import 'package:flutter/widgets.dart';
 import 'package:local_auth/local_auth.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../data/datasources/local/prefs_source.dart';
 
@@ -21,11 +22,14 @@ class AppLockService extends ChangeNotifier with WidgetsBindingObserver {
   bool get enabled  => prefs.appLockEnabled;
   bool get locked   => _locked;
   /// Show the cover (lock screen or blank) instead of the app contents.
-  bool get obscured => enabled && (_locked || _obscured);
+  bool get obscured => _active && (_locked || _obscured);
+
+  /// Nothing to protect on the sign-in screen, so the lock only applies while signed in.
+  bool get _active => enabled && Supabase.instance.client.auth.currentUser != null;
 
   void init() {
     WidgetsBinding.instance.addObserver(this);
-    if (enabled) {
+    if (_active) {
       _locked = true;
       _disableIfUnavailable();
     }
@@ -44,7 +48,7 @@ class AppLockService extends ChangeNotifier with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (!enabled || _authenticating) return;
+    if (!_active || _authenticating) return;
     switch (state) {
       case AppLifecycleState.resumed:
         _obscured = false;

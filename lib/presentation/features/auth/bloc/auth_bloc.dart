@@ -3,6 +3,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 
 import '../../../../core/utils/auth_messages.dart';
 import '../../../../domain/entities/user.dart';
@@ -14,10 +15,8 @@ part 'auth_state.dart';
 class AuthBloc extends Bloc<AuthEvent, AuthState> {
   AuthBloc({required this.authRepository}) : super(AuthInitial()) {
     on<AuthStateChecked>(_onChecked);
-    on<SignInRequested>(_onSignIn);
-    on<SignUpRequested>(_onSignUp);
+    on<GoogleSignInRequested>(_onGoogleSignIn);
     on<SignOutRequested>(_onSignOut);
-    on<PasswordResetRequested>(_onPasswordReset);
     on<SessionEnded>((_, emit) {
       if (state is Authenticated) emit(Unauthenticated());
     });
@@ -47,24 +46,23 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     }
   }
 
-  Future<void> _onSignIn(SignInRequested e, Emitter<AuthState> emit) async {
+  Future<void> _onGoogleSignIn(GoogleSignInRequested _, Emitter<AuthState> emit) async {
     emit(AuthLoading());
     try {
-      final user = await authRepository.signIn(e.email, e.password);
+      final user = await authRepository.signInWithGoogle();
       emit(Authenticated(user));
       _saveFcmToken(user.id);
+    } on GoogleSignInException catch (err) {
+      // Closing the account picker is not an error worth a message.
+      final cancelled = err.code == GoogleSignInExceptionCode.canceled ||
+          err.code == GoogleSignInExceptionCode.interrupted;
+      debugPrint('Google sign-in failed: ${err.code} ${err.description}');
+      emit(cancelled ? Unauthenticated() : AuthError(
+        kDebugMode ? 'Google sign-in failed: ${err.code.name} ${err.description ?? ''}'.trim()
+                   : 'Google sign-in failed. Please try again.',
+      ));
     } catch (err) {
-      emit(AuthError(friendlyAuthMessage(err)));
-    }
-  }
-
-  Future<void> _onSignUp(SignUpRequested e, Emitter<AuthState> emit) async {
-    emit(AuthLoading());
-    try {
-      final user = await authRepository.signUp(e.email, e.password, e.username, e.avatarEmoji);
-      emit(Authenticated(user));
-      _saveFcmToken(user.id);
-    } catch (err) {
+      debugPrint('Sign-in failed: $err');
       emit(AuthError(friendlyAuthMessage(err)));
     }
   }
@@ -77,17 +75,8 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   }
 
   Future<void> _onSignOut(SignOutRequested _, Emitter<AuthState> emit) async {
-    emit(AuthLoading());
+    emit(SigningOut());
     await authRepository.signOut();
     emit(Unauthenticated());
-  }
-
-  Future<void> _onPasswordReset(PasswordResetRequested e, Emitter<AuthState> emit) async {
-    try {
-      await authRepository.sendPasswordReset(e.email);
-      emit(PasswordResetSent(e.email));
-    } catch (err) {
-      emit(AuthError(friendlyAuthMessage(err)));
-    }
   }
 }

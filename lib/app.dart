@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get_it/get_it.dart';
 
 import 'core/constants/route_names.dart';
+import 'core/theme/app_colors.dart';
 import 'core/router/app_router.dart';
 import 'core/services/push_notification_service.dart';
 import 'presentation/features/auth/bloc/auth_bloc.dart';
@@ -47,11 +48,39 @@ class UsyncApp extends StatelessWidget {
                   }
                 },
                 child: child!,
-              ), const OfflineBanner()]));
+              ), const OfflineBanner(), const _SigningOutOverlay()]));
             },
           );
         },
       ),
+    );
+  }
+}
+
+/// Covers the app with a spinner while signing out, so the wait is not mistaken for a freeze.
+class _SigningOutOverlay extends StatelessWidget {
+  const _SigningOutOverlay();
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocBuilder<AuthBloc, AuthState>(
+      buildWhen: (a, b) => (a is SigningOut) != (b is SigningOut),
+      builder: (context, state) {
+        if (state is! SigningOut) return const SizedBox.shrink();
+        return Material(
+          color: AppColors.bg1.withValues(alpha: 0.85),
+          child: const Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CircularProgressIndicator(color: AppColors.pink),
+                SizedBox(height: 18),
+                Text('Signing out…', style: TextStyle(color: AppColors.textPrimary, fontSize: 15)),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }

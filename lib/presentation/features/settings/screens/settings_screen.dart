@@ -118,17 +118,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       BlocBuilder<ProfileBloc, ProfileState>(
                         builder: (context, profile) {
                           if (profile is! ProfileReady) return const SizedBox.shrink();
-                          final requestedBy = profile.couple.disconnectRequestedBy;
                           return Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               _SectionLabel('DANGER ZONE'),
                               _Row('💔', const Color(0x1FFF5252), 'Disconnect Couple',
-                                  requestedBy == null
-                                      ? 'Both partners must confirm'
-                                      : requestedBy == profile.user.id
-                                          ? 'Waiting for your partner to confirm…'
-                                          : 'Your partner asked to disconnect — tap to respond',
+                                  'Unlink and delete all shared data',
                                   onTap: () => _onDisconnectTap(context, profile)),
                             ],
                           );
@@ -274,30 +269,10 @@ Future<bool> _askConfirm(BuildContext context, String title, String body, String
   return ok ?? false;
 }
 
-/// Disconnecting needs both partners: one requests, the other confirms.
+/// Either partner can disconnect on their own; this only asks "are you sure".
 Future<void> _onDisconnectTap(BuildContext context, ProfileReady state) async {
-  final bloc      = context.read<ProfileBloc>();
-  final myId      = state.user.id;
-  final coupleId  = state.couple.id;
-  final requester = state.couple.disconnectRequestedBy;
-
-  if (requester == null) {
-    final ok = await _askConfirm(context, 'Request to disconnect?',
-        'Your partner will be asked to confirm. You stay connected until they do.', 'Send request');
-    if (ok) bloc.add(DisconnectRequested(userId: myId, coupleId: coupleId));
-  } else if (requester == myId) {
-    final ok = await _askConfirm(context, 'Cancel your request?',
-        'You asked to disconnect and are waiting for your partner to confirm.', 'Cancel request');
-    if (ok) bloc.add(DisconnectCancelled(coupleId: coupleId));
-  } else {
-    final ok = await _askConfirm(context, 'Your partner wants to disconnect',
-        'Confirming unlinks you both and ends live access to the shared canvas, touch and mood. You can pair again with a new invite code.', 'Confirm');
-    if (ok) {
-      bloc.add(DisconnectConfirmed(userId: myId, coupleId: coupleId));
-    } else if (context.mounted) {
-      final decline = await _askConfirm(context, 'Decline the request?',
-          'Your partner will stay connected to you.', 'Decline');
-      if (decline) bloc.add(DisconnectCancelled(coupleId: coupleId));
-    }
-  }
+  final bloc = context.read<ProfileBloc>();
+  final ok = await _askConfirm(context, 'Disconnect from your partner?',
+      'This unlinks you both right away and permanently deletes everything you shared: moods, memories, timeline and canvas. This cannot be undone. You can pair again with a new invite code.', 'Disconnect');
+  if (ok) bloc.add(DisconnectCouple(userId: state.user.id, coupleId: state.couple.id));
 }

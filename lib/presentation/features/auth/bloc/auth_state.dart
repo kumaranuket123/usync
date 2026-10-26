@@ -7,12 +7,10 @@ final class Authenticated      extends AuthState {
   Authenticated(this.user);
   final AppUser user;
 }
+/// Sign-out in progress (it clears server and local data, so it can take a moment).
+final class SigningOut         extends AuthState {}
 final class Unauthenticated    extends AuthState {}
 final class AuthError          extends AuthState {
   AuthError(this.message);
   final String message;
-}
-final class PasswordResetSent  extends AuthState {
-  PasswordResetSent(this.email);
-  final String email;
 }
