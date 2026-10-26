@@ -51,6 +51,7 @@ jobs:
 
       - run: flutter pub get
       - run: flutter analyze
+      - run: flutter test
 
       - name: Set up release signing
         env:
