@@ -54,14 +54,11 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       emit(Authenticated(user));
       _saveFcmToken(user.id);
     } on GoogleSignInException catch (err) {
-      // Closing the account picker is not an error worth a message.
-      final cancelled = err.code == GoogleSignInExceptionCode.canceled ||
-          err.code == GoogleSignInExceptionCode.interrupted;
+      // TEMPORARY diagnostics: show the real code in release builds too, and do not
+      // swallow `canceled`, which Credential Manager also uses for a client/SHA-1
+      // mismatch. Restore the quiet cancel handling once Google sign-in works on Play.
       debugPrint('Google sign-in failed: ${err.code} ${err.description}');
-      emit(cancelled ? Unauthenticated() : AuthError(
-        kDebugMode ? 'Google sign-in failed: ${err.code.name} ${err.description ?? ''}'.trim()
-                   : 'Google sign-in failed. Please try again.',
-      ));
+      emit(AuthError('Google sign-in failed: ${err.code.name} ${err.description ?? ''}'.trim()));
     } catch (err) {
       debugPrint('Sign-in failed: $err');
       emit(AuthError(friendlyAuthMessage(err)));
