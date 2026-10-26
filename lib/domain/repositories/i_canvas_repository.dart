@@ -11,6 +11,10 @@ abstract interface class ICanvasRepository {
   /// [seq] orders chunks within the stroke.
   Future<void>          pushStrokeChunk(String coupleId, String strokeId, int seq, List<Offset> points);
   Future<void>          completeStroke(String coupleId, String strokeId);
+
+  /// Finished strokes are saved in small batches rather than one request each;
+  /// this sends whatever is waiting now (when leaving the canvas or the app).
+  Future<void>          flushStrokes();
   Stream<CanvasStroke>  watchRemoteStrokes(String coupleId, String excludeUserId);
 
   /// Removes all strokes and returns the clear timestamp written for the partner.
@@ -19,4 +23,11 @@ abstract interface class ICanvasRepository {
   /// Emits the current `clearedAt` timestamp (0 if never cleared), then every change.
   Stream<int>           watchCanvasCleared(String coupleId);
   Future<String>        saveCanvasBitmap(String coupleId, Uint8List bytes);
+
+  /// Announces us on Presence as being on the canvas.
+  Future<void>          enterCanvas(String coupleId, String userId);
+  /// Back to plain Presence once we leave the canvas.
+  Future<void>          leaveCanvas(String coupleId, String userId);
+  /// Whether the partner is on the canvas right now, with every change.
+  Stream<bool>          watchPartnerOnCanvas(String coupleId, String partnerUserId);
 }

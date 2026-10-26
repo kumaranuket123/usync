@@ -1,4 +1,7 @@
 abstract final class AppConstants {
+  /// The avatars a user can pick, at sign-up and when editing their profile.
+  static const List<String> avatarEmojis = ['🦋', '🌸', '🌙', '⭐', '🔮', '🌊', '🌺', '✨'];
+
   // ── Pairing ───────────────────────────────────────────────────
   static const int inviteCodeLength  = 4;
   static const int inviteCodeTtlHrs  = 24;
@@ -14,7 +17,6 @@ abstract final class AppConstants {
   // ── Canvas ────────────────────────────────────────────────────
   static const double penWidth       = 3.0;
   static const double eraserWidth    = 30.0;
-  static const int   rtdbFlushMs     = 16; // one frame @ 60 Hz
 
   // ── Notifications ─────────────────────────────────────────────
   static const int  notifQueryLimit  = 50;

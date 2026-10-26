@@ -1,4 +1,4 @@
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' hide User;
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -7,6 +7,7 @@ import '../../../../core/constants/route_names.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../shared/animations/breathe_animation.dart';
+import '../../../shared/widgets/centered_scroll.dart';
 import '../../../shared/widgets/glow_button.dart';
 import '../../../shared/widgets/neon_back_button.dart';
 import '../../../../core/di/injection.dart';
@@ -67,7 +68,7 @@ class _PairJoinBodyState extends State<_PairJoinBody> {
                 ),
               ),
               Expanded(
-                child: Center(
+                child: CenteredScroll(
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 32),
                     child: Column(
@@ -93,9 +94,13 @@ class _PairJoinBodyState extends State<_PairJoinBody> {
                                 focusNode:   _foci[i],
                                 maxLength:   1,
                                 textAlign:   TextAlign.center,
+                                textCapitalization: TextCapitalization.characters,
                                 style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w700, color: Colors.white),
                                 decoration: InputDecoration(
                                   counterText: '',
+                                  // The app theme pads inputs 20px each side, which leaves a 56px box
+                                  // too little room for a letter (it was clipped away).
+                                  contentPadding: EdgeInsets.zero,
                                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                                   focusedBorder: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(12),
@@ -120,7 +125,7 @@ class _PairJoinBodyState extends State<_PairJoinBody> {
                             onTap: () => context.read<PairingBloc>().add(
                               JoinWithCodeRequested(
                                 code:   _code.toUpperCase(),
-                                userId: FirebaseAuth.instance.currentUser!.uid,
+                                userId: Supabase.instance.client.auth.currentUser!.id,
                               ),
                             ),
                           ),

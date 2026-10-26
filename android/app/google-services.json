@@ -8,6 +8,25 @@
   "client": [
     {
       "client_info": {
+        "mobilesdk_app_id": "1:375959701381:android:dd6ab7e27d3d89da9726ec",
+        "android_client_info": {
+          "package_name": "com.crn.usync"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCguSIuOTchvsVzMx1eGha01i5-ijclD1I"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
         "mobilesdk_app_id": "1:375959701381:android:1b66a98ef000b3ee9726ec",
         "android_client_info": {
           "package_name": "com.example.usync"

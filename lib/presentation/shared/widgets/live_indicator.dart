@@ -54,7 +54,15 @@ class _LiveIndicatorState extends State<LiveIndicator> with SingleTickerProvider
           ),
         ),
         const SizedBox(width: 7),
-        Text(widget.label, style: AppTextStyles.label.copyWith(color: dotColor.withValues(alpha: 0.85))),
+        // A long name shortens with "…" instead of overflowing.
+        Flexible(
+          child: Text(
+            widget.label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: AppTextStyles.label.copyWith(color: dotColor.withValues(alpha: 0.85)),
+          ),
+        ),
       ],
     );
   }

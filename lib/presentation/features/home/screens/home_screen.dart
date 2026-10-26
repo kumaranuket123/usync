@@ -51,7 +51,9 @@ class _HomeBody extends StatelessWidget {
         final ownEmoji     = s?.user.avatarEmoji     ?? '';
         final partnerEmoji = s?.partner.avatarEmoji  ?? '🌙';
         final partnerName  = s?.partner.username     ?? 'Your partner';
-        final moodText     = s?.partnerMood?.label   ?? 'Here with you…';
+        final partnerMood  = s?.partnerMood;
+        final moodEmoji    = partnerMood?.emoji;
+        final moodText     = partnerMood == null ? '"Here with you…"' : '"${partnerMood.label}"';
         final isOnline     = s?.isOnline             ?? false;
         final recentMoods  = s?.recentMoods          ?? [];
 
@@ -133,7 +135,12 @@ class _HomeBody extends StatelessWidget {
                     PartnerOrb(avatarEmoji: partnerEmoji, isOnline: isOnline),
                     Text(partnerName, style: AppTextStyles.partnerName),
                     const SizedBox(height: 6),
-                    Text('"$moodText"', style: AppTextStyles.moodText),
+                    // Emoji above the words.
+                    if (moodEmoji != null) ...[
+                      Text(moodEmoji, style: const TextStyle(fontSize: 30)),
+                      const SizedBox(height: 2),
+                    ],
+                    Text(moodText, style: AppTextStyles.moodText, textAlign: TextAlign.center),
 
                     const SizedBox(height: 12),
                     const HeartbeatVisualizer(),
@@ -149,9 +156,8 @@ class _HomeBody extends StatelessWidget {
                         runSpacing: 8,
                         children: [
                           _ActionPill('👆', 'Touch',  () => context.push(RouteNames.touchSync)),
+                          _ActionPill('📍', 'Location', () => context.push(RouteNames.location)),
                           _ActionPill('💭', 'Mood',   () => context.push(RouteNames.mood)),
-                          _ActionPill('✏️', 'Draw',   () => context.go(RouteNames.canvas)),
-                          _ActionPill('🫧', 'Memory', () => context.go(RouteNames.memories)),
                         ],
                       ),
                     ),
@@ -166,24 +172,20 @@ class _HomeBody extends StatelessWidget {
                         children: [
                           const Text('RECENT MOODS', style: AppTextStyles.labelCaps),
                           const SizedBox(height: 10),
-                          SingleChildScrollView(
-                            scrollDirection: Axis.horizontal,
-                            child: Row(
-                              children: [
-                                if (recentMoods.isEmpty) ...[
-                                  const MoodChip(emoji: '💭', label: 'Thinking about you'),
-                                  const SizedBox(width: 8),
-                                  const MoodChip(emoji: '🌸', label: 'Relaxing'),
-                                  const SizedBox(width: 8),
-                                  const MoodChip(emoji: '💖', label: 'Missing you'),
-                                ] else
+                          if (recentMoods.isEmpty)
+                            Text('No moods shared yet', style: AppTextStyles.bodyMuted)
+                          else
+                            SingleChildScrollView(
+                              scrollDirection: Axis.horizontal,
+                              child: Row(
+                                children: [
                                   ...recentMoods.map((m) => Padding(
                                     padding: const EdgeInsets.only(right: 8),
                                     child: MoodChip(emoji: m.emoji, label: m.label),
                                   )),
-                              ],
+                                ],
+                              ),
                             ),
-                          ),
                         ],
                       ),
                     ),

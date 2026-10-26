@@ -6,7 +6,9 @@ enum NotifType {
   doodle,
   moodChange,
   streak,
-  milestone;
+  milestone,
+  location,
+  locate;
 
   String get emoji => switch (this) {
     NotifType.touch      => '👆',
@@ -14,6 +16,8 @@ enum NotifType {
     NotifType.moodChange => '💭',
     NotifType.streak     => '🔥',
     NotifType.milestone  => '💖',
+    NotifType.location   => '📍',
+    NotifType.locate     => '📍',
   };
 
   Color get iconBackground => switch (this) {
@@ -22,7 +26,15 @@ enum NotifType {
     NotifType.moodChange => const Color(0x1F9D4EDD),
     NotifType.streak     => const Color(0x1AFFD700),
     NotifType.milestone  => const Color(0x1FC77DFF),
+    NotifType.location   => const Color(0x1F00E676),
+    NotifType.locate     => const Color(0x1F00E676),
   };
+
+  /// Settings group: 'locate' (a requested fix) is controlled together with 'location'.
+  String get soundGroup => this == NotifType.locate ? NotifType.location.name : name;
+
+  /// Groups that start out silent for a new user.
+  static const Set<String> defaultSilent = {'location'};
 
   static NotifType fromString(String value) =>
       NotifType.values.firstWhere((e) => e.name == value, orElse: () => NotifType.milestone);
@@ -36,6 +48,7 @@ class NotificationItem extends Equatable {
     required this.bodyText,
     required this.timestamp,
     this.isRead = false,
+    this.fromUserId,
   });
 
   final String    id;
@@ -44,6 +57,8 @@ class NotificationItem extends Equatable {
   final String    bodyText;
   final DateTime  timestamp;
   final bool      isRead;
+  /// Sender; the recipient is their partner. Drives the push in `functions/`.
+  final String?   fromUserId;
 
   NotificationItem markRead() => NotificationItem(
     id:        id,
@@ -52,6 +67,7 @@ class NotificationItem extends Equatable {
     bodyText:  bodyText,
     timestamp: timestamp,
     isRead:    true,
+    fromUserId: fromUserId,
   );
 
   @override

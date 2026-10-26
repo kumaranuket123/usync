@@ -2,20 +2,21 @@ import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
-import '../../../domain/entities/mood.dart';
 import 'glass_card.dart';
 
 class MoodBubble extends StatefulWidget {
   const MoodBubble({
     super.key,
-    required this.type,
+    required this.emoji,
+    required this.label,
     required this.isSelected,
     required this.onTap,
     this.animDuration  = const Duration(milliseconds: 3800),
     this.animDelay     = Duration.zero,
   });
 
-  final MoodType  type;
+  final String    emoji;
+  final String    label;
   final bool      isSelected;
   final VoidCallback onTap;
   final Duration  animDuration;
@@ -73,11 +74,13 @@ class _MoodBubbleState extends State<MoodBubble> with SingleTickerProviderStateM
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(widget.type.emoji, style: const TextStyle(fontSize: 38)),
+                Text(widget.emoji, style: const TextStyle(fontSize: 38)),
                 const SizedBox(height: 8),
                 Text(
-                  widget.type.label,
+                  widget.label,
                   textAlign: TextAlign.center,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                   style: AppTextStyles.labelSmall.copyWith(
                     color: widget.isSelected ? Colors.white : AppColors.textMuted,
                     fontWeight: FontWeight.w600,

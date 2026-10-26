@@ -8,7 +8,7 @@ enum MilestoneType {
   streak100,
   moments100,
   custom,
-  today; // synthetic — never stored in Firestore
+  today; // synthetic — never stored
 
   String get emoji => switch (this) {
     MilestoneType.firstConnect => '🎉',
@@ -45,6 +45,8 @@ class Milestone extends Equatable {
     required this.occurredAt,
     this.note,
     this.linkedMemoryId,
+    this.emoji,
+    this.repeatsYearly = false,
   });
 
   final String        id;
@@ -54,9 +56,15 @@ class Milestone extends Equatable {
   final DateTime      occurredAt;
   final String?       note;
   final String?       linkedMemoryId;
+  /// Chosen for custom dates; other types use their type's emoji.
+  final String?       emoji;
+  /// A custom date that is celebrated every year on the same day.
+  final bool          repeatsYearly;
 
   bool get hasLinkedMemory => linkedMemoryId != null;
+  String get displayEmoji  => emoji ?? type.emoji;
+  bool get isCustom        => type == MilestoneType.custom;
 
   @override
-  List<Object?> get props => [id, type, occurredAt];
+  List<Object?> get props => [id, type, occurredAt, title, note, emoji, repeatsYearly];
 }

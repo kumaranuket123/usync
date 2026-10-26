@@ -9,24 +9,20 @@ class MilestoneModel extends Milestone {
     required super.occurredAt,
     super.note,
     super.linkedMemoryId,
+    super.emoji,
+    super.repeatsYearly,
   });
 
-  factory MilestoneModel.fromJson(String id, Map<String, dynamic> json) => MilestoneModel(
-    id:             id,
-    coupleId:       json['coupleId']       as String,
-    type:           MilestoneType.fromString(json['type'] as String),
-    title:          json['title']          as String,
-    occurredAt:     DateTime.parse(json['occurredAt'] as String),
-    note:           json['note']           as String?,
-    linkedMemoryId: json['linkedMemoryId'] as String?,
+  /// Row from the Supabase `milestones` table.
+  factory MilestoneModel.fromRow(Map<String, dynamic> row) => MilestoneModel(
+    id:             row['id']               as String,
+    coupleId:       row['couple_id']        as String,
+    type:           MilestoneType.fromString(row['type'] as String),
+    title:          row['title']            as String,
+    occurredAt:     DateTime.parse(row['occurred_at'] as String),
+    note:           row['note']             as String?,
+    linkedMemoryId: row['linked_memory_id'] as String?,
+    emoji:          row['emoji']            as String?,
+    repeatsYearly:  row['repeats_yearly']   as bool? ?? false,
   );
-
-  Map<String, dynamic> toJson() => {
-    'coupleId':       coupleId,
-    'type':           type.name,
-    'title':          title,
-    'occurredAt':     occurredAt.toIso8601String(),
-    'note':           note,
-    'linkedMemoryId': linkedMemoryId,
-  };
 }
