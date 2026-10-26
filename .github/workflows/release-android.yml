@@ -1,7 +1,7 @@
 name: Release Android
 
 # Builds a signed app bundle and uploads it to Google Play.
-#   - Push a tag like `v1.0.1` to release that version to the internal track.
+#   - Every push to `main` that changes app code releases to the internal track.
 #   - Or run it by hand from the Actions tab and pick the track.
 # Needs these repository secrets (Settings > Secrets and variables > Actions):
 #   ANDROID_KEYSTORE_BASE64    base64 of the upload keystore (.jks)
@@ -12,7 +12,13 @@ name: Release Android
 
 on:
   push:
-    tags: ['v*']
+    branches: [main]
+    paths-ignore:
+      - 'docs/**'
+      - 'design/**'
+      - 'supabase/**'
+      - '**.md'
+      - '.github/workflows/ci.yml'
   workflow_dispatch:
     inputs:
       track:
@@ -65,16 +71,11 @@ jobs:
           } > android/key.properties
 
       # Play needs every upload to have a higher version code than the last one;
-      # the run number only ever goes up. The version name comes from the tag
-      # (v1.2.3 -> 1.2.3), or from pubspec.yaml for a manual run.
+      # the run number only ever goes up. The version name comes from pubspec.yaml.
       - name: Build app bundle
         run: |
-          NAME_ARG=""
-          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
-            NAME_ARG="--build-name=${GITHUB_REF_NAME#v}"
-          fi
           flutter build appbundle --release \
-            --build-number="$GITHUB_RUN_NUMBER" $NAME_ARG \
+            --build-number="$GITHUB_RUN_NUMBER" \
             --obfuscate --split-debug-info=build/symbols
 
       - name: Upload to Google Play
