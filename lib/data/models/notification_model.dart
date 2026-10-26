@@ -8,22 +8,17 @@ class NotificationModel extends NotificationItem {
     required super.bodyText,
     required super.timestamp,
     super.isRead,
+    super.fromUserId,
   });
 
-  factory NotificationModel.fromJson(String id, Map<String, dynamic> json) => NotificationModel(
-    id:        id,
-    coupleId:  json['coupleId']  as String,
-    type:      NotifType.fromString(json['type'] as String),
-    bodyText:  json['bodyText']  as String,
-    timestamp: DateTime.parse(json['timestamp'] as String),
-    isRead:    json['isRead']    as bool? ?? false,
+  /// Row from the Supabase `notifications` table.
+  factory NotificationModel.fromRow(Map<String, dynamic> row) => NotificationModel(
+    id:         row['id']           as String,
+    coupleId:   row['couple_id']    as String,
+    type:       NotifType.fromString(row['type'] as String),
+    bodyText:   row['body_text']    as String,
+    timestamp:  DateTime.parse(row['created_at'] as String),
+    isRead:     row['is_read']      as bool? ?? false,
+    fromUserId: row['from_user_id'] as String?,
   );
-
-  Map<String, dynamic> toJson() => {
-    'coupleId':  coupleId,
-    'type':      type.name,
-    'bodyText':  bodyText,
-    'timestamp': timestamp.toIso8601String(),
-    'isRead':    isRead,
-  };
 }

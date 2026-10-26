@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get_it/get_it.dart';
+import 'package:go_router/go_router.dart';
 
+import '../../../../core/constants/route_names.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../domain/entities/notification_item.dart';
@@ -73,10 +75,33 @@ class _NotifItem extends StatelessWidget {
   const _NotifItem({required this.item});
   final NotificationItem item;
 
+  /// Opens the part of the app a notification is about. Screens above the main
+  /// tabs are pushed so back returns here; tabs are switched to.
+  void _open(BuildContext context) {
+    if (!item.isRead) {
+      context.read<NotificationBloc>().add(NotificationRead(id: item.id, coupleId: item.coupleId));
+    }
+    switch (item.type) {
+      case NotifType.touch:
+        context.push(RouteNames.touchSync);
+      case NotifType.doodle:
+        context.go(RouteNames.memories);
+      case NotifType.moodChange:
+        context.go(RouteNames.home);
+      case NotifType.streak:
+      case NotifType.milestone:
+        context.push(RouteNames.timeline);
+      case NotifType.location:
+      case NotifType.locate:
+        context.push(RouteNames.location);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: () {},
+      behavior: HitTestBehavior.opaque,
+      onTap: () => _open(context),
       child: Container(
         margin: const EdgeInsets.only(bottom: 9),
         padding: const EdgeInsets.all(15),
@@ -113,6 +138,7 @@ class _NotifItem extends StatelessWidget {
               const SizedBox(width: 8),
               Container(
                 width: 8, height: 8,
+                margin: const EdgeInsets.only(top: 6),
                 decoration: BoxDecoration(
                   color: AppColors.pink,
                   shape: BoxShape.circle,
@@ -120,6 +146,7 @@ class _NotifItem extends StatelessWidget {
                 ),
               ),
             ],
+            const Icon(Icons.chevron_right, color: AppColors.textDim, size: 20),
           ],
         ),
       ),

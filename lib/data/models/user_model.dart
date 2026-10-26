@@ -11,25 +11,15 @@ class UserModel extends AppUser {
     super.fcmToken,
   });
 
-  factory UserModel.fromJson(Map<String, dynamic> json) => UserModel(
-    id:          json['id']          as String,
-    username:    json['username']    as String,
-    email:       json['email']       as String,
-    avatarEmoji: json['avatarEmoji'] as String,
-    createdAt:   DateTime.parse(json['createdAt'] as String),
-    coupleId:    json['coupleId']    as String?,
-    fcmToken:    json['fcmToken']    as String?,
+  /// Row from the Supabase `profiles` table.
+  factory UserModel.fromProfile(Map<String, dynamic> row) => UserModel(
+    id:          row['id']           as String,
+    username:    row['username']     as String,
+    email:       row['email']        as String,
+    avatarEmoji: row['avatar_emoji'] as String,
+    createdAt:   DateTime.parse(row['created_at'] as String),
+    coupleId:    row['couple_id']    as String?,
   );
-
-  Map<String, dynamic> toJson() => {
-    'id':          id,
-    'username':    username,
-    'email':       email,
-    'avatarEmoji': avatarEmoji,
-    'createdAt':   createdAt.toIso8601String(),
-    'coupleId':    coupleId,
-    'fcmToken':    fcmToken,
-  };
 
   factory UserModel.fromEntity(AppUser user) => UserModel(
     id:          user.id,

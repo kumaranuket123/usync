@@ -13,27 +13,27 @@ class MemoryModel extends Memory {
     super.isFavourited,
   });
 
-  factory MemoryModel.fromJson(String id, Map<String, dynamic> json) => MemoryModel(
-    id:              id,
-    coupleId:        json['coupleId']        as String,
-    type:            MemoryType.fromString(json['type'] as String),
-    thumbnailEmoji:  json['thumbnailEmoji']  as String,
-    title:           json['title']           as String,
-    createdAt:       DateTime.parse(json['createdAt'] as String),
-    createdByUserId: json['createdByUserId'] as String,
-    thumbnailUrl:    json['thumbnailUrl']    as String?,
-    isFavourited:    json['isFavourited']    as bool? ?? false,
+  /// Row from the Supabase `memories` table.
+  factory MemoryModel.fromRow(Map<String, dynamic> row) => MemoryModel(
+    id:              row['id']                 as String,
+    coupleId:        row['couple_id']          as String,
+    type:            MemoryType.fromString(row['type'] as String),
+    thumbnailEmoji:  row['thumbnail_emoji']    as String,
+    title:           row['title']              as String,
+    createdAt:       DateTime.parse(row['created_at'] as String),
+    createdByUserId: row['created_by_user_id'] as String,
+    thumbnailUrl:    row['thumbnail_url']      as String?,
+    isFavourited:    row['is_favourited']      as bool? ?? false,
   );
 
-  Map<String, dynamic> toJson() => {
-    'coupleId':        coupleId,
-    'type':            type.name,
-    'thumbnailEmoji':  thumbnailEmoji,
-    'title':           title,
-    'createdAt':       createdAt.toIso8601String(),
-    'createdByUserId': createdByUserId,
-    'thumbnailUrl':    thumbnailUrl,
-    'isFavourited':    isFavourited,
+  Map<String, dynamic> toRow() => {
+    'couple_id':          coupleId,
+    'type':               type.name,
+    'thumbnail_emoji':    thumbnailEmoji,
+    'title':              title,
+    'created_by_user_id': createdByUserId,
+    'thumbnail_url':      thumbnailUrl,
+    'is_favourited':      isFavourited,
   };
 
   factory MemoryModel.fromEntity(Memory m) => MemoryModel(

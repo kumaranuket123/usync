@@ -1,20 +1,26 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_database/firebase_database.dart';
 import 'package:get_it/get_it.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../data/datasources/local/hive_source.dart';
 import '../../data/datasources/local/prefs_source.dart';
-import '../../data/datasources/remote/firebase_auth_source.dart';
-import '../../data/datasources/remote/firestore_source.dart';
-import '../../data/datasources/remote/rtdb_source.dart';
+import '../../data/datasources/remote/couple_channel_source.dart';
+import '../../data/datasources/remote/storage_source.dart';
+import '../../data/datasources/remote/supabase_auth_source.dart';
 import '../../data/repositories/auth_repository.dart';
 import '../../data/repositories/canvas_repository.dart';
 import '../../data/repositories/couple_repository.dart';
 import '../../data/repositories/memory_repository.dart';
 import '../../data/repositories/mood_repository.dart';
 import '../../data/repositories/notification_repository.dart';
+import '../../data/datasources/local/identity_cache.dart';
+import '../../data/datasources/local/session_cache.dart';
+import '../../data/repositories/location_repository.dart';
+import '../../data/repositories/milestone_repository.dart';
+import '../../domain/repositories/i_milestone_repository.dart';
+import '../services/outbox_service.dart';
+import '../services/app_lock_service.dart';
 import '../../data/repositories/touch_repository.dart';
 import '../../domain/repositories/i_auth_repository.dart';
 import '../../domain/repositories/i_canvas_repository.dart';
@@ -22,6 +28,7 @@ import '../../domain/repositories/i_couple_repository.dart';
 import '../../domain/repositories/i_memory_repository.dart';
 import '../../domain/repositories/i_mood_repository.dart';
 import '../../domain/repositories/i_notification_repository.dart';
+import '../../domain/repositories/i_location_repository.dart';
 import '../../domain/repositories/i_touch_repository.dart';
 import '../../presentation/features/auth/bloc/auth_bloc.dart';
 import '../../presentation/features/canvas/bloc/canvas_bloc.dart';
@@ -34,6 +41,7 @@ import '../../presentation/features/profile/bloc/profile_bloc.dart';
 import '../../presentation/features/settings/bloc/settings_bloc.dart';
 import '../../presentation/features/settings/bloc/theme_bloc.dart';
 import '../../presentation/features/timeline/bloc/timeline_bloc.dart';
+import '../../presentation/features/location/bloc/location_bloc.dart';
 import '../../presentation/features/touch_sync/bloc/touch_sync_bloc.dart';
 import '../../presentation/features/widgets_showcase/bloc/widgets_bloc.dart';
 
@@ -43,56 +51,87 @@ Future<void> setupLocator() async {
   // ── External ──────────────────────────────────────────────────
   final prefs = await SharedPreferences.getInstance();
   getIt.registerSingleton<SharedPreferences>(prefs);
-  getIt.registerSingleton<FirebaseAuth>(FirebaseAuth.instance);
-  getIt.registerSingleton<FirebaseFirestore>(FirebaseFirestore.instance);
-  getIt.registerSingleton<FirebaseDatabase>(FirebaseDatabase.instance);
+  getIt.registerSingleton<SupabaseClient>(Supabase.instance.client);
 
   // ── Data sources ──────────────────────────────────────────────
-  getIt.registerLazySingleton<FirebaseAuthSource>(
-    () => FirebaseAuthSource(auth: getIt()),
+  getIt.registerLazySingleton<SupabaseAuthSource>(
+    () => SupabaseAuthSource(client: getIt()),
   );
-  getIt.registerLazySingleton<FirestoreSource>(
-    () => FirestoreSource(firestore: getIt()),
-  );
-  getIt.registerLazySingleton<RtdbSource>(
-    () => RtdbSource(database: getIt()),
+  getIt.registerLazySingleton<StorageSource>(() => StorageSource(client: getIt()));
+  getIt.registerLazySingleton<CoupleChannelSource>(
+    () => CoupleChannelSource(client: getIt()),
   );
   getIt.registerLazySingleton<HiveSource>(() => HiveSource());
   getIt.registerLazySingleton<PrefsSource>(
     () => PrefsSource(prefs: getIt()),
   );
 
+  getIt.registerLazySingleton<AppLockService>(() => AppLockService(prefs: getIt()));
+
+  // ── Offline support ───────────────────────────────────────────
+  // Changes made without a connection wait in the outbox; the session cache
+  // keeps who you are, your couple and recent data so the app can start offline.
+  getIt.registerSingleton<SessionCache>(
+    SessionCache(box: await Hive.openBox<dynamic>(SessionCache.boxName)),
+  );
+  getIt.registerSingleton<IdentityCache>(IdentityCache());
+  getIt.registerSingleton<OutboxService>(
+    OutboxService(box: await Hive.openBox<dynamic>('outbox')),
+  );
+
   // ── Repositories ──────────────────────────────────────────────
   getIt.registerLazySingleton<IAuthRepository>(
     () => AuthRepository(
       authSource: getIt(),
-      firestoreSource: getIt(),
+      client: getIt(),
       prefsSource: getIt(),
+      sessionCache: getIt(),
+      outbox: getIt(),
+      identity: getIt(),
+      channels: getIt(),
+      storage: getIt(),
     ),
   );
   getIt.registerLazySingleton<ICoupleRepository>(
     () => CoupleRepository(
-      firestoreSource: getIt(),
-      rtdbSource: getIt(),
+      client: getIt(),
+      channelSource: getIt(),
+      notifications: getIt(),
+      storage: getIt(),
+      sessionCache: getIt(),
+      identity: getIt(),
     ),
   );
   getIt.registerLazySingleton<IMoodRepository>(
     () => MoodRepository(
-      firestoreSource: getIt(),
-      rtdbSource: getIt(),
+      client: getIt(),
+      notifications: getIt(),
+      outbox: getIt(),
+      sessionCache: getIt(),
+    ),
+  );
+  getIt.registerLazySingleton<IMilestoneRepository>(
+    () => MilestoneRepository(
+      client: getIt(),
+      notifications: getIt(),
+      outbox: getIt(),
+      sessionCache: getIt(),
     ),
   );
   getIt.registerLazySingleton<IMemoryRepository>(
-    () => MemoryRepository(firestoreSource: getIt()),
+    () => MemoryRepository(client: getIt(), storage: getIt(), notifications: getIt(), outbox: getIt()),
   );
   getIt.registerLazySingleton<ICanvasRepository>(
-    () => CanvasRepository(rtdbSource: getIt()),
+    () => CanvasRepository(client: getIt(), channelSource: getIt(), storage: getIt(), outbox: getIt()),
   );
   getIt.registerLazySingleton<ITouchRepository>(
-    () => TouchRepository(rtdbSource: getIt()),
+    () => TouchRepository(channelSource: getIt(), notifications: getIt()),
+  );
+  getIt.registerLazySingleton<ILocationRepository>(
+    () => LocationRepository(client: getIt(), prefs: getIt(), notifications: getIt()),
   );
   getIt.registerLazySingleton<INotificationRepository>(
-    () => NotificationRepository(firestoreSource: getIt()),
+    () => NotificationRepository(client: getIt()),
   );
 
   // ── BLoCs (factory — new instance per registration request) ───
@@ -100,7 +139,7 @@ Future<void> setupLocator() async {
     () => AuthBloc(authRepository: getIt()),
   );
   getIt.registerFactory<SettingsBloc>(
-    () => SettingsBloc(prefsSource: getIt()),
+    () => SettingsBloc(prefsSource: getIt(), notifications: getIt()),
   );
   getIt.registerFactory<ThemeBloc>(
     () => ThemeBloc(prefsSource: getIt()),
@@ -116,10 +155,13 @@ Future<void> setupLocator() async {
     ),
   );
   getIt.registerFactory<CanvasBloc>(
-    () => CanvasBloc(canvasRepository: getIt()),
+    () => CanvasBloc(canvasRepository: getIt(), memoryRepository: getIt()),
   );
   getIt.registerFactory<TouchSyncBloc>(
     () => TouchSyncBloc(touchRepository: getIt()),
+  );
+  getIt.registerFactory<LocationBloc>(
+    () => LocationBloc(locationRepository: getIt()),
   );
   getIt.registerFactory<MoodBloc>(
     () => MoodBloc(moodRepository: getIt()),
@@ -134,11 +176,10 @@ Future<void> setupLocator() async {
     () => ProfileBloc(
       authRepository: getIt(),
       coupleRepository: getIt(),
-      memoryRepository: getIt(),
     ),
   );
   getIt.registerFactory<TimelineBloc>(
-    () => TimelineBloc(coupleRepository: getIt()),
+    () => TimelineBloc(coupleRepository: getIt(), milestoneRepository: getIt()),
   );
   getIt.registerFactory<WidgetsBloc>(
     () => WidgetsBloc(

@@ -1,5 +1,5 @@
 import 'package:flutter/widgets.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' hide User;
 import 'package:go_router/go_router.dart';
 
 import '../constants/route_names.dart';
@@ -9,7 +9,6 @@ abstract final class RouteGuards {
     RouteNames.splash,
     RouteNames.onboarding,
     RouteNames.login,
-    RouteNames.register,
   };
 
   static final _pairingRoutes = {
@@ -24,7 +23,7 @@ abstract final class RouteGuards {
     // Splash always renders regardless.
     if (path == RouteNames.splash) return null;
 
-    final user = FirebaseAuth.instance.currentUser;
+    final user = Supabase.instance.client.auth.currentUser;
     final isPublic  = _publicRoutes.contains(path);
     final isPairing = _pairingRoutes.contains(path);
 
@@ -34,7 +33,7 @@ abstract final class RouteGuards {
       return RouteNames.login;
     }
 
-    // Authenticated — redirect away from login/register.
+    // Authenticated — redirect away from login.
     if (isPublic) return RouteNames.home;
 
     // Pairing routes are accessible regardless of coupleId

@@ -6,5 +6,16 @@ abstract interface class INotificationRepository {
   Future<void>  markRead(String coupleId, String notificationId);
   Future<void>  markAllRead(String coupleId);
   Stream<int>   watchUnreadCount(String coupleId);
+  /// Records an event for the partner of [fromUserId]; a Cloud Function turns it into a push.
+  /// Never throws: a failed notification must not break the action that triggered it.
+  Future<void>  notifyPartner({
+    required String coupleId,
+    required String fromUserId,
+    required NotifType type,
+    required String Function(String senderName) body,
+  });
   Future<void>  toggleFcm({required bool enabled, required String uid});
+  /// Alert groups (see [NotifType.soundGroup]) that arrive without sound or popup.
+  Future<Set<String>> getSilentTypes();
+  Future<void>        setSilentTypes(Set<String> types);
 }

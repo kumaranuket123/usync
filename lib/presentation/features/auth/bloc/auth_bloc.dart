@@ -1,6 +1,11 @@
 import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
+import 'dart:async';
 
+import 'package:flutter/foundation.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:google_sign_in/google_sign_in.dart';
+
+import '../../../../core/utils/auth_messages.dart';
 import '../../../../domain/entities/user.dart';
 import '../../../../domain/repositories/i_auth_repository.dart';
 
@@ -10,38 +15,56 @@ part 'auth_state.dart';
 class AuthBloc extends Bloc<AuthEvent, AuthState> {
   AuthBloc({required this.authRepository}) : super(AuthInitial()) {
     on<AuthStateChecked>(_onChecked);
-    on<SignInRequested>(_onSignIn);
-    on<SignUpRequested>(_onSignUp);
+    on<GoogleSignInRequested>(_onGoogleSignIn);
     on<SignOutRequested>(_onSignOut);
-    on<PasswordResetRequested>(_onPasswordReset);
+    on<DeleteAccountRequested>(_onDeleteAccount);
+    on<SessionEnded>((_, emit) {
+      if (state is Authenticated) emit(Unauthenticated());
+    });
+    // The server can end a session (revoked, password changed elsewhere): the
+    // app must notice and go back to sign-in instead of failing quietly.
+    _signedOutSub = authRepository.signedOut.listen((_) {
+      if (!isClosed) add(const SessionEnded());
+    });
   }
 
   final IAuthRepository authRepository;
+  StreamSubscription<void>? _signedOutSub;
 
-  Future<void> _onChecked(AuthStateChecked _, Emitter<AuthState> emit) async {
-    final user = await authRepository.getCurrentUser();
-    emit(user != null ? Authenticated(user) : Unauthenticated());
+  @override
+  Future<void> close() {
+    _signedOutSub?.cancel();
+    return super.close();
   }
 
-  Future<void> _onSignIn(SignInRequested e, Emitter<AuthState> emit) async {
-    emit(AuthLoading());
+  Future<void> _onChecked(AuthStateChecked _, Emitter<AuthState> emit) async {
     try {
-      final user = await authRepository.signIn(e.email, e.password);
-      emit(Authenticated(user));
-      _saveFcmToken(user.id);
+      final user = await authRepository.getCurrentUser();
+      emit(user != null ? Authenticated(user) : Unauthenticated());
     } catch (err) {
-      emit(AuthError(err.toString()));
+      // Offline with nothing saved yet: stay as we are rather than sign the user out.
+      debugPrint('Could not check the signed-in user: $err');
     }
   }
 
-  Future<void> _onSignUp(SignUpRequested e, Emitter<AuthState> emit) async {
+  Future<void> _onGoogleSignIn(GoogleSignInRequested _, Emitter<AuthState> emit) async {
     emit(AuthLoading());
     try {
-      final user = await authRepository.signUp(e.email, e.password, e.username, e.avatarEmoji);
+      final user = await authRepository.signInWithGoogle();
       emit(Authenticated(user));
       _saveFcmToken(user.id);
+    } on GoogleSignInException catch (err) {
+      // Closing the account picker is not an error worth a message.
+      final cancelled = err.code == GoogleSignInExceptionCode.canceled ||
+          err.code == GoogleSignInExceptionCode.interrupted;
+      debugPrint('Google sign-in failed: ${err.code} ${err.description}');
+      emit(cancelled ? Unauthenticated() : AuthError(
+        kDebugMode ? 'Google sign-in failed: ${err.code.name} ${err.description ?? ''}'.trim()
+                   : 'Google sign-in failed. Please try again.',
+      ));
     } catch (err) {
-      emit(AuthError(err.toString()));
+      debugPrint('Sign-in failed: $err');
+      emit(AuthError(friendlyAuthMessage(err)));
     }
   }
 
@@ -52,18 +75,22 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     } catch (_) {}
   }
 
-  Future<void> _onSignOut(SignOutRequested _, Emitter<AuthState> emit) async {
-    emit(AuthLoading());
-    await authRepository.signOut();
-    emit(Unauthenticated());
+  Future<void> _onDeleteAccount(DeleteAccountRequested _, Emitter<AuthState> emit) async {
+    final previous = state;
+    emit(SigningOut(deletingAccount: true));
+    try {
+      await authRepository.deleteAccount();
+      emit(Unauthenticated());
+    } catch (err) {
+      // Nothing was deleted if it failed before the database call: stay signed in.
+      emit(AuthError(friendlyAuthMessage(err)));
+      if (previous is Authenticated) emit(previous);
+    }
   }
 
-  Future<void> _onPasswordReset(PasswordResetRequested e, Emitter<AuthState> emit) async {
-    try {
-      await authRepository.sendPasswordReset(e.email);
-      emit(PasswordResetSent(e.email));
-    } catch (err) {
-      emit(AuthError(err.toString()));
-    }
+  Future<void> _onSignOut(SignOutRequested _, Emitter<AuthState> emit) async {
+    emit(SigningOut());
+    await authRepository.signOut();
+    emit(Unauthenticated());
   }
 }

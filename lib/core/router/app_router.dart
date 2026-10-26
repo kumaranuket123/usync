@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../domain/entities/memory.dart';
 import '../../presentation/features/auth/screens/login_screen.dart';
-import '../../presentation/features/auth/screens/register_screen.dart';
 import '../../presentation/features/canvas/screens/canvas_screen.dart';
 import '../../presentation/features/home/screens/home_screen.dart';
+import '../../presentation/features/location/screens/location_screen.dart';
 import '../../presentation/features/memory/screens/memory_detail_screen.dart';
 import '../../presentation/features/memory/screens/memory_space_screen.dart';
 import '../../presentation/features/mood/screens/mood_screen.dart';
@@ -14,6 +15,7 @@ import '../../presentation/features/pairing/screens/pair_invite_screen.dart';
 import '../../presentation/features/pairing/screens/pair_join_screen.dart';
 import '../../presentation/features/pairing/screens/pair_success_screen.dart';
 import '../../presentation/features/profile/screens/profile_screen.dart';
+import '../../presentation/features/settings/screens/alert_sounds_screen.dart';
 import '../../presentation/features/settings/screens/settings_screen.dart';
 import '../../presentation/features/settings/screens/theme_selection_screen.dart';
 import '../../presentation/features/splash/screens/splash_screen.dart';
@@ -45,10 +47,6 @@ abstract final class AppRouter {
       GoRoute(
         path: RouteNames.login,
         builder: (_, __) => const LoginScreen(),
-      ),
-      GoRoute(
-        path: RouteNames.register,
-        builder: (_, __) => const RegisterScreen(),
       ),
 
       // ── Pairing ───────────────────────────────────────────────
@@ -100,6 +98,11 @@ abstract final class AppRouter {
         builder: (_, __) => const TouchSyncScreen(),
       ),
       GoRoute(
+        path: RouteNames.location,
+        parentNavigatorKey: _rootKey,
+        builder: (_, __) => const LocationScreen(),
+      ),
+      GoRoute(
         path: RouteNames.mood,
         parentNavigatorKey: _rootKey,
         builder: (_, __) => const MoodScreen(),
@@ -109,6 +112,8 @@ abstract final class AppRouter {
         parentNavigatorKey: _rootKey,
         builder: (_, state) => MemoryDetailScreen(
           memoryId: state.pathParameters['id']!,
+          // Pushed from the Memories list with the memory attached.
+          memory:   state.extra is Memory ? state.extra as Memory : null,
         ),
       ),
       GoRoute(
@@ -125,6 +130,11 @@ abstract final class AppRouter {
         path: RouteNames.settings,
         parentNavigatorKey: _rootKey,
         builder: (_, __) => const SettingsScreen(),
+      ),
+      GoRoute(
+        path: RouteNames.alertSounds,
+        parentNavigatorKey: _rootKey,
+        builder: (_, __) => const AlertSoundsScreen(),
       ),
       GoRoute(
         path: RouteNames.themes,

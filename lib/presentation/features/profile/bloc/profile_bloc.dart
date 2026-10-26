@@ -1,10 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../domain/entities/couple.dart';
 import '../../../../domain/entities/user.dart';
 import '../../../../domain/repositories/i_auth_repository.dart';
 import '../../../../domain/repositories/i_couple_repository.dart';
-import '../../../../domain/repositories/i_memory_repository.dart';
 
 part 'profile_event.dart';
 part 'profile_state.dart';
@@ -13,14 +14,20 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
   ProfileBloc({
     required this.authRepository,
     required this.coupleRepository,
-    required this.memoryRepository,
   }) : super(ProfileLoading()) {
     on<ProfileLoaded>(_onLoaded);
+    on<DisconnectCouple>(_onDisconnect);
+    on<CoupleUpdated>(_onCoupleUpdated);
+    on<UserUpdated>((e, emit) {
+      final current = state;
+      if (current is ProfileReady) emit(ProfileReady(user: e.user, couple: current.couple));
+    });
   }
 
   final IAuthRepository   authRepository;
   final ICoupleRepository coupleRepository;
-  final IMemoryRepository memoryRepository;
+
+  StreamSubscription<Couple>? _coupleSub;
 
   Future<void> _onLoaded(ProfileLoaded e, Emitter<ProfileState> emit) async {
     if (e.coupleId.isEmpty || e.userId.isEmpty) { emit(ProfileError('Not paired')); return; }
@@ -29,15 +36,44 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
       final results = await Future.wait([
         authRepository.getCurrentUser(),
         coupleRepository.getCouple(e.coupleId),
-        memoryRepository.getDoodleCount(e.coupleId),
       ]);
       emit(ProfileReady(
-        user:         results[0] as AppUser,
-        couple:       results[1] as Couple,
-        doodleCount:  results[2] as int,
+        user:   results[0] as AppUser,
+        couple: results[1] as Couple,
       ));
+      _coupleSub?.cancel();
+      _coupleSub = coupleRepository.watchCouple(e.coupleId).listen((c) => add(CoupleUpdated(c)));
     } catch (err) {
       emit(ProfileError(err.toString()));
     }
+  }
+
+  void _onCoupleUpdated(CoupleUpdated e, Emitter<ProfileState> emit) {
+    final current = state;
+    if (e.couple.isDisconnected) {
+      emit(ProfileDisconnected());
+    } else if (current is ProfileReady) {
+      emit(ProfileReady(user: current.user, couple: e.couple));
+    }
+  }
+
+  Future<void> _onDisconnect(DisconnectCouple e, Emitter<ProfileState> emit) =>
+      _run(emit, () => coupleRepository.disconnect(e.coupleId, e.userId));
+
+  /// Runs the disconnect; the couple stream drives the resulting state.
+  Future<void> _run(Emitter<ProfileState> emit, Future<void> Function() action) async {
+    final previous = state;
+    try {
+      await action();
+    } catch (err) {
+      emit(ProfileError(err.toString()));
+      if (previous is ProfileReady) emit(previous);
+    }
+  }
+
+  @override
+  Future<void> close() {
+    _coupleSub?.cancel();
+    return super.close();
   }
 }

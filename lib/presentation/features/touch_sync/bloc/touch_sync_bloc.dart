@@ -24,13 +24,15 @@ class TouchSyncBloc extends Bloc<TouchSyncEvent, TouchSyncState> {
   String    _coupleId  = '';
   String    _userId    = '';
   String    _partnerId = '';
+  bool      _partnerWasActive = false;
 
   Future<void> _onMounted(TouchScreenMounted e, Emitter<TouchSyncState> emit) async {
     _coupleId  = e.coupleId;
     _userId    = e.userId;
     _partnerId = e.partnerUserId;
 
-    await touchRepository.registerDisconnectClear(_coupleId, _userId);
+    // Announce we are here, but do not hold the screen back waiting for the connection.
+    touchRepository.registerDisconnectClear(_coupleId, _userId).ignore();
     _sub = touchRepository
         .watchPartnerTouch(_coupleId, _partnerId)
         .listen((active) { if (!isClosed) add(RemoteTouchReceived(active)); });
@@ -40,6 +42,7 @@ class TouchSyncBloc extends Bloc<TouchSyncEvent, TouchSyncState> {
 
   Future<void> _onPressed(TouchPressed _, Emitter<TouchSyncState> emit) async {
     await touchRepository.setTouchActive(_coupleId, _userId, isActive: true);
+    touchRepository.notifyIfPartnerAway(_coupleId, _userId, _partnerId).ignore();
     await HapticUtil.heavy();
     if (state is TouchSyncReady) {
       emit((state as TouchSyncReady).copyWith(isOwnerTouching: true));
@@ -55,11 +58,17 @@ class TouchSyncBloc extends Bloc<TouchSyncEvent, TouchSyncState> {
   }
 
   Future<void> _onRemote(RemoteTouchReceived e, Emitter<TouchSyncState> emit) async {
+    _partnerWasActive = e.isActive;
     if (state is TouchSyncReady) {
       emit((state as TouchSyncReady).copyWith(isPartnerTouching: e.isActive));
     }
+    // Always stop the previous pulse first: a repeated "active" message must not
+    // leave an orphaned timer vibrating forever.
+    _hapticTimer?.cancel();
+    _hapticTimer = null;
     if (e.isActive) {
       await HapticUtil.touchLanding();
+      if (isClosed || !_partnerWasActive) return; // released while the landing buzz played
       _hapticTimer = Timer.periodic(
         const Duration(milliseconds: 1200),
         (_) => HapticUtil.touchPulse(),
@@ -75,6 +84,7 @@ class TouchSyncBloc extends Bloc<TouchSyncEvent, TouchSyncState> {
     _sub?.cancel();
     _hapticTimer?.cancel();
     touchRepository.setTouchActive(_coupleId, _userId, isActive: false);
+    if (_coupleId.isNotEmpty) touchRepository.leaveTouchScreen(_coupleId, _userId);
     return super.close();
   }
 }

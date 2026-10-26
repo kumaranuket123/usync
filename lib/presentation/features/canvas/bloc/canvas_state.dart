@@ -11,6 +11,9 @@ class CanvasState {
     this.activeColor   = const Color(0xFFFF6EC7),
     this.activeTool    = CanvasTool.pen,
     this.isSaving      = false,
+    this.saveFailed    = false,
+    this.saveQueued    = false,
+    this.partnerHere   = false,
     this.isReady       = false,
   });
 
@@ -24,6 +27,12 @@ class CanvasState {
   final Color              activeColor;
   final CanvasTool         activeTool;
   final bool               isSaving;
+  /// The last save did not complete; reset when the next one starts.
+  final bool               saveFailed;
+  /// The last save was kept on the device (no connection) and will be sent later.
+  final bool               saveQueued;
+  /// The partner is on the canvas right now (from Presence).
+  final bool               partnerHere;
 
   /// True once the couple is resolved and sync is running.
   final bool               isReady;
@@ -42,6 +51,9 @@ class CanvasState {
     Color?              activeColor,
     CanvasTool?         activeTool,
     bool?               isSaving,
+    bool?               saveFailed,
+    bool?               saveQueued,
+    bool?               partnerHere,
     bool?               isReady,
   }) {
     final newStrokes = strokes       ?? this.strokes;
@@ -55,6 +67,9 @@ class CanvasState {
       activeColor:   activeColor ?? this.activeColor,
       activeTool:    activeTool  ?? this.activeTool,
       isSaving:      isSaving    ?? this.isSaving,
+      saveFailed:    saveFailed  ?? this.saveFailed,
+      saveQueued:    saveQueued  ?? this.saveQueued,
+      partnerHere:   partnerHere ?? this.partnerHere,
       isReady:       isReady     ?? this.isReady,
     );
   }

@@ -20,7 +20,6 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
   }) : super(HomeLoading()) {
     on<HomeStarted>(_onStarted);
     on<PartnerPresenceUpdated>(_onPresence);
-    on<PartnerMoodUpdated>(_onMood);
     on<RecentMoodsRefreshed>(_onMoodsRefreshed);
   }
 
@@ -28,8 +27,16 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
   final ICoupleRepository coupleRepository;
   final IMoodRepository   moodRepository;
 
-  StreamSubscription<bool>?  _presenceSub;
-  StreamSubscription<Mood?>? _moodSub;
+  StreamSubscription<bool>?        _presenceSub;
+  StreamSubscription<List<Mood>>?  _moodsSub;
+  String _partnerId = '';
+
+  static Mood? _latestFrom(List<Mood> moods, String userId) {
+    for (final m in moods) {
+      if (m.userId == userId) return m;
+    }
+    return null;
+  }
 
   Future<void> _onStarted(HomeStarted _, Emitter<HomeState> emit) async {
     emit(HomeLoading());
@@ -54,28 +61,33 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
             createdAt:   DateTime.now(),
           );
 
-      // 3. Recent moods
-      final recentMoods = await moodRepository.getMoodHistory(coupleId);
+      // 3. Moods: one stream gives both the recent list and the partner's
+      //    current mood. Wait briefly for the first value (the saved copy
+      //    arrives at once; with neither, Home opens without moods).
+      _partnerId = partnerId;
+      final firstMoods = Completer<List<Mood>>();
+      await _moodsSub?.cancel();
+      _moodsSub = moodRepository.watchRecentMoods(coupleId).listen((moods) {
+        if (!firstMoods.isCompleted) firstMoods.complete(moods);
+        if (!isClosed) add(RecentMoodsRefreshed(moods));
+      });
+      final recentMoods = await firstMoods.future
+          .timeout(const Duration(seconds: 5), onTimeout: () => const <Mood>[]);
 
       // 4. Emit loaded
       emit(HomeLoaded(
         user:        user,
         partner:     partner,
         couple:      couple,
+        partnerMood: _latestFrom(recentMoods, partnerId),
         recentMoods: recentMoods,
       ));
 
-      // 5. Subscribe to live presence + mood streams
+      // 5. Live presence
       _presenceSub?.cancel();
-      _moodSub?.cancel();
-
       _presenceSub = coupleRepository
           .watchPartnerPresence(coupleId, partnerId)
           .listen((isOnline) { if (!isClosed) add(PartnerPresenceUpdated(isOnline)); });
-
-      _moodSub = moodRepository
-          .watchPartnerMood(coupleId, partnerId)
-          .listen((mood) { if (!isClosed) add(PartnerMoodUpdated(mood)); });
 
       // 6. Keep presence updated
       await coupleRepository.updatePresence(coupleId, user.id, isOnline: true);
@@ -91,22 +103,19 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
     }
   }
 
-  void _onMood(PartnerMoodUpdated e, Emitter<HomeState> emit) {
-    if (state is HomeLoaded) {
-      emit((state as HomeLoaded).copyWith(partnerMood: e.mood));
-    }
-  }
-
   void _onMoodsRefreshed(RecentMoodsRefreshed e, Emitter<HomeState> emit) {
     if (state is HomeLoaded) {
-      emit((state as HomeLoaded).copyWith(recentMoods: e.moods));
+      emit((state as HomeLoaded).copyWith(
+        recentMoods: e.moods,
+        partnerMood: _latestFrom(e.moods, _partnerId),
+      ));
     }
   }
 
   @override
   Future<void> close() {
     _presenceSub?.cancel();
-    _moodSub?.cancel();
+    _moodsSub?.cancel();
     return super.close();
   }
 }

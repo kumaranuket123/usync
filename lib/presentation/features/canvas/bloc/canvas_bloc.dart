@@ -3,16 +3,18 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:intl/intl.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../../domain/entities/canvas_stroke.dart';
 import '../../../../domain/repositories/i_canvas_repository.dart';
+import '../../../../domain/repositories/i_memory_repository.dart';
 
 part 'canvas_event.dart';
 part 'canvas_state.dart';
 
 class CanvasBloc extends Bloc<CanvasEvent, CanvasState> {
-  CanvasBloc({required this.canvasRepository}) : super(const CanvasState()) {
+  CanvasBloc({required this.canvasRepository, required this.memoryRepository}) : super(const CanvasState()) {
     on<CanvasMounted>(_onMounted);
     on<StrokeStarted>(_onStart);
     on<StrokeUpdated>(_onUpdate);
@@ -22,6 +24,8 @@ class CanvasBloc extends Bloc<CanvasEvent, CanvasState> {
     on<ToolChanged>((e, emit)  => emit(state.copyWith(activeTool: e.tool)));
     on<CanvasCleared>(_onClear);
     on<MemorySaved>(_onSave);
+    on<StrokesFlushRequested>((_, __) => _guard(canvasRepository.flushStrokes()));
+    on<PartnerHereChanged>((e, emit) => emit(state.copyWith(partnerHere: e.isHere)));
     on<RemoteStrokeReceived>(_onRemote);
     on<RemoteCanvasCleared>(
       (_, emit) => emit(state.copyWith(strokes: [], remoteStrokes: [], clearActive: true)),
@@ -29,11 +33,13 @@ class CanvasBloc extends Bloc<CanvasEvent, CanvasState> {
   }
 
   /// How often points drawn since the last write are sent to the partner.
-  static const _flushInterval = Duration(milliseconds: 80);
+  static const _flushInterval = Duration(milliseconds: 150);
 
   final ICanvasRepository       canvasRepository;
+  final IMemoryRepository       memoryRepository;
   StreamSubscription<CanvasStroke>? _remoteSub;
   StreamSubscription<int>?          _clearSub;
+  StreamSubscription<bool>?         _presenceSub;
   Timer?  _flushTimer;
   final   _pending = <Offset>[];
   int     _seq = 0;
@@ -48,6 +54,14 @@ class CanvasBloc extends Bloc<CanvasEvent, CanvasState> {
 
     await _remoteSub?.cancel();
     await _clearSub?.cancel();
+    await _presenceSub?.cancel();
+
+    // Tell the partner we are here, and watch for them.
+    canvasRepository.enterCanvas(_coupleId, _userId).ignore();
+    _presenceSub = canvasRepository.watchPartnerOnCanvas(_coupleId, e.partnerUserId).listen(
+      (here) { if (!isClosed) add(PartnerHereChanged(here)); },
+      onError: (Object err) => debugPrint('Canvas presence error: $err'),
+    );
 
     _remoteSub = canvasRepository.watchRemoteStrokes(_coupleId, _userId).listen(
       (stroke) { if (!isClosed) add(RemoteStrokeReceived(stroke)); },
@@ -128,9 +142,22 @@ class CanvasBloc extends Bloc<CanvasEvent, CanvasState> {
   }
 
   Future<void> _onSave(MemorySaved e, Emitter<CanvasState> emit) async {
-    emit(state.copyWith(isSaving: true));
-    await canvasRepository.saveCanvasBitmap(_coupleId, e.imageBytes);
-    emit(state.copyWith(isSaving: false));
+    if (state.isSaving) return;
+    emit(state.copyWith(isSaving: true, saveFailed: false, saveQueued: false));
+    try {
+      // Uploads the picture and saves the memory (which notifies the partner);
+      // without a connection both wait on the device and are sent later.
+      final sentNow = await memoryRepository.saveDoodle(
+        coupleId: _coupleId,
+        userId:   _userId,
+        png:      e.imageBytes,
+        title:    'Doodle · ${DateFormat('d MMM, h:mm a').format(DateTime.now())}',
+      );
+      emit(state.copyWith(isSaving: false, saveQueued: !sentNow));
+    } catch (err) {
+      debugPrint('Canvas save failed: $err');
+      emit(state.copyWith(isSaving: false, saveFailed: true));
+    }
   }
 
   void _onRemote(RemoteStrokeReceived e, Emitter<CanvasState> emit) {
@@ -154,6 +181,9 @@ class CanvasBloc extends Bloc<CanvasEvent, CanvasState> {
     _flushTimer?.cancel();
     _remoteSub?.cancel();
     _clearSub?.cancel();
+    _presenceSub?.cancel();
+    canvasRepository.flushStrokes().ignore();
+    if (_coupleId.isNotEmpty) canvasRepository.leaveCanvas(_coupleId, _userId).ignore();
     return super.close();
   }
 }

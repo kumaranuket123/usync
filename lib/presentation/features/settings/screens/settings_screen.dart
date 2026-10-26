@@ -1,21 +1,60 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' hide User;
 
 import '../../../../core/constants/route_names.dart';
+import '../../../../core/di/injection.dart';
+import '../../../../core/services/app_lock_service.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../shared/widgets/neon_back_button.dart';
 import '../../../shared/widgets/outline_button.dart';
 import '../../../shared/widgets/toggle_switch.dart';
 import '../bloc/settings_bloc.dart';
+import 'alert_sounds_screen.dart';
 import '../../auth/bloc/auth_bloc.dart';
+import '../../profile/bloc/profile_bloc.dart';
 
-class SettingsScreen extends StatelessWidget {
+class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
 
   @override
+  State<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends State<SettingsScreen> {
+  @override
+  void initState() {
+    super.initState();
+    // The alert sound choices live on the server; fetch them now, once.
+    context.read<SettingsBloc>().add(const AlertTypesRequested());
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final auth     = context.read<AuthBloc>().state;
+    final uid      = Supabase.instance.client.auth.currentUser?.id ?? '';
+    final coupleId = auth is Authenticated ? (auth.user.coupleId ?? '') : '';
+    // The couple's disconnect state lives in ProfileBloc; Settings owns the
+    // Disconnect row, so it provides its own copy.
+    return BlocProvider(
+      create: (_) => getIt<ProfileBloc>()..add(ProfileLoaded(userId: uid, coupleId: coupleId)),
+      child: BlocListener<ProfileBloc, ProfileState>(
+        listener: (context, state) {
+          if (state is ProfileDisconnected) {
+            // Refresh the app-wide user so coupleId is cleared, then re-pair.
+            context.read<AuthBloc>().add(const AuthStateChecked());
+            context.go(RouteNames.pairInvite);
+          }
+        },
+        child: _scaffold(context),
+      ),
+    );
+  }
+
+  Widget _scaffold(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.bg1,
       body: SafeArea(
@@ -38,39 +77,56 @@ class SettingsScreen extends StatelessWidget {
                   return ListView(
                     padding: const EdgeInsets.fromLTRB(20, 0, 20, 40),
                     children: [
-                      Builder(builder: (context) {
-                        final auth = context.read<AuthBloc>().state;
-                        final user = auth is Authenticated ? auth.user : null;
-                        return Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            _SectionLabel('ACCOUNT'),
-                            _Row('👤', const Color(0x1FFF2D78), 'Profile',
-                                '${user?.username ?? '—'} · ${user?.email ?? ''}',
-                                onTap: () {}),
-                            _Row('🔒', const Color(0x1F9D4EDD), 'Privacy', 'Manage visibility', onTap: () {}),
-                          ],
-                        );
-                      }),
-
-                      _SectionLabel('CONNECTION'),
-                      _Row('💞', const Color(0x1FFF6EC7), 'Couple Settings', 'Connected', onTap: () {}),
-                      _ToggleRow('🔔', const Color(0x1F00D4FF), 'Notifications', 'Gentle emotional alerts',
+                      _SectionLabel('NOTIFICATIONS'),
+                      _ToggleRow('🔔', const Color(0x1F00D4FF), 'Push notifications', 'Gentle emotional alerts',
                           value: settings.notificationsEnabled,
                           onChanged: (v) => context.read<SettingsBloc>().add(ToggleChanged(key: 'notifications', value: v))),
+                      _Row('🔊', const Color(0x1F00E676), 'Alert sounds',
+                          '${settings.silentTypes.length} of ${AlertSoundsScreen.groups.length} alerts silent',
+                          onTap: () => context.push(RouteNames.alertSounds)),
 
-                      _SectionLabel('EXPERIENCE'),
-                      _Row('🎨', const Color(0x1AFFD700), 'Themes', 'Midnight Purple', onTap: () => context.push(RouteNames.themes)),
+                      _SectionLabel('PRIVACY & SECURITY'),
+                      _Row('📍', const Color(0x1F00E676), 'Location sharing', 'Who sees where you are, and when',
+                          onTap: () => context.push(RouteNames.location)),
+                      ListenableBuilder(
+                        listenable: GetIt.I<AppLockService>(),
+                        builder: (context, _) => _ToggleRow('🔐', const Color(0x1F9D4EDD), 'Biometric lock',
+                            'Fingerprint, face or device PIN to open Usync',
+                            value: GetIt.I<AppLockService>().enabled,
+                            onChanged: (v) async {
+                              final changed = await GetIt.I<AppLockService>().setEnabled(v);
+                              if (!changed && v && context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                                  content: Text('Set up a fingerprint, face or screen lock on this device first'),
+                                ));
+                              }
+                            }),
+                      ),
+
+                      _SectionLabel('APPEARANCE & FEEL'),
+                      _Row('🎨', const Color(0x1AFFD700), 'Themes', 'Choose your colours', onTap: () => context.push(RouteNames.themes)),
                       _ToggleRow('✨', const Color(0x1F9D4EDD), 'Animations', 'Rich particle effects',
                           value: settings.animationsEnabled,
                           onChanged: (v) => context.read<SettingsBloc>().add(ToggleChanged(key: 'animations', value: v))),
-                      _ToggleRow('🌙', const Color(0x1F00D4FF), 'Dark Mode', 'Always on', value: true, onChanged: (_) {}),
-                      _ToggleRow('📳', const Color(0x1FFF2D78), 'Haptic Feedback', 'Vibrate on partner touch',
+                      _ToggleRow('📳', const Color(0x1FFF2D78), 'Haptic feedback', 'Vibrate on partner touch',
                           value: settings.hapticEnabled,
                           onChanged: (v) => context.read<SettingsBloc>().add(ToggleChanged(key: 'haptic', value: v))),
 
                       _SectionLabel('ABOUT'),
                       _Row('ℹ️', const Color(0x0FFFFFFF), 'About Usync', 'Version 1.0.0', onTap: () {}),
+
+                      _SectionLabel('DANGER ZONE'),
+                      BlocBuilder<ProfileBloc, ProfileState>(
+                        builder: (context, profile) {
+                          if (profile is! ProfileReady) return const SizedBox.shrink();
+                          return _Row('💔', const Color(0x1FFF5252), 'Disconnect Couple',
+                              'Unlink and delete all shared data',
+                              onTap: () => _onDisconnectTap(context, profile));
+                        },
+                      ),
+                      _Row('🗑️', const Color(0x1FFF5252), 'Delete Account',
+                          'Permanently delete your account and all your data',
+                          onTap: () => _onDeleteAccountTap(context)),
 
                       const SizedBox(height: 20),
                       UsyncOutlineButton(
@@ -185,6 +241,101 @@ class _ToggleRow extends StatelessWidget {
           ToggleSwitch(value: value, onChanged: onChanged),
         ],
       ),
+    );
+  }
+}
+
+Future<bool> _askConfirm(BuildContext context, String title, String body, String action) async {
+  final ok = await showDialog<bool>(
+    context: context,
+    builder: (dialogContext) => AlertDialog(
+      backgroundColor: AppColors.bg2,
+      title: Text(title, style: const TextStyle(color: Colors.white)),
+      content: Text(body, style: AppTextStyles.bodyMuted),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(dialogContext, false),
+          child: const Text('Cancel', style: TextStyle(color: AppColors.textMuted)),
+        ),
+        TextButton(
+          onPressed: () => Navigator.pop(dialogContext, true),
+          child: Text(action, style: const TextStyle(color: AppColors.error)),
+        ),
+      ],
+    ),
+  );
+  return ok ?? false;
+}
+
+/// Either partner can disconnect on their own; this only asks "are you sure".
+Future<void> _onDisconnectTap(BuildContext context, ProfileReady state) async {
+  final bloc = context.read<ProfileBloc>();
+  final ok = await _askConfirm(context, 'Disconnect from your partner?',
+      'This unlinks you both right away and permanently deletes everything you shared: moods, memories, timeline and canvas. This cannot be undone. You can pair again with a new invite code.', 'Disconnect');
+  if (ok) bloc.add(DisconnectCouple(userId: state.user.id, coupleId: state.couple.id));
+}
+
+/// Deleting the account cannot be undone, so the person has to type DELETE.
+Future<void> _onDeleteAccountTap(BuildContext context) async {
+  final auth = context.read<AuthBloc>();
+  final ok = await showDialog<bool>(
+    context: context,
+    builder: (_) => const _DeleteAccountDialog(),
+  );
+  if (ok == true) auth.add(const DeleteAccountRequested());
+}
+
+class _DeleteAccountDialog extends StatefulWidget {
+  const _DeleteAccountDialog();
+  @override
+  State<_DeleteAccountDialog> createState() => _DeleteAccountDialogState();
+}
+
+class _DeleteAccountDialogState extends State<_DeleteAccountDialog> {
+  final _ctrl = TextEditingController();
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final confirmed = _ctrl.text.trim().toUpperCase() == 'DELETE';
+    return AlertDialog(
+      backgroundColor: AppColors.bg2,
+      title: const Text('Delete your account?', style: TextStyle(color: Colors.white)),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'This permanently deletes your account and everything you shared with your partner: moods, memories, timeline and canvas. Your partner is disconnected. This cannot be undone.',
+            style: AppTextStyles.bodyMuted,
+          ),
+          const SizedBox(height: 16),
+          Text('Type DELETE to confirm', style: AppTextStyles.labelSmall),
+          const SizedBox(height: 6),
+          TextField(
+            controller: _ctrl,
+            autofocus: true,
+            textCapitalization: TextCapitalization.characters,
+            style: const TextStyle(color: Colors.white),
+            onChanged: (_) => setState(() {}),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context, false),
+          child: const Text('Cancel', style: TextStyle(color: AppColors.textMuted)),
+        ),
+        TextButton(
+          onPressed: confirmed ? () => Navigator.pop(context, true) : null,
+          child: Text('Delete', style: TextStyle(color: confirmed ? const Color(0xFFFF5050) : AppColors.textDim)),
+        ),
+      ],
     );
   }
 }

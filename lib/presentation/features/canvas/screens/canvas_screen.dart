@@ -1,5 +1,8 @@
-import 'package:firebase_auth/firebase_auth.dart';
+import 'dart:ui' as ui;
+
+import 'package:supabase_flutter/supabase_flutter.dart' hide User;
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get_it/get_it.dart';
 
@@ -30,23 +33,42 @@ class _CanvasBody extends StatefulWidget {
   State<_CanvasBody> createState() => _CanvasBodyState();
 }
 
-class _CanvasBodyState extends State<_CanvasBody> {
+class _CanvasBodyState extends State<_CanvasBody> with WidgetsBindingObserver {
   static const _colors = [
     Color(0xFFFF6EC7), Color(0xFFC77DFF),
     Color(0xFF00D4FF), Colors.white, Color(0xFFFFD700),
   ];
 
   String _partnerName = '…';
+  final _canvasKey = GlobalKey();
+  /// Hides the header and toolbar so the whole screen is canvas.
+  bool _showChrome = true;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _mount();
+  }
+
+  /// Strokes are saved in batches; make sure none are still waiting when the
+  /// app goes to the background (where it may be closed).
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) {
+      context.read<CanvasBloc>().add(StrokesFlushRequested());
+    }
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
   }
 
   Future<void> _mount() async {
     try {
-      final uid  = FirebaseAuth.instance.currentUser?.uid;
+      final uid  = Supabase.instance.client.auth.currentUser?.id;
       if (uid == null) return;
       final user = await GetIt.I<IAuthRepository>().getCurrentUser();
       if (user?.coupleId == null || !mounted) return;
@@ -54,7 +76,11 @@ class _CanvasBodyState extends State<_CanvasBody> {
       final partner = await GetIt.I<IAuthRepository>().getUserById(couple.partnerIdFor(uid));
       if (!mounted) return;
       setState(() => _partnerName = partner?.username ?? 'Partner');
-      context.read<CanvasBloc>().add(CanvasMounted(coupleId: couple.id, userId: uid));
+      context.read<CanvasBloc>().add(CanvasMounted(
+        coupleId:      couple.id,
+        userId:        uid,
+        partnerUserId: couple.partnerIdFor(uid),
+      ));
     } catch (err) {
       debugPrint('Canvas mount failed: $err');
       if (!mounted) return;
@@ -65,15 +91,55 @@ class _CanvasBodyState extends State<_CanvasBody> {
     }
   }
 
+  /// Renders the drawing onto the app background and hands the PNG to the bloc,
+  /// which stores it as a memory and notifies the partner.
+  Future<void> _save() async {
+    final bloc = context.read<CanvasBloc>();
+    if (bloc.state.isSaving) return;
+    if (bloc.state.committed.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Draw something first')),
+      );
+      return;
+    }
+    final boundary = _canvasKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
+    if (boundary == null) return;
+
+    final drawing = await boundary.toImage(pixelRatio: 2);
+    // The strokes are transparent where nothing is drawn; flatten onto the dark background.
+    final recorder = ui.PictureRecorder();
+    final canvas   = Canvas(recorder);
+    canvas.drawRect(
+      Rect.fromLTWH(0, 0, drawing.width.toDouble(), drawing.height.toDouble()),
+      Paint()..color = AppColors.bg1,
+    );
+    canvas.drawImage(drawing, Offset.zero, Paint());
+    final flat = await recorder.endRecording().toImage(drawing.width, drawing.height);
+    final data = await flat.toByteData(format: ui.ImageByteFormat.png);
+    if (data == null || !mounted) return;
+
+    bloc.add(MemorySaved(data.buffer.asUint8List()));
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.bg1,
-      body: BlocBuilder<CanvasBloc, CanvasState>(
+      body: BlocListener<CanvasBloc, CanvasState>(
+        listenWhen: (a, b) => a.isSaving && !b.isSaving,
+        listener: (context, state) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(state.saveFailed
+              ? 'Could not save the doodle'
+              : state.saveQueued
+                  ? 'Saved on this device. It will go to Memories and $_partnerName when you are back online.'
+                  : 'Saved to Memories — $_partnerName was notified ✏️'),
+        )),
+        child: BlocBuilder<CanvasBloc, CanvasState>(
         // The canvas below has its own builder; this one only drives the toolbar.
         buildWhen: (a, b) =>
             a.activeTool != b.activeTool ||
             a.activeColor != b.activeColor ||
+            a.partnerHere != b.partnerHere ||
             a.isSaving != b.isSaving,
         builder: (context, state) {
           return Stack(
@@ -87,6 +153,7 @@ class _CanvasBodyState extends State<_CanvasBody> {
                   onPanEnd:   (_) => context.read<CanvasBloc>().add(StrokeEnded()),
                   onPanCancel: () => context.read<CanvasBloc>().add(StrokeEnded()),
                   child: RepaintBoundary(
+                    key: _canvasKey,
                     child: BlocBuilder<CanvasBloc, CanvasState>(
                       buildWhen: (a, b) =>
                           !identical(a.committed, b.committed) ||
@@ -104,6 +171,7 @@ class _CanvasBodyState extends State<_CanvasBody> {
               ),
 
               // Header
+              if (_showChrome)
               Positioned(
                 top: 0, left: 0, right: 0,
                 child: Container(
@@ -123,8 +191,23 @@ class _CanvasBodyState extends State<_CanvasBody> {
                           NeonBackButton(),
                           const SizedBox(width: 14),
                           Text('Shared Canvas', style: AppTextStyles.h4),
-                          const Spacer(),
-                          LiveIndicator(label: '$_partnerName is here', color: AppColors.cyan),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Align(
+                              alignment: Alignment.centerRight,
+                              child: LiveIndicator(
+                                label: state.partnerHere ? '$_partnerName is here' : '$_partnerName is away',
+                                color: AppColors.cyan,
+                                isActive: state.partnerHere,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          _ChromeButton(
+                            icon: Icons.fullscreen,
+                            tooltip: 'Full screen',
+                            onTap: () => setState(() => _showChrome = false),
+                          ),
                         ],
                       ),
                     ),
@@ -132,9 +215,22 @@ class _CanvasBodyState extends State<_CanvasBody> {
                 ),
               ),
 
+              // Brings the header and toolbar back from full screen.
+              if (!_showChrome)
+                Positioned(
+                  top: MediaQuery.paddingOf(context).top + 8,
+                  right: 12,
+                  child: _ChromeButton(
+                    icon: Icons.fullscreen_exit,
+                    tooltip: 'Show tools',
+                    onTap: () => setState(() => _showChrome = true),
+                  ),
+                ),
+
               // Toolbar
+              if (_showChrome)
               Positioned(
-                bottom: 100,
+                bottom: MediaQuery.paddingOf(context).bottom + 16,
                 left: 0, right: 0,
                 child: Center(
                   child: Container(
@@ -160,7 +256,7 @@ class _CanvasBodyState extends State<_CanvasBody> {
                         )),
                         const _Divider(),
                         _ToolBtn('🗑️', onTap: () => context.read<CanvasBloc>().add(CanvasCleared())),
-                        _ToolBtn(state.isSaving ? '⏳' : '💾', onTap: () {}),
+                        _ToolBtn(state.isSaving ? '⏳' : '💾', onTap: _save),
                       ],
                     ),
                   ),
@@ -169,6 +265,33 @@ class _CanvasBodyState extends State<_CanvasBody> {
             ],
           );
         },
+        ),
+      ),
+    );
+  }
+}
+
+class _ChromeButton extends StatelessWidget {
+  const _ChromeButton({required this.icon, required this.tooltip, required this.onTap});
+  final IconData icon;
+  final String   tooltip;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          width: 40, height: 40,
+          decoration: BoxDecoration(
+            color: AppColors.glass,
+            shape: BoxShape.circle,
+            border: Border.all(color: AppColors.glassBorder),
+          ),
+          child: Icon(icon, color: Colors.white, size: 20),
+        ),
       ),
     );
   }
