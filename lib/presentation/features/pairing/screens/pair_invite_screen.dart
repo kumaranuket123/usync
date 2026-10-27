@@ -17,6 +17,7 @@ import '../../../../core/di/injection.dart';
 import '../../auth/bloc/auth_bloc.dart';
 import '../bloc/pairing_bloc.dart';
 import '../../../../core/utils/app_snack_bar.dart';
+import '../../../../core/utils/invite_message.dart';
 import '../../settings/widgets/account_links.dart';
 
 class PairInviteScreen extends StatelessWidget {
@@ -149,9 +150,7 @@ class _PairInviteBodyState extends State<_PairInviteBody> {
                               GlowButton(
                                 label: 'Share Code ↗',
                                 onTap: hasCode
-                                    ? () => Share.share(
-                                        'Join me on Usync! 💖\n\nEnter this code: $code\n\nDownload the app and let\'s connect.',
-                                      )
+                                    ? () => Share.share(inviteMessage(code))
                                     : null,
                               ),
                             ],

@@ -8,7 +8,7 @@ Links two accounts into one couple. One partner generates a short invite code, t
 
 | Route | Screen | Purpose |
 |---|---|---|
-| `/pair-invite` | `PairInviteScreen` | Shows this user's invite code and waits for the partner to use it. Below it, "Use a different account" and an `AccountLinks` row (**About Usync**, **Privacy Policy**, **Delete account**), so someone who is signed in but not paired yet can still read about the app and policy and delete their account |
+| `/pair-invite` | `PairInviteScreen` | Shows this user's invite code and waits for the partner to use it. **Share Code** sends `inviteMessage(code)`: the code plus a download link (`AppConstants.appDownloadUrl`, a temporary Google Drive link while the app is shared as an APK; set it to an empty string once the app is on the Play Store). Below it, "Use a different account" and an `AccountLinks` row (**About Usync**, **Privacy Policy**, **Delete account**), so someone who is signed in but not paired yet can still read about the app and policy and delete their account |
 | `/pair-join` | `PairJoinScreen` | Enter the partner's code |
 | `/pair-success` | `PairSuccessScreen` | Confirmation after a successful join |
 

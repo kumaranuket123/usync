@@ -1,4 +1,8 @@
 abstract final class AppConstants {
+  /// TEMPORARY: where friends download the app while it is shared as an APK. It is added
+  /// to the invite message. Set it to '' once the app is on the Play Store.
+  static const String appDownloadUrl = 'https://drive.google.com/file/d/1TRvnxwQlQz8xuEn5t5AK5-2bnoFBC6q4/view?usp=drive_link';
+
   /// The public privacy policy (docs/privacy-policy.html, served by GitHub Pages from `main`).
   static const String privacyPolicyUrl = 'https://kumaranuket123.github.io/usync/privacy-policy.html';
 
