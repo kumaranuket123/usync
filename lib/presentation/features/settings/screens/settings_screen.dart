@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:gal/gal.dart';
 import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide User;
 
 import '../../../../core/constants/route_names.dart';
@@ -27,9 +28,15 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
+  /// Read from the installed app, so it always matches pubspec.yaml.
+  String _version = '';
+
   @override
   void initState() {
     super.initState();
+    PackageInfo.fromPlatform().then((info) {
+      if (mounted) setState(() => _version = 'Version ${info.version}');
+    });
     // The alert sound choices live on the server; fetch them now, once.
     context.read<SettingsBloc>().add(const AlertTypesRequested());
   }
@@ -149,7 +156,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           onChanged: (v) => _setGalleryBackup(context, v)),
 
                       _SectionLabel('ABOUT'),
-                      _Row('ℹ️', const Color(0x0FFFFFFF), 'About Usync', 'Version 1.0.0', onTap: () {}),
+                      _Row('ℹ️', const Color(0x0FFFFFFF), 'About Usync', _version, onTap: () {}),
 
                       _SectionLabel('DANGER ZONE'),
                       BlocBuilder<ProfileBloc, ProfileState>(

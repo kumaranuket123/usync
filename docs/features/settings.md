@@ -1,6 +1,6 @@
 # Feature: Settings
 
-App configuration hub covering account, couple connection, experience preferences, and notifications. Also includes the Theme Selection screen, which is accessible both from Settings and from the Profile navigation row. Settings changes take effect immediately with no save/cancel pattern.
+App configuration hub: notifications, privacy and security, appearance, storage, and the account actions (disconnect, delete, sign out). Also contains the Theme Selection and Alert Sounds screens. Changes take effect immediately, with no save/cancel step.
 
 ---
 
@@ -8,87 +8,28 @@ App configuration hub covering account, couple connection, experience preference
 
 ### SettingsScreen (`/settings`)
 
-Pushed from ProfileScreen. Not a bottom-nav destination.
+Pushed from ProfileScreen; not a bottom-nav destination. Header (`NeonBackButton` + "Settings") above a scrolling list grouped by section labels. On open it dispatches `AlertTypesRequested` (once) and provides its own `ProfileBloc`, which owns the disconnect state.
 
-**Layout:**
-1. Mesh gradient background
-2. Header row:
-   - `NeonBackButton`
-   - "Settings" title
-3. `ListView` (scrollable, `padding.bottom = 100`):
-   - Section: **Account**
-   - Section: **Connection**
-   - Section: **Experience**
-   - Section: **About**
-   - Sign Out button (full-width, red-tinted outline)
-4. No bottom nav (sub-screen)
+| Section | Row | Control | Behaviour |
+|---|---|---|---|
+| NOTIFICATIONS | Push notifications | Toggle | `ToggleChanged(key: 'notifications')`. Starts/stops pushes on this device (see below) |
+| | Alert sounds | Row -> `/alert-sounds` | Subtitle "N of 6 alerts silent" |
+| PRIVACY & SECURITY | Location sharing | Row -> `/location` | See [location](location.md) |
+| | Biometric lock | Toggle | `AppLockService.setEnabled`, which requires passing the prompt; if the phone has no screen lock a snackbar explains. See [app-lock](app-lock.md) |
+| APPEARANCE & FEEL | Themes | Row -> `/themes` | |
+| | Animations | Toggle | Off disables particle/pulse effects |
+| | Haptic feedback | Toggle | Read by touch sync before vibrating |
+| STORAGE | Save older memories to gallery | Toggle | Asks for photo access first (`Gal.requestAccess`); a refusal leaves the switch off. On success copies already-archived pictures to the "Usync" album and reports how many. Off keeps future ones in the app only; existing gallery copies are kept. See [memories](memories.md) |
+| ABOUT | About Usync | Row | Shows the installed version (`package_info_plus`); no tap action yet |
+| DANGER ZONE | Disconnect Couple | Row (only when `ProfileReady`) | Confirmation dialog, then `ProfileBloc.DisconnectCouple` |
+| | Delete Account | Row | Type-DELETE dialog, then `AuthBloc.DeleteAccountRequested` |
+| | Sign Out | Outline button | Confirmation dialog, then `AuthBloc.SignOutRequested` |
 
----
+On `ProfileDisconnected` the screen refreshes the app-wide user (`AuthStateChecked`, which clears `coupleId`) and goes to `/pair-invite`.
 
-### Section: Account
-| Row | Icon bg | Title | Subtitle | Right |
-|---|---|---|---|---|
-| Profile | `rgba(255,45,120,.12)` | Profile | username · email | `›` |
-| Privacy | `rgba(155,78,221,.12)` | Privacy | Manage visibility | `›` |
+### AlertSoundsScreen (`/alert-sounds`)
 
-**Profile row** → v1.1 (navigate to avatar + username edit screen)
-**Privacy row** → v1.1 (placeholder — shows a coming-soon sheet)
-
----
-
-### Section: Connection
-| Row | Icon bg | Title | Subtitle | Right |
-|---|---|---|---|---|
-| Couple | `rgba(255,110,199,.12)` | Couple Settings | Partner name · paired date | `›` |
-| Notifications | `rgba(0,212,255,.10)` | Notifications | Gentle emotional alerts | `Toggle` |
-
-**Couple Settings row** → navigate to `/couple-settings` (v1.1 — rename couple, view invite code)
-**Notifications toggle** → `SettingsBloc.ToggleChanged(key: 'notifications', value: bool)`
-
----
-
-### Section: Experience
-| Row | Icon bg | Title | Subtitle | Right |
-|---|---|---|---|---|
-| Themes | `rgba(255,215,0,.10)` | Themes | Active theme name | `›` |
-| Animations | `rgba(155,78,221,.12)` | Animations | Rich particle effects | `Toggle` |
-| Dark Mode | `rgba(0,212,255,.10)` | Dark Mode | Always on | `Toggle` (disabled) |
-| Haptic | `rgba(255,45,120,.10)` | Haptic Feedback | Vibrate on partner touch | `Toggle` |
-
-**Themes row** → navigate to `/themes`
-**Animations toggle** → globally disables `ParticleField`, `PulseRings`, `FloatingReactions` when off (performance mode)
-**Dark Mode toggle** → always shows "on", non-interactive (Usync is dark-mode only)
-**Haptic toggle** → `SettingsBloc.ToggleChanged(key: 'haptic', value: bool)`
-
----
-
-### Section: About
-| Row | Icon bg | Title | Subtitle | Right |
-|---|---|---|---|---|
-| About Usync | `rgba(255,255,255,.05)` | About Usync | Version 1.0.0 | `›` |
-
-**About row** → shows a `showAboutDialog` or navigates to a simple about page
-
----
-
-### Sign Out Button
-
-Full-width `OutlineButton` at the bottom of the scroll list, with red-tinted border and text (`rgba(255,80,80,.7)`). Tap → shows a `showDialog` confirmation → `AuthBloc.SignOutRequested`.
-
----
-
-### Toggle (widget)
-
-Custom animated toggle (`46×26` px). Not Flutter's `Switch` — custom `GestureDetector`-wrapped `AnimatedContainer`:
-- Off: `rgba(255,255,255,.14)` background, circle at left
-- On: `LinearGradient(primary, purple)` background + `BoxShadow` glow, circle at right
-- Transition: 300 ms, `Curves.easeInOut`
-
-The `Toggle` is a pure stateless widget driven by a `bool` prop + `onChanged` callback. State lives in `SettingsBloc`.
-
----
-
-## Screens (continued)
+One switch per alert group, keyed by `NotifType.soundGroup`: `touch`, `doodle`, `moodChange`, `streak`, `milestone`, `location` (a partner's "locate" request counts as `location`). Each emits `AlertSilenceChanged(group, silent)`. `location` is silent by default (`NotifType.defaultSilent`).
 
 ### ThemeSelectionScreen (`/themes`)
 
@@ -128,145 +69,108 @@ Full-width rounded card (110 px tall, `BorderRadius.circular(24)`):
 
 ## User Flows
 
-### Toggling a Setting
+### Toggle a setting
 ```
-User taps a Toggle (e.g. Haptic Feedback)
-  → Toggle.onChanged(bool newValue)
-  → SettingsBloc.ToggleChanged(key: 'haptic', value: newValue)
-  → SettingsState.toggleMap updated
-  → PrefsSource.setBool('setting_haptic', newValue) (persisted immediately)
-  → Toggle animates to new position
-  → Effect: TouchSyncBloc checks SettingsState.hapticEnabled before firing HapticFeedback
+Toggle tapped -> ToggleChanged(key, value)
+  -> state updated immediately
+  -> PrefsSource.setToggle  (stored as setting_<key>)
 ```
 
-### Changing Theme
+### Push notifications switch
 ```
-ThemeSelectionScreen opened
-  → ThemeBloc.currentThemeId already loaded (from app startup prefs read)
-  → ThemeCard for active theme shows selected state
+Off -> delete this device's device_tokens row, then FirebaseMessaging.deleteToken()
+On  -> FirebaseMessaging.getToken(), RPC register_device_token(token)
+Either fails (e.g. offline) -> the toggle is reverted and the reverted value is saved,
+                               so the UI shows what is really in effect
+```
+Affects this device only. Foreground banners are also suppressed while off (`PushNotificationService`).
 
-User taps a different ThemeCard
-  → ThemeBloc.ThemeChanged(themeId: 'neonPink')
-  → ThemeState.activeThemeId = 'neonPink'
-  → PrefsSource.setString('theme_id', 'neonPink')
-  → MaterialApp.theme rebuilds via BlocBuilder at root
-  → All screens instantly update to new palette
-  → ThemeCard selection state updates
+### Alert sounds
 ```
+AlertSilenceChanged -> state updated optimistically
+  -> notifications.setSilentTypes(set)  (profiles.silent_types, one choice for all the user's devices)
+  -> on failure the previous set is restored
+```
+The `send-push` Edge Function reads `profiles.silent_types` and sends quiet types on the low-importance `usync_silent` channel. See [push-notifications](push-notifications.md).
 
-### Sign Out
+### Disconnect couple
 ```
-"Sign Out" button tapped
-  → showDialog: "Are you sure you want to sign out?"
-  → Confirmed:
-      → AuthBloc.SignOutRequested
-      → Firebase Auth.signOut()
-      → Hive cache cleared
-      → PrefsSource: keep onboardingSeen=true, clear auth state
-      → GoRouter navigates to /login, removes all previous routes
-  → Cancelled: dialog dismisses, no action
+Confirm ("unlinks you both right away and permanently deletes everything you shared")
+  -> ProfileBloc.DisconnectCouple -> disconnect_couple RPC
 ```
+Either partner can do this alone. The RPC (`disconnect_deletes_data.sql`) deletes moods, memories, milestones, notifications, canvas strokes, locations and streak activity, leaves the `couples` row as an empty tombstone with `disconnected_at` set (so the partner's app sees it via Realtime), resets streak counters and clears both profiles' `couple_id`. Memory images in Storage are removed by the app before the RPC, because SQL cannot delete Storage objects. Pair again with a new code ([pairing](pairing.md)).
 
-### Notifications Toggle
+### Delete account
 ```
-Notifications toggle tapped → off
-  → SettingsBloc.ToggleChanged(key: 'notifications', value: false)
-  → PrefsSource.setBool('setting_notifications', false)
-  → FirebaseMessaging.deleteToken() (stops FCM delivery)
+Dialog: "Type DELETE to confirm" (button enabled only when the text matches, case-insensitive)
+  -> AuthBloc.DeleteAccountRequested -> delete_my_account RPC
+```
+Required by Google Play. Deletes the user's data in every couple they were in, then the auth user; the partner is left disconnected. Locally saved memory pictures are removed too (`LocalMemoryImages.deleteAll`). Migration: `delete_account.sql`.
 
-Notifications toggle → on
-  → PrefsSource.setBool('setting_notifications', true)
-  → FirebaseMessaging.getToken() → store token in Firestore /users/{uid}/fcmToken
+### Sign out
 ```
+Confirm -> AuthBloc.SignOutRequested -> SigningOut -> authRepository.signOut() -> Unauthenticated
+  -> app.dart / RouteGuards send the user to login
+```
+The outbox is cleared at sign-out so queued changes are never sent as another account (see [offline](offline.md)).
 
-### Animations Toggle
+### Change theme
 ```
-Animations toggle → off
-  → SettingsBloc.ToggleChanged(key: 'animations', value: false)
-  → SettingsState.animationsEnabled = false
-  → Screens read this setting:
-      ParticleField: renders nothing
-      PulseRings: renders static rings (no animation)
-      FloatingReactions: renders nothing
-      PartnerOrb: still spins (core UX, not disabled)
-      HeartbeatVisualizer: still animates (core UX)
+Tap ThemeCard -> ThemeBloc.ThemeChanged(id) -> theme_id saved -> MaterialApp rebuilds
 ```
 
 ---
 
-## API Requirements
+## Data
 
-### SharedPreferences (local — all settings persisted locally)
+### Local (SharedPreferences via `PrefsSource`)
 
 | Key | Type | Default | Description |
 |---|---|---|---|
-| `setting_notifications` | `bool` | `true` | FCM on/off |
-| `setting_haptic` | `bool` | `true` | Haptic feedback enabled |
-| `setting_animations` | `bool` | `true` | Particle/pulse animations |
-| `theme_id` | `String` | `midnightPurple` | Active theme ID |
+| `setting_notifications` | bool | true | Push on/off for this device |
+| `setting_haptic` | bool | true | Haptic feedback |
+| `setting_animations` | bool | true | Particle/pulse animations |
+| `setting_gallery_backup` | bool | false | Copy archived memory pictures to the gallery |
+| `gallery_saved_ids` | string list | empty | Memory ids already copied, so none is saved twice |
+| `app_lock` | bool | true | Biometric lock (off if the phone has no screen lock) |
+| `location_sharing` | bool | false | Location sharing |
+| `theme_id` | string | `midnightPurple` | Active theme |
 
-### Firebase Messaging (notifications toggle)
-| Operation | Trigger |
+### Server
+
+| What | Where |
 |---|---|
-| `FirebaseMessaging.deleteToken()` | Notifications toggled off |
-| `FirebaseMessaging.getToken()` + Firestore update | Notifications toggled on |
-
-### Firestore (FCM token management)
-| Operation | Path | Trigger |
-|---|---|---|
-| `update({fcmToken: token})` | `/users/{uid}` | Notifications re-enabled |
-
----
-
-## Data Models
-
-### Settings (not a domain entity — local prefs only)
-
-Represented as a simple map in `SettingsState`:
-```
-toggleMap: Map<String, bool> {
-  'notifications': true,
-  'haptic':        true,
-  'animations':    true,
-}
-```
-
-### `UsyncTheme` (value object — referenced by ThemeBloc)
-```
-id:      String            // 'midnightPurple', 'neonPink', etc.
-name:    String
-tokens:  UsyncThemeData    // ThemeExtension with all color/gradient tokens
-```
+| Alert sound choices | `profiles.silent_types` (text[], default `['location']`) |
+| Device push tokens | `device_tokens` (one row per device; `register_device_token` RPC) |
+| Couple state | `disconnect_couple`, `delete_my_account` RPCs |
 
 ---
 
 ## BLoC: `SettingsBloc`
 
-**Provided at:** Root `MultiBlocProvider` (app-wide — other BLoCs read settings from it).
+**Provided at:** root `MultiBlocProvider` (app-wide). Depends on `PrefsSource` and `INotificationRepository`.
 
 ### Events
 ```
-SettingsLoaded               // app startup — reads all prefs
-ToggleChanged { key: String, value: bool }
+SettingsLoaded                                  // app start: read local toggles
+AlertTypesRequested                             // Settings opened: fetch silent types once
+ToggleChanged { key, value }
+AlertSilenceChanged { group, silent }
 ```
 
-### States
+### State: `SettingsState`
 ```
-SettingsInitial
-SettingsReady {
-  toggleMap: Map<String, bool>
-}
+toggles:           Map<String, bool>   // notifications, haptic, animations, gallery_backup
+silentTypes:       Set<String>         // groups without sound/popup
+silentTypesLoaded: bool
 ```
+Getters: `notificationsEnabled`, `hapticEnabled`, `animationsEnabled`, `galleryBackupEnabled`.
 
-### Handler: `SettingsLoaded`
-1. Read all setting keys from `PrefsSource`
-2. Emit `SettingsReady(toggleMap: {...})`
-
-### Handler: `ToggleChanged(key, value)`
-1. Emit updated `SettingsReady` with toggled key
-2. Write to `PrefsSource`
-3. Side effects:
-   - `key == 'notifications'` → `INotificationRepository.toggleFCM(value)`
+### Handlers
+- `SettingsLoaded`: emit toggles from prefs.
+- `AlertTypesRequested`: skipped if already loaded; on failure keeps defaults and retries next visit.
+- `ToggleChanged`: emit, persist, and for `notifications` apply the push switch (revert on failure).
+- `AlertSilenceChanged`: optimistic emit, save to server, restore on failure.
 
 ---
 
@@ -303,11 +207,10 @@ ThemeState {
 
 ## Shared Widgets Used
 
-| Widget | Screen | Usage |
-|---|---|---|
-| `NeonBackButton` | Both | Back navigation |
-| `GlassCard` | ThemeCard base | — |
-| `GradientText` | — | Not used on settings screens |
-| `OutlineButton` | SettingsScreen | Sign Out action |
-| `Toggle` | SettingsScreen | 4 toggle rows (defined in shared/widgets/) |
-| `MeshGradientPainter` | Both | Background |
+| Widget | Usage |
+|---|---|
+| `NeonBackButton` | Back navigation |
+| `GlassCard` | ThemeCard base |
+| `UsyncOutlineButton` | Sign Out |
+| `ToggleSwitch` | Toggle rows (`shared/widgets/toggle_switch.dart`) |
+| `MeshGradientPainter` | Background |

@@ -284,3 +284,16 @@ MemoryError { message: String }
 | `LoadingDots` | Loading state placeholder |
 | `UsyncBottomNav` | Persistent footer on MemorySpaceScreen |
 | `MeshGradientPainter` | Background |
+
+---
+
+## Archiving older pictures
+
+Only a couple's newest 10 memory pictures stay on the server; older ones are kept on the phones.
+
+1. `MemoryRepository.archiveOlderImages` saves each older picture locally (`LocalMemoryImages`, one PNG per memory under `usync/memories/<user id>/`, so another account on the same phone never sees them).
+2. `archive_memory_image(p_memory)` RPC records that the caller holds a copy and returns true once **both** partners do.
+3. Only then is the server file deleted, and `finish_memory_archive(p_memory)` clears `thumbnail_url` and sets `image_archived`. The row keeps its title and date. The RPC refuses unless both partners confirmed, so nobody loses a picture.
+4. A picture present on the phone is shown from disk, including archived ones. Optional backup of archived pictures to the gallery is controlled by `galleryBackupEnabled` in settings.
+
+Migration: `supabase/migrations/archive_old_memory_images.sql`.
