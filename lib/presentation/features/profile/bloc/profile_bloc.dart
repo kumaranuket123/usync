@@ -18,6 +18,7 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
     on<ProfileLoaded>(_onLoaded);
     on<DisconnectCouple>(_onDisconnect);
     on<CoupleUpdated>(_onCoupleUpdated);
+    on<RelationshipModeChanged>(_onModeChanged);
     on<UserUpdated>((e, emit) {
       final current = state;
       if (current is ProfileReady) emit(ProfileReady(user: e.user, couple: current.couple));
@@ -54,6 +55,20 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
       emit(ProfileDisconnected());
     } else if (current is ProfileReady) {
       emit(ProfileReady(user: current.user, couple: e.couple));
+    }
+  }
+
+  /// Saves the new mode; the couple stream (or the refetch below) brings it back to the screen.
+  Future<void> _onModeChanged(RelationshipModeChanged e, Emitter<ProfileState> emit) async {
+    final current = state;
+    if (current is! ProfileReady || current.couple.relationshipMode == e.mode) return;
+    await _run(emit, () => coupleRepository.setRelationshipMode(e.coupleId, e.mode));
+    if (state is ProfileReady) {
+      try {
+        emit(ProfileReady(user: current.user, couple: await coupleRepository.getCouple(e.coupleId)));
+      } catch (_) {
+        // The live couple stream will deliver it.
+      }
     }
   }
 

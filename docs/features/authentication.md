@@ -5,6 +5,10 @@
 ## Screens
 
 ### 1. LoginScreen (`/login`)
+> Note: sign-in is Google only now (see CLAUDE.md, "Auth / routing"); the form elements listed below describe the old email flow and are out of date.
+
+Current screen: the Usync hero, a **Continue with Google** button, a line saying the account is only used to sign in and pair, and an underlined **Privacy Policy** link that opens the hosted policy in the browser (reachable before signing in).
+
 Entry point for returning users. Minimal glass form over a dark gradient background with floating particles.
 
 **Elements:**

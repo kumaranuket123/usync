@@ -14,11 +14,15 @@ Realtime emotional connection for couples. Two partners pair with an invite code
 | Mood | Preset and custom moods, partner's latest mood on home | [mood](docs/features/mood.md) |
 | Memories | Saved doodles/images in a private bucket, signed URLs | [memories](docs/features/memories.md) |
 | Timeline & streaks | Milestones, custom dates, streak tracking | [timeline](docs/features/timeline.md) |
+| Long-distance card | Distance between partners and a shared "next time we meet" countdown on Home (long-distance couples only) | [long-distance](docs/features/long-distance.md) |
+| Relationship mode | Together or long-distance, shared by both partners; tailors content such as the daily question | [relationship-mode](docs/features/relationship-mode.md) |
+| Bucket list | Shared list of things to do together, ticked off by either partner, works offline | [bucket-list](docs/features/bucket-list.md) |
 | Question of the day | One shared question a day; answers stay private until both partners reply | [question-of-the-day](docs/features/question-of-the-day.md) |
 | Location | Opt-in partner location on a map | [location](docs/features/location.md) |
 | Home-screen widget | Android widget for Live Doodle | [home-widget](docs/features/home-widget.md) |
 | App lock | Biometric lock | [app-lock](docs/features/app-lock.md) |
 | Push | DB trigger -> Edge Function -> FCM | [push-notifications](docs/features/push-notifications.md) |
+| About screen | In-app tour of every feature (Settings -> About Usync), with a link to the privacy policy | [about](docs/features/about.md) |
 | Offline | Local cache + outbox queue that replays in order | [offline](docs/features/offline.md) |
 
 ## Tech stack

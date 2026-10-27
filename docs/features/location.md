@@ -37,6 +37,10 @@ States: `LocationConnecting`, `LocationReady { isSharing, isBusy, isLocating, ow
 
 Background sharing needs the OS "always" permission; on Android 11+ the user must grant it on the app's permission page, which the app opens and then re-checks.
 
+## Distance elsewhere
+
+Besides the sheet on this screen, long-distance couples see the distance on Home ([long-distance](long-distance.md)); it uses the same saved rows and needs both partners to share.
+
 ## Privacy
 
 Opt-in, deletable (turning sharing off removes the row), visible to the partner only, and a locate request is always announced to the person being located. `location` alerts are silent (no sound/popup) by default.

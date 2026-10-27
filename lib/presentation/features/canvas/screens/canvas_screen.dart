@@ -14,6 +14,7 @@ import '../../../shared/painters/canvas_stroke_painter.dart';
 import '../../../shared/widgets/live_indicator.dart';
 import '../../../shared/widgets/neon_back_button.dart';
 import '../bloc/canvas_bloc.dart';
+import '../../../../core/utils/app_snack_bar.dart';
 
 class CanvasScreen extends StatelessWidget {
   const CanvasScreen({super.key});
@@ -84,7 +85,7 @@ class _CanvasBodyState extends State<_CanvasBody> with WidgetsBindingObserver {
     } catch (err) {
       debugPrint('Canvas mount failed: $err');
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      ScaffoldMessenger.of(context).showSnackBar(appSnackBar(
         content: const Text('Could not connect the shared canvas'),
         action: SnackBarAction(label: 'Retry', onPressed: _mount),
       ));
@@ -98,7 +99,7 @@ class _CanvasBodyState extends State<_CanvasBody> with WidgetsBindingObserver {
     if (bloc.state.isSaving) return;
     if (bloc.state.committed.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Draw something first')),
+        appSnackBar(content: Text('Draw something first')),
       );
       return;
     }
@@ -127,7 +128,7 @@ class _CanvasBodyState extends State<_CanvasBody> with WidgetsBindingObserver {
       backgroundColor: AppColors.bg1,
       body: BlocListener<CanvasBloc, CanvasState>(
         listenWhen: (a, b) => a.isSaving && !b.isSaving,
-        listener: (context, state) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        listener: (context, state) => ScaffoldMessenger.of(context).showSnackBar(appSnackBar(
           content: Text(state.saveFailed
               ? 'Could not save the doodle'
               : state.saveQueued

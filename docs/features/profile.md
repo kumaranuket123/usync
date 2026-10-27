@@ -21,6 +21,8 @@ Bottom-nav tab (🦋 Profile). Scrollable — hero section is fixed-height, ever
    - 3-stat row: Streak / Moments / Doodles
 4. **Scrollable body** (below hero):
    - Section label: "YOUR CONNECTION"
+   - Row: **Relationship type** (Together / Long-distance, shared with the partner; see [relationship-mode](relationship-mode.md))
+   - Row: **Bucket list** (see [bucket-list](bucket-list.md))
    - Navigation rows: Timeline, Memory Space, Widgets
    - Section label: "PREFERENCES"
    - Navigation rows: Themes, Settings

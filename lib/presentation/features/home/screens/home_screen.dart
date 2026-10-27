@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/constants/route_names.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
+import '../../long_distance/widgets/long_distance_card.dart';
 import '../../../shared/animations/float_animation.dart';
 import '../../../shared/widgets/heartbeat_visualizer.dart';
 import '../../../shared/widgets/loading_dots.dart';
@@ -168,6 +169,10 @@ class _HomeBody extends StatelessWidget {
                         ),
                       ),
                     ),
+
+                    // Long-distance couples only; takes no space otherwise.
+                    if (s != null)
+                      LongDistanceCard(coupleId: s.couple.id, userId: s.user.id, partnerId: s.partner.id),
 
                     const SizedBox(height: 10),
 

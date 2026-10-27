@@ -1,5 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:usync/domain/entities/couple.dart';
 import 'package:usync/domain/entities/daily_question.dart';
+import 'package:usync/domain/repositories/i_couple_repository.dart';
 import 'package:usync/domain/repositories/i_question_repository.dart';
 import 'package:usync/presentation/features/question/bloc/question_bloc.dart';
 
@@ -23,6 +25,20 @@ class _FakeQuestionRepository implements IQuestionRepository {
   }
 }
 
+class _FakeCoupleRepository implements ICoupleRepository {
+  RelationshipMode mode = RelationshipMode.together;
+  bool fails = false;
+
+  @override
+  Future<RelationshipMode> getRelationshipMode(String coupleId) async {
+    if (fails) throw Exception('offline');
+    return mode;
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
 void main() {
   group('DailyQuestion.forDay', () {
     test('is the same for both partners on the same UTC day', () {
@@ -30,6 +46,16 @@ void main() {
       final b = DailyQuestion.forDay(DateTime.utc(2026, 3, 5, 23, 59));
       expect(a, b);
       expect(a.day, '2026-03-05');
+    });
+
+    test('uses the mode\'s own bank, and the same question for a whole couple', () {
+      final day = DateTime.utc(2026, 3, 5);
+      final far = DailyQuestion.forDay(day, mode: RelationshipMode.longDistance);
+      final near = DailyQuestion.forDay(day, mode: RelationshipMode.together);
+      expect(DailyQuestion.bankFor(RelationshipMode.longDistance), contains(far.text));
+      expect(DailyQuestion.bankFor(RelationshipMode.together), contains(near.text));
+      expect(DailyQuestion.longDistanceBank.toSet().intersection(DailyQuestion.togetherBank.toSet()), isEmpty);
+      expect(far, DailyQuestion.forDay(day, mode: RelationshipMode.longDistance));
     });
 
     test('changes the next day', () {
@@ -41,11 +67,13 @@ void main() {
 
   group('QuestionBloc', () {
     late _FakeQuestionRepository repo;
+    late _FakeCoupleRepository couples;
     late QuestionBloc bloc;
 
     setUp(() {
       repo = _FakeQuestionRepository();
-      bloc = QuestionBloc(questionRepository: repo, clock: () => DateTime.utc(2026, 3, 5));
+      couples = _FakeCoupleRepository();
+      bloc = QuestionBloc(questionRepository: repo, coupleRepository: couples, clock: () => DateTime.utc(2026, 3, 5));
     });
     tearDown(() => bloc.close());
 
@@ -59,6 +87,19 @@ void main() {
       final s = bloc.state as QuestionReady;
       expect(s.question.day, '2026-03-05');
       expect(s.answers.iAnswered, isFalse);
+    });
+
+    test('picks the question from the couple\'s mode', () async {
+      couples.mode = RelationshipMode.longDistance;
+      await open();
+      final text = (bloc.state as QuestionReady).question.text;
+      expect(DailyQuestion.bankFor(RelationshipMode.longDistance), contains(text));
+    });
+
+    test('still loads a question when the mode cannot be read', () async {
+      couples.fails = true;
+      await open();
+      expect(bloc.state, isA<QuestionReady>());
     });
 
     test('reports a failed load', () async {

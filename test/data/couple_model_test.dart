@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:usync/data/models/couple_model.dart';
+import 'package:usync/domain/entities/couple.dart';
 
 void main() {
   Map<String, dynamic> row({String? lastDay, int streak = 5}) => {
@@ -22,6 +23,19 @@ void main() {
     expect(couple.id, 'c1');
     expect(couple.totalMoments, 12);
     expect(couple.isDisconnected, isFalse);
+  });
+
+  test('relationship mode is read from the row and defaults to together', () {
+    expect(CoupleModel.fromRow(row()).relationshipMode, RelationshipMode.together);
+    expect(CoupleModel.fromRow({...row(), 'relationship_mode': 'long_distance'}).relationshipMode,
+        RelationshipMode.longDistance);
+    expect(CoupleModel.fromRow({...row(), 'relationship_mode': 'something-new'}).relationshipMode,
+        RelationshipMode.together);
+  });
+
+  test('next meet date is read as a calendar day, and may be absent', () {
+    expect(CoupleModel.fromRow(row()).nextMeetOn, isNull);
+    expect(CoupleModel.fromRow({...row(), 'next_meet_on': '2026-12-12'}).nextMeetOn, DateTime(2026, 12, 12));
   });
 
   test('a streak active today or yesterday is kept', () {

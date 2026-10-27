@@ -1,10 +1,12 @@
 import 'dart:async';
 import 'dart:math';
 
+import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/utils/network_errors.dart';
 import '../../domain/entities/couple.dart';
+import '../../domain/entities/notification_item.dart';
 import '../../domain/repositories/i_couple_repository.dart';
 import '../../domain/repositories/i_notification_repository.dart';
 import '../datasources/local/identity_cache.dart';
@@ -118,6 +120,38 @@ class CoupleRepository implements ICoupleRepository {
       rethrow;
     }
   }
+
+  @override
+  Future<RelationshipMode> getRelationshipMode(String coupleId) async {
+    final couple = await _loadCouple(coupleId);
+    identity.couples.put(coupleId, couple); // keep the remembered copy current
+    return couple.relationshipMode;
+  }
+
+  @override
+  Future<void> setRelationshipMode(String coupleId, RelationshipMode mode) async {
+    await client.rpc('set_relationship_mode', params: {'p_couple': coupleId, 'p_mode': mode.value});
+    identity.couples.put(coupleId, await _loadCouple(coupleId));
+  }
+
+  @override
+  Future<void> setNextMeet(String coupleId, String userId, DateTime? day) async {
+    await client.rpc('set_next_meet', params: {
+      'p_couple': coupleId,
+      'p_day':    day == null ? null : _ymd(day),
+    });
+    identity.couples.put(coupleId, await _loadCouple(coupleId));
+    if (day == null) return; // clearing is not news for the partner
+    await notifications.notifyPartner(
+      coupleId:   coupleId,
+      fromUserId: userId,
+      type:       NotifType.milestone,
+      body:       (name) => '$name set your next meet for ${DateFormat.MMMd().format(day)} ✈️',
+    );
+  }
+
+  static String _ymd(DateTime d) =>
+      '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 
   @override
   Stream<Couple> watchCouple(String coupleId) => client

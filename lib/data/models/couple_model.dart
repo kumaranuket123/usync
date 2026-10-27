@@ -8,6 +8,8 @@ class CoupleModel extends Couple {
     required super.pairedAt,
     super.streakDays,
     super.totalMoments,
+    super.relationshipMode,
+    super.nextMeetOn,
     super.disconnectRequestedBy,
     super.disconnectedAt,
   });
@@ -20,11 +22,19 @@ class CoupleModel extends Couple {
     pairedAt:     DateTime.parse(row['paired_at'] as String),
     streakDays:   _liveStreak(row),
     totalMoments: (row['total_moments']    as num?)?.toInt() ?? 0,
+    relationshipMode: RelationshipMode.fromString(row['relationship_mode'] as String?),
+    nextMeetOn: row['next_meet_on'] == null ? null : _calendarDay(row['next_meet_on'] as String),
     disconnectRequestedBy: row['disconnect_requested_by'] as String?,
     disconnectedAt: row['disconnected_at'] == null
         ? null
         : DateTime.parse(row['disconnected_at'] as String),
   );
+
+  /// 'YYYY-MM-DD' as a local calendar day, so "today" compares correctly on this phone.
+  static DateTime _calendarDay(String ymd) {
+    final d = DateTime.parse(ymd);
+    return DateTime(d.year, d.month, d.day);
+  }
 
   /// The stored streak only changes when someone is active, so a streak whose
   /// last day is older than yesterday (UTC) has already ended.

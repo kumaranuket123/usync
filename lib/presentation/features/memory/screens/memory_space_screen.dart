@@ -18,6 +18,7 @@ import '../../../../core/di/injection.dart';
 import '../../../features/auth/bloc/auth_bloc.dart';
 import '../bloc/memory_bloc.dart';
 import 'confirm_delete_memory.dart';
+import '../../../../core/utils/app_snack_bar.dart';
 
 class MemorySpaceScreen extends StatelessWidget {
   const MemorySpaceScreen({super.key});
@@ -47,7 +48,7 @@ class _MemorySpaceBodyState extends State<_MemorySpaceBody> {
     super.initState();
     _archivedSub = context.read<MemoryBloc>().archived.listen((n) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      ScaffoldMessenger.of(context).showSnackBar(appSnackBar(
         duration: const Duration(seconds: 8),
         content: Text(
           '$n older ${n == 1 ? 'picture was' : 'pictures were'} saved on this phone to free up '

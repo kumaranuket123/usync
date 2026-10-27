@@ -4,6 +4,7 @@ import 'package:usync/data/datasources/remote/couple_channel_source.dart';
 import 'package:usync/data/datasources/remote/storage_source.dart';
 import 'package:usync/data/repositories/couple_repository.dart';
 import 'package:usync/domain/entities/couple.dart';
+import 'package:usync/domain/entities/notification_item.dart';
 
 import 'repository_harness.dart';
 
@@ -13,17 +14,19 @@ void main() {
   late IdentityCache identity;
   late CoupleChannelSource channels;
   late CoupleRepository repo;
+  late RecordingNotifications notifications;
 
   setUp(() async {
     backend = FakeBackend();
     local = LocalStorage();
     await local.setUp();
     identity = IdentityCache();
+    notifications = RecordingNotifications();
     channels = CoupleChannelSource(client: backend.client);
     repo = CoupleRepository(
       client: backend.client,
       channelSource: channels,
-      notifications: RecordingNotifications(),
+      notifications: notifications,
       storage: StorageSource(client: backend.client),
       sessionCache: local.sessionCache,
       identity: identity,
@@ -126,6 +129,70 @@ void main() {
         repo.joinWithCode('ZZZZ', 'joiner'),
         throwsA(predicate((e) => e.toString().contains('Invalid invite code'))),
       );
+    });
+  });
+
+  group('relationship mode', () {
+    Map<String, dynamic> coupleRow(String mode) => {
+          'id': 'c1',
+          'user_a_id': 'a',
+          'user_b_id': 'b',
+          'paired_at': '2026-01-01T00:00:00Z',
+          'relationship_mode': mode,
+        };
+
+    test('setRelationshipMode calls the RPC and refreshes the remembered couple', () async {
+      backend.respond((req) =>
+          req.path.endsWith('/rpc/set_relationship_mode') ? FakeBackend.ok(null, status: 204) : FakeBackend.ok(coupleRow('long_distance')));
+
+      await repo.setRelationshipMode('c1', RelationshipMode.longDistance);
+
+      final rpc = backend.requests.first;
+      expect(rpc.path, endsWith('/rpc/set_relationship_mode'));
+      expect(rpc.json, {'p_couple': 'c1', 'p_mode': 'long_distance'});
+      final cached = await identity.couples.get('c1', () async => throw StateError('should be cached'));
+      expect(cached.relationshipMode, RelationshipMode.longDistance);
+    });
+
+    test('getRelationshipMode reads the server, not the remembered copy', () async {
+      identity.couples.put('c1', Couple(id: 'c1', userAId: 'a', userBId: 'b', pairedAt: DateTime(2026)));
+      backend.respond((_) => FakeBackend.ok(coupleRow('long_distance')));
+
+      expect(await repo.getRelationshipMode('c1'), RelationshipMode.longDistance);
+    });
+  });
+
+  group('next meet', () {
+    Map<String, dynamic> coupleRow({String? meet}) => {
+          'id': 'c1',
+          'user_a_id': 'a',
+          'user_b_id': 'b',
+          'paired_at': '2026-01-01T00:00:00Z',
+          'next_meet_on': meet,
+        };
+
+    test('sets the date through the RPC, refreshes the couple and tells the partner', () async {
+      backend.respond((req) =>
+          req.path.endsWith('/rpc/set_next_meet') ? FakeBackend.ok(null, status: 204) : FakeBackend.ok(coupleRow(meet: '2026-12-12')));
+
+      await repo.setNextMeet('c1', 'a', DateTime(2026, 12, 12));
+
+      expect(backend.requests.first.path, endsWith('/rpc/set_next_meet'));
+      expect(backend.requests.first.json, {'p_couple': 'c1', 'p_day': '2026-12-12'});
+      final cached = await identity.couples.get('c1', () async => throw StateError('should be cached'));
+      expect(cached.nextMeetOn, DateTime(2026, 12, 12));
+      expect(notifications.sent.single.type, NotifType.milestone);
+      expect(notifications.sent.single.body, contains('Dec 12'));
+    });
+
+    test('clearing sends null and does not notify the partner', () async {
+      backend.respond((req) =>
+          req.path.endsWith('/rpc/set_next_meet') ? FakeBackend.ok(null, status: 204) : FakeBackend.ok(coupleRow()));
+
+      await repo.setNextMeet('c1', 'a', null);
+
+      expect(backend.requests.first.json, {'p_couple': 'c1', 'p_day': null});
+      expect(notifications.sent, isEmpty);
     });
   });
 }

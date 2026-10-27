@@ -15,6 +15,7 @@ import '../../../../domain/repositories/i_location_repository.dart';
 import '../../../shared/widgets/loading_dots.dart';
 import '../../../shared/widgets/neon_back_button.dart';
 import '../bloc/location_bloc.dart';
+import '../../../../core/utils/app_snack_bar.dart';
 
 class LocationScreen extends StatelessWidget {
   const LocationScreen({super.key});
@@ -120,7 +121,7 @@ class _LocationBodyState extends State<_LocationBody> with WidgetsBindingObserve
         .catchError((_) => false);
     if (!opened && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not open Google Maps')),
+        appSnackBar(content: Text('Could not open Google Maps')),
       );
     }
   }

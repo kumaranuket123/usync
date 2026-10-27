@@ -1,4 +1,7 @@
 abstract final class AppConstants {
+  /// The public privacy policy (docs/privacy-policy.html, served by GitHub Pages from `main`).
+  static const String privacyPolicyUrl = 'https://kumaranuket123.github.io/usync/privacy-policy.html';
+
   /// The avatars a user can pick, at sign-up and when editing their profile.
   static const List<String> avatarEmojis = ['🦋', '🌸', '🌙', '⭐', '🔮', '🌊', '🌺', '✨'];
 

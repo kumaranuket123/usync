@@ -12,6 +12,7 @@ import '../../../../domain/repositories/i_memory_repository.dart';
 import '../../../shared/widgets/memory_art.dart';
 import '../../../shared/widgets/neon_back_button.dart';
 import 'confirm_delete_memory.dart';
+import '../../../../core/utils/app_snack_bar.dart';
 
 class MemoryDetailScreen extends StatelessWidget {
   const MemoryDetailScreen({super.key, required this.memoryId, this.memory});
@@ -33,12 +34,12 @@ class MemoryDetailScreen extends StatelessWidget {
     try {
       final path = await _imagePath(m);
       if (path == null) {
-        messenger.showSnackBar(const SnackBar(content: Text('This memory has no picture to share')));
+        messenger.showSnackBar(appSnackBar(content: Text('This memory has no picture to share')));
         return;
       }
       await Share.shareXFiles([XFile(path, mimeType: 'image/png')], text: m.title);
     } catch (_) {
-      messenger.showSnackBar(const SnackBar(content: Text('Could not share this memory')));
+      messenger.showSnackBar(appSnackBar(content: Text('Could not share this memory')));
     }
   }
 
@@ -47,19 +48,19 @@ class MemoryDetailScreen extends StatelessWidget {
     try {
       final path = await _imagePath(m);
       if (path == null) {
-        messenger.showSnackBar(const SnackBar(content: Text('This memory has no picture to save')));
+        messenger.showSnackBar(appSnackBar(content: Text('This memory has no picture to save')));
         return;
       }
       await Gal.putImage(path, album: 'Usync');
-      messenger.showSnackBar(const SnackBar(content: Text('Saved to your gallery')));
+      messenger.showSnackBar(appSnackBar(content: Text('Saved to your gallery')));
     } on GalException catch (e) {
-      messenger.showSnackBar(SnackBar(
+      messenger.showSnackBar(appSnackBar(
         content: Text(e.type == GalExceptionType.accessDenied
             ? 'Allow photo access to save images'
             : 'Could not save this memory'),
       ));
     } catch (_) {
-      messenger.showSnackBar(const SnackBar(content: Text('Could not save this memory')));
+      messenger.showSnackBar(appSnackBar(content: Text('Could not save this memory')));
     }
   }
 

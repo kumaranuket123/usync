@@ -13,6 +13,8 @@ import '../../../shared/widgets/gradient_text.dart';
 import '../../../shared/widgets/particle_field.dart';
 import '../../../shared/widgets/pulse_rings.dart';
 import '../bloc/auth_bloc.dart';
+import '../../../../core/utils/app_snack_bar.dart';
+import '../../../../core/utils/privacy_policy.dart';
 
 class LoginScreen extends StatelessWidget {
   const LoginScreen({super.key});
@@ -25,7 +27,7 @@ class LoginScreen extends StatelessWidget {
           final route = state.user.coupleId != null ? RouteNames.home : RouteNames.pairInvite;
           context.go(route);
         } else if (state is AuthError) {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(state.message)));
+          ScaffoldMessenger.of(context).showSnackBar(appSnackBar(content: Text(state.message)));
         }
       },
       child: Scaffold(
@@ -60,7 +62,11 @@ class LoginScreen extends StatelessWidget {
                       textAlign: TextAlign.center,
                       style: AppTextStyles.labelSmall.copyWith(height: 1.5),
                     ),
-                    const SizedBox(height: 28),
+                    TextButton(
+                      onPressed: () => openPrivacyPolicy(context),
+                      child: Text('Privacy Policy', style: AppTextStyles.labelSmall.copyWith(decoration: TextDecoration.underline)),
+                    ),
+                    const SizedBox(height: 20),
                   ],
                 ),
               ))]),

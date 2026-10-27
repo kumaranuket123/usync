@@ -39,4 +39,17 @@ void main() {
       });
     }
   }
+
+  testWidgets('login screen links to the privacy policy', (tester) async {
+    await tester.pumpWidget(MaterialApp(
+      home: BlocProvider(
+        create: (_) => AuthBloc(authRepository: _FakeAuth()),
+        child: const LoginScreen(),
+      ),
+    ));
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text('Privacy Policy'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(seconds: 2));
+  });
 }

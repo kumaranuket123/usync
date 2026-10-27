@@ -16,6 +16,7 @@ import '../../../shared/widgets/gradient_text.dart';
 import '../../../shared/widgets/heartbeat_visualizer.dart';
 import '../../../shared/widgets/live_indicator.dart';
 import '../bloc/widgets_bloc.dart';
+import '../../../../core/utils/app_snack_bar.dart';
 
 class WidgetsScreen extends StatelessWidget {
   const WidgetsScreen({super.key});
@@ -298,7 +299,7 @@ class _DoodleWidgetCardState extends State<_DoodleWidgetCard> {
       await HomeWidget.requestPinWidget(
           qualifiedAndroidName: HomeWidgetService.androidProvider);
     }
-    if (hint != null) messenger.showSnackBar(SnackBar(content: Text(hint)));
+    if (hint != null) messenger.showSnackBar(appSnackBar(content: Text(hint)));
   }
 
   @override

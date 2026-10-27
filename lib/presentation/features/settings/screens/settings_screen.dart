@@ -16,9 +16,12 @@ import '../../../shared/widgets/neon_back_button.dart';
 import '../../../shared/widgets/outline_button.dart';
 import '../../../shared/widgets/toggle_switch.dart';
 import '../bloc/settings_bloc.dart';
+import '../widgets/delete_account_dialog.dart';
 import 'alert_sounds_screen.dart';
 import '../../auth/bloc/auth_bloc.dart';
 import '../../profile/bloc/profile_bloc.dart';
+import '../../../../core/utils/app_snack_bar.dart';
+import '../../../../core/utils/privacy_policy.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -68,26 +71,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final messenger = ScaffoldMessenger.of(context);
     if (!on) {
       bloc.add(const ToggleChanged(key: 'gallery_backup', value: false));
-      messenger.showSnackBar(const SnackBar(
+      messenger.showSnackBar(appSnackBar(
         content: Text('New older pictures stay in the app only. Copies already in your gallery are kept.'),
       ));
       return;
     }
     // Asked here, so a refusal leaves the switch off instead of silently doing nothing.
     if (!await Gal.requestAccess(toAlbum: true)) {
-      messenger.showSnackBar(const SnackBar(content: Text('Allow photo access to save pictures to your gallery')));
+      messenger.showSnackBar(appSnackBar(content: Text('Allow photo access to save pictures to your gallery')));
       return;
     }
     bloc.add(const ToggleChanged(key: 'gallery_backup', value: true));
     try {
       final n = await GetIt.I<IMemoryRepository>().backupArchivedToGallery();
-      messenger.showSnackBar(SnackBar(
+      messenger.showSnackBar(appSnackBar(
         content: Text(n == 0
             ? 'Older pictures will be saved to your "Usync" gallery album as they are moved off the server.'
             : 'Saved $n ${n == 1 ? 'picture' : 'pictures'} to your "Usync" gallery album. Newer ones will follow automatically.'),
       ));
     } catch (_) {
-      messenger.showSnackBar(const SnackBar(content: Text('Could not save to your gallery just now. It will be tried again.')));
+      messenger.showSnackBar(appSnackBar(content: Text('Could not save to your gallery just now. It will be tried again.')));
     }
   }
 
@@ -133,7 +136,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             onChanged: (v) async {
                               final changed = await GetIt.I<AppLockService>().setEnabled(v);
                               if (!changed && v && context.mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                                ScaffoldMessenger.of(context).showSnackBar(appSnackBar(
                                   content: Text('Set up a fingerprint, face or screen lock on this device first'),
                                 ));
                               }
@@ -156,7 +159,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           onChanged: (v) => _setGalleryBackup(context, v)),
 
                       _SectionLabel('ABOUT'),
-                      _Row('ℹ️', const Color(0x0FFFFFFF), 'About Usync', _version, onTap: () {}),
+                      _Row('ℹ️', const Color(0x0FFFFFFF), 'About Usync', _version, onTap: () => context.push(RouteNames.about)),
+                      _Row('🔒', const Color(0x1F9D4EDD), 'Privacy Policy', 'How your information is used',
+                          onTap: () => openPrivacyPolicy(context)),
 
                       _SectionLabel('DANGER ZONE'),
                       BlocBuilder<ProfileBloc, ProfileState>(
@@ -169,7 +174,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ),
                       _Row('🗑️', const Color(0x1FFF5252), 'Delete Account',
                           'Permanently delete your account and all your data',
-                          onTap: () => _onDeleteAccountTap(context)),
+                          onTap: () => confirmAndDeleteAccount(context)),
 
                       const SizedBox(height: 20),
                       UsyncOutlineButton(
@@ -316,69 +321,4 @@ Future<void> _onDisconnectTap(BuildContext context, ProfileReady state) async {
   final ok = await _askConfirm(context, 'Disconnect from your partner?',
       'This unlinks you both right away and permanently deletes everything you shared: moods, memories, timeline and canvas. This cannot be undone. You can pair again with a new invite code.', 'Disconnect');
   if (ok) bloc.add(DisconnectCouple(userId: state.user.id, coupleId: state.couple.id));
-}
-
-/// Deleting the account cannot be undone, so the person has to type DELETE.
-Future<void> _onDeleteAccountTap(BuildContext context) async {
-  final auth = context.read<AuthBloc>();
-  final ok = await showDialog<bool>(
-    context: context,
-    builder: (_) => const _DeleteAccountDialog(),
-  );
-  if (ok == true) auth.add(const DeleteAccountRequested());
-}
-
-class _DeleteAccountDialog extends StatefulWidget {
-  const _DeleteAccountDialog();
-  @override
-  State<_DeleteAccountDialog> createState() => _DeleteAccountDialogState();
-}
-
-class _DeleteAccountDialogState extends State<_DeleteAccountDialog> {
-  final _ctrl = TextEditingController();
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final confirmed = _ctrl.text.trim().toUpperCase() == 'DELETE';
-    return AlertDialog(
-      backgroundColor: AppColors.bg2,
-      title: const Text('Delete your account?', style: TextStyle(color: Colors.white)),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'This permanently deletes your account and everything you shared with your partner: moods, memories, timeline and canvas. Your partner is disconnected. This cannot be undone.',
-            style: AppTextStyles.bodyMuted,
-          ),
-          const SizedBox(height: 16),
-          Text('Type DELETE to confirm', style: AppTextStyles.labelSmall),
-          const SizedBox(height: 6),
-          TextField(
-            controller: _ctrl,
-            autofocus: true,
-            textCapitalization: TextCapitalization.characters,
-            style: const TextStyle(color: Colors.white),
-            onChanged: (_) => setState(() {}),
-          ),
-        ],
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context, false),
-          child: const Text('Cancel', style: TextStyle(color: AppColors.textMuted)),
-        ),
-        TextButton(
-          onPressed: confirmed ? () => Navigator.pop(context, true) : null,
-          child: Text('Delete', style: TextStyle(color: confirmed ? const Color(0xFFFF5050) : AppColors.textDim)),
-        ),
-      ],
-    );
-  }
 }

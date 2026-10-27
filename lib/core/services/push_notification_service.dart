@@ -9,6 +9,7 @@ import '../di/injection.dart';
 import '../router/app_router.dart';
 import 'home_widget_service.dart';
 import 'location_sync_service.dart';
+import '../utils/app_snack_bar.dart';
 
 /// Used by the app shell to show pushes that arrive while the app is open.
 final GlobalKey<ScaffoldMessengerState> rootMessengerKey = GlobalKey<ScaffoldMessengerState>();
@@ -72,8 +73,9 @@ abstract final class PushNotificationService {
     if (n == null) return;
     rootMessengerKey.currentState
       ?..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(
+      ..showSnackBar(appSnackBar(
         behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 6),
         content: Text([n.title, n.body].whereType<String>().join(' — ')),
         action: SnackBarAction(label: 'View', onPressed: () => _openTarget(message)),
       ));

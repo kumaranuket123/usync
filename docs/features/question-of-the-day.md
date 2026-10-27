@@ -22,7 +22,7 @@ The screen re-checks every 20 seconds while open, so the partner's answer appear
 
 ## Behaviour
 
-- The question is picked from `DailyQuestion.bank` by UTC day (`DailyQuestion.forDay`), so both partners always see the same one. The day matches the server's UTC streak day.
+- The question is picked from the couple's bank (`DailyQuestion.bankFor(mode)`: shared questions plus Together or Long-distance ones, see [relationship-mode](relationship-mode.md)) by UTC day (`DailyQuestion.forDay`), so both partners see the same one. The day matches the server's UTC streak day.
 - An answer is final: there is no edit or delete.
 - Answering needs a connection (it is not queued in the outbox, because the reveal depends on the server).
 - Answering counts as activity for the day streak (`record_activity` trigger).

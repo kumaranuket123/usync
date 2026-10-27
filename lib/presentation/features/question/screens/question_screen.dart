@@ -12,6 +12,7 @@ import '../../../shared/widgets/glass_input.dart';
 import '../../../shared/widgets/glow_button.dart';
 import '../../../shared/widgets/neon_back_button.dart';
 import '../bloc/question_bloc.dart';
+import '../../../../core/utils/app_snack_bar.dart';
 
 class QuestionScreen extends StatelessWidget {
   const QuestionScreen({super.key});
@@ -23,7 +24,7 @@ class QuestionScreen extends StatelessWidget {
       child: BlocListener<QuestionBloc, QuestionBlocState>(
         listener: (context, state) {
           if (state is QuestionReady && state.error != null) {
-            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(state.error!)));
+            ScaffoldMessenger.of(context).showSnackBar(appSnackBar(content: Text(state.error!)));
           }
         },
         child: const _QuestionBody(),

@@ -13,6 +13,7 @@ import '../../../shared/widgets/glow_button.dart';
 import '../../../shared/widgets/neon_back_button.dart';
 import '../../../../core/di/injection.dart';
 import '../bloc/pairing_bloc.dart';
+import '../../../../core/utils/app_snack_bar.dart';
 
 class PairJoinScreen extends StatelessWidget {
   const PairJoinScreen({super.key});
@@ -55,7 +56,7 @@ class _PairJoinBodyState extends State<_PairJoinBody> {
       listener: (context, state) {
         if (state is PairingSuccess) context.go(RouteNames.pairSuccess);
         if (state is PairingError) {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(state.message)));
+          ScaffoldMessenger.of(context).showSnackBar(appSnackBar(content: Text(state.message)));
         }
       },
       child: Scaffold(

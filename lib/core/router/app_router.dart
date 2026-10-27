@@ -9,6 +9,7 @@ import '../../presentation/features/location/screens/location_screen.dart';
 import '../../presentation/features/memory/screens/memory_detail_screen.dart';
 import '../../presentation/features/memory/screens/memory_space_screen.dart';
 import '../../presentation/features/mood/screens/mood_screen.dart';
+import '../../presentation/features/bucket/screens/bucket_list_screen.dart';
 import '../../presentation/features/question/screens/question_screen.dart';
 import '../../presentation/features/notifications/screens/notifications_screen.dart';
 import '../../presentation/features/onboarding/screens/onboarding_screen.dart';
@@ -16,6 +17,7 @@ import '../../presentation/features/pairing/screens/pair_invite_screen.dart';
 import '../../presentation/features/pairing/screens/pair_join_screen.dart';
 import '../../presentation/features/pairing/screens/pair_success_screen.dart';
 import '../../presentation/features/profile/screens/profile_screen.dart';
+import '../../presentation/features/settings/screens/about_screen.dart';
 import '../../presentation/features/settings/screens/alert_sounds_screen.dart';
 import '../../presentation/features/settings/screens/settings_screen.dart';
 import '../../presentation/features/settings/screens/theme_selection_screen.dart';
@@ -104,6 +106,11 @@ abstract final class AppRouter {
         builder: (_, __) => const LocationScreen(),
       ),
       GoRoute(
+        path: RouteNames.bucketList,
+        parentNavigatorKey: _rootKey,
+        builder: (_, __) => const BucketListScreen(),
+      ),
+      GoRoute(
         path: RouteNames.question,
         parentNavigatorKey: _rootKey,
         builder: (_, __) => const QuestionScreen(),
@@ -136,6 +143,11 @@ abstract final class AppRouter {
         path: RouteNames.settings,
         parentNavigatorKey: _rootKey,
         builder: (_, __) => const SettingsScreen(),
+      ),
+      GoRoute(
+        path: RouteNames.about,
+        parentNavigatorKey: _rootKey,
+        builder: (_, __) => const AboutScreen(),
       ),
       GoRoute(
         path: RouteNames.alertSounds,

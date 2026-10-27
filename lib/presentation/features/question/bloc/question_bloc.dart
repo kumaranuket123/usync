@@ -1,13 +1,15 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../../domain/entities/couple.dart';
 import '../../../../domain/entities/daily_question.dart';
+import '../../../../domain/repositories/i_couple_repository.dart';
 import '../../../../domain/repositories/i_question_repository.dart';
 
 part 'question_event.dart';
 part 'question_state.dart';
 
 class QuestionBloc extends Bloc<QuestionEvent, QuestionBlocState> {
-  QuestionBloc({required this.questionRepository, DateTime Function()? clock})
+  QuestionBloc({required this.questionRepository, required this.coupleRepository, DateTime Function()? clock})
       : _clock = clock ?? DateTime.now,
         super(QuestionLoading()) {
     on<QuestionOpened>(_onOpened);
@@ -16,6 +18,7 @@ class QuestionBloc extends Bloc<QuestionEvent, QuestionBlocState> {
   }
 
   final IQuestionRepository questionRepository;
+  final ICoupleRepository   coupleRepository;
   final DateTime Function()  _clock;
   String _coupleId = '';
   String _userId   = '';
@@ -24,7 +27,14 @@ class QuestionBloc extends Bloc<QuestionEvent, QuestionBlocState> {
     _coupleId = e.coupleId;
     _userId   = e.userId;
     emit(QuestionLoading());
-    final question = DailyQuestion.forDay(_clock());
+    // Both partners must see the same question, so the couple's shared mode picks the bank.
+    var mode = RelationshipMode.together;
+    try {
+      mode = await coupleRepository.getRelationshipMode(_coupleId);
+    } catch (_) {
+      // Unreadable (offline, nothing saved): the default bank still works.
+    }
+    final question = DailyQuestion.forDay(_clock(), mode: mode);
     try {
       emit(QuestionReady(
         question: question,

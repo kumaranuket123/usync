@@ -14,6 +14,7 @@ import '../../../shared/widgets/glow_button.dart';
 import '../../../shared/widgets/mood_bubble.dart';
 import '../../../shared/widgets/neon_back_button.dart';
 import '../bloc/mood_bloc.dart';
+import '../../../../core/utils/app_snack_bar.dart';
 
 class MoodScreen extends StatelessWidget {
   const MoodScreen({super.key});
@@ -27,7 +28,7 @@ class MoodScreen extends StatelessWidget {
           if (state is MoodSentSuccess) {
             if (state.queued) {
               // The screen closes, so the message goes on the app-level messenger.
-              rootMessengerKey.currentState?.showSnackBar(const SnackBar(
+              rootMessengerKey.currentState?.showSnackBar(appSnackBar(
                 content: Text('You are offline. Your mood will be sent when you are back online.'),
               ));
             }
@@ -35,7 +36,7 @@ class MoodScreen extends StatelessWidget {
           }
           if (state is MoodError) {
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(state.message)),
+              appSnackBar(content: Text(state.message)),
             );
           }
         },

@@ -20,7 +20,8 @@ Pushed from ProfileScreen; not a bottom-nav destination. Header (`NeonBackButton
 | | Animations | Toggle | Off disables particle/pulse effects |
 | | Haptic feedback | Toggle | Read by touch sync before vibrating |
 | STORAGE | Save older memories to gallery | Toggle | Asks for photo access first (`Gal.requestAccess`); a refusal leaves the switch off. On success copies already-archived pictures to the "Usync" album and reports how many. Off keeps future ones in the app only; existing gallery copies are kept. See [memories](memories.md) |
-| ABOUT | About Usync | Row | Shows the installed version (`package_info_plus`); no tap action yet |
+| ABOUT | About Usync | Row | Shows the installed version (`package_info_plus`); opens the About screen (`/about`, see [about](about.md)) |
+| | Privacy Policy | Row | Opens the public policy in the browser (`openPrivacyPolicy`, `AppConstants.privacyPolicyUrl`, the page `docs/privacy-policy.html` served by GitHub Pages from `main`); a snackbar says so if it cannot open |
 | DANGER ZONE | Disconnect Couple | Row (only when `ProfileReady`) | Confirmation dialog, then `ProfileBloc.DisconnectCouple` |
 | | Delete Account | Row | Type-DELETE dialog, then `AuthBloc.DeleteAccountRequested` |
 | | Sign Out | Outline button | Confirmation dialog, then `AuthBloc.SignOutRequested` |
@@ -98,14 +99,14 @@ The `send-push` Edge Function reads `profiles.silent_types` and sends quiet type
 Confirm ("unlinks you both right away and permanently deletes everything you shared")
   -> ProfileBloc.DisconnectCouple -> disconnect_couple RPC
 ```
-Either partner can do this alone. The RPC (`disconnect_deletes_data.sql`) deletes moods, memories, milestones, notifications, canvas strokes, locations, question answers and streak activity, leaves the `couples` row as an empty tombstone with `disconnected_at` set (so the partner's app sees it via Realtime), resets streak counters and clears both profiles' `couple_id`. Memory images in Storage are removed by the app before the RPC, because SQL cannot delete Storage objects. Pair again with a new code ([pairing](pairing.md)).
+Either partner can do this alone. The RPC (`disconnect_deletes_data.sql`) deletes moods, memories, milestones, notifications, canvas strokes, locations, question answers, bucket-list items, the next-meet date and streak activity, leaves the `couples` row as an empty tombstone with `disconnected_at` set (so the partner's app sees it via Realtime), resets streak counters and clears both profiles' `couple_id`. Memory images in Storage are removed by the app before the RPC, because SQL cannot delete Storage objects. Pair again with a new code ([pairing](pairing.md)).
 
 ### Delete account
 ```
 Dialog: "Type DELETE to confirm" (button enabled only when the text matches, case-insensitive)
   -> AuthBloc.DeleteAccountRequested -> delete_my_account RPC
 ```
-Required by Google Play. Deletes the user's data in every couple they were in, then the auth user; the partner is left disconnected. Locally saved memory pictures are removed too (`LocalMemoryImages.deleteAll`). Migrations: `delete_account.sql`, `question_of_the_day.sql` (also removes question answers).
+Required by Google Play. Also reachable without pairing, from the `AccountLinks` row on the invite screen (`confirmAndDeleteAccount`, `settings/widgets/delete_account_dialog.dart`). Deletes the user's data in every couple they were in, then the auth user; the partner is left disconnected. Locally saved memory pictures are removed too (`LocalMemoryImages.deleteAll`). Migrations: `delete_account.sql`, `question_of_the_day.sql` (also removes question answers).
 
 ### Sign out
 ```

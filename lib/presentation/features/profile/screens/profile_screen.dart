@@ -17,6 +17,7 @@ import '../../../shared/widgets/glow_button.dart';
 import '../../../shared/widgets/gradient_text.dart';
 import '../../../shared/widgets/loading_dots.dart';
 import '../../../../core/di/injection.dart';
+import '../../../../domain/entities/couple.dart';
 import '../../../../domain/repositories/i_auth_repository.dart';
 import '../../../features/auth/bloc/auth_bloc.dart';
 import '../bloc/profile_bloc.dart';
@@ -69,6 +70,10 @@ class _ProfileBody extends StatelessWidget {
                             () => _editName(context, state)),
                       ],
                       _SectionLabel('YOUR CONNECTION'),
+                      if (state is ProfileReady)
+                        _NavRow(state.couple.relationshipMode.emoji, const Color(0x1F9D4EDD), 'Relationship type',
+                            state.couple.relationshipMode.label, () => _pickMode(context, state)),
+                      _NavRow('🎯', const Color(0x1F00D4FF), 'Bucket list', 'Things we want to do together', () => context.push(RouteNames.bucketList)),
                       _NavRow('🕰️', const Color(0x1FFF2D78), 'Relationship Timeline', 'View your shared journey', () => context.push(RouteNames.timeline)),
                       _SectionLabel('PREFERENCES'),
                       _NavRow('⚙️', const Color(0x0FFFFFFF), 'Settings', 'Themes, notifications, security, disconnect', () => context.push(RouteNames.settings)),
@@ -80,6 +85,48 @@ class _ProfileBody extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+/// Lets either partner switch between together and long-distance; the choice is shared.
+Future<void> _pickMode(BuildContext context, ProfileReady state) async {
+  final bloc = context.read<ProfileBloc>();
+  final picked = await showModalBottomSheet<RelationshipMode>(
+    context: context,
+    backgroundColor: AppColors.bg2,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+    ),
+    builder: (_) => _ModeSheet(current: state.couple.relationshipMode),
+  );
+  if (picked != null) bloc.add(RelationshipModeChanged(coupleId: state.couple.id, mode: picked));
+}
+
+class _ModeSheet extends StatelessWidget {
+  const _ModeSheet({required this.current});
+  final RelationshipMode current;
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(24, 20, 24, 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Relationship type', style: AppTextStyles.h3),
+            const SizedBox(height: 4),
+            Text('Shared with your partner. It tailors the daily questions to you both.', style: AppTextStyles.labelSmall),
+            const SizedBox(height: 14),
+            for (final mode in RelationshipMode.values)
+              _NavRow(mode.emoji, const Color(0x1F9D4EDD),
+                  mode == current ? '${mode.label}  ✓' : mode.label, mode.description,
+                  () => Navigator.pop(context, mode)),
+          ],
+        ),
+      ),
     );
   }
 }

@@ -13,6 +13,7 @@ import '../../../shared/widgets/toggle_switch.dart';
 import '../../../shared/widgets/loading_dots.dart';
 import '../../../shared/widgets/neon_back_button.dart';
 import '../bloc/timeline_bloc.dart';
+import '../../../../core/utils/app_snack_bar.dart';
 
 class TimelineScreen extends StatelessWidget {
   const TimelineScreen({super.key});
@@ -50,7 +51,7 @@ class _TimelineBody extends StatelessWidget {
     return BlocListener<TimelineBloc, TimelineState>(
       listenWhen: (_, b) => b is TimelineReady && b.notice != null,
       listener: (context, state) => ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text((state as TimelineReady).notice!))),
+          .showSnackBar(appSnackBar(content: Text((state as TimelineReady).notice!))),
       child: _scaffold(context),
     );
   }

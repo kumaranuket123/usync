@@ -35,4 +35,5 @@ class SessionCache {
   static String couple(String coupleId)   => 'couple:$coupleId';
   static String moods(String coupleId)    => 'moods:$coupleId';
   static String milestones(String coupleId) => 'milestones:$coupleId';
+  static String bucket(String coupleId)   => 'bucket:$coupleId';
 }

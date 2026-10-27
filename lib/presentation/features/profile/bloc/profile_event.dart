@@ -5,4 +5,5 @@ final class DisconnectCouple extends ProfileEvent { DisconnectCouple({required t
 /// The signed-in user's own details changed (e.g. a new name).
 final class UserUpdated         extends ProfileEvent { UserUpdated(this.user); final AppUser user; }
 final class CoupleUpdated       extends ProfileEvent { CoupleUpdated(this.couple); final Couple couple; }
+final class RelationshipModeChanged extends ProfileEvent { RelationshipModeChanged({required this.coupleId, required this.mode}); final String coupleId; final RelationshipMode mode; }
 final class AvatarChanged  extends ProfileEvent { AvatarChanged({required this.userId, required this.emoji}); final String userId, emoji; }

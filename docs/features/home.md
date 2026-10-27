@@ -48,6 +48,10 @@ BoxShadow(color: purple.withOpacity(0.2), blurRadius: 100, spreadRadius: 0)
 
 ---
 
+### LongDistanceCard
+
+Shown under the quick actions only for long-distance couples: distance apart and a countdown to the shared next-meet date; tap to set it. See [long-distance](long-distance.md).
+
 ### QuickActionsRow
 
 Four glass pills in a single `Row`, wrapped in a `FittedBox(scaleDown)` so they stay on one line (and shrink slightly) on narrow screens instead of wrapping and overflowing the Home column:

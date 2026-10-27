@@ -13,6 +13,7 @@ import '../../data/repositories/canvas_repository.dart';
 import '../../data/repositories/couple_repository.dart';
 import '../../data/repositories/memory_repository.dart';
 import '../../data/repositories/mood_repository.dart';
+import '../../data/repositories/bucket_repository.dart';
 import '../../data/repositories/question_repository.dart';
 import '../../data/repositories/notification_repository.dart';
 import '../../data/datasources/local/identity_cache.dart';
@@ -28,6 +29,7 @@ import '../../domain/repositories/i_canvas_repository.dart';
 import '../../domain/repositories/i_couple_repository.dart';
 import '../../domain/repositories/i_memory_repository.dart';
 import '../../domain/repositories/i_mood_repository.dart';
+import '../../domain/repositories/i_bucket_repository.dart';
 import '../../domain/repositories/i_question_repository.dart';
 import '../../domain/repositories/i_notification_repository.dart';
 import '../../domain/repositories/i_location_repository.dart';
@@ -37,6 +39,8 @@ import '../../presentation/features/canvas/bloc/canvas_bloc.dart';
 import '../../presentation/features/home/bloc/home_bloc.dart';
 import '../../presentation/features/memory/bloc/memory_bloc.dart';
 import '../../presentation/features/mood/bloc/mood_bloc.dart';
+import '../../presentation/features/long_distance/bloc/long_distance_bloc.dart';
+import '../../presentation/features/bucket/bloc/bucket_bloc.dart';
 import '../../presentation/features/question/bloc/question_bloc.dart';
 import '../../presentation/features/notifications/bloc/notification_bloc.dart';
 import '../../presentation/features/pairing/bloc/pairing_bloc.dart';
@@ -113,6 +117,14 @@ Future<void> setupLocator() async {
       sessionCache: getIt(),
     ),
   );
+  getIt.registerLazySingleton<IBucketRepository>(
+    () => BucketRepository(
+      client: getIt(),
+      notifications: getIt(),
+      outbox: getIt(),
+      sessionCache: getIt(),
+    ),
+  );
   getIt.registerLazySingleton<IQuestionRepository>(
     () => QuestionRepository(client: getIt(), notifications: getIt()),
   );
@@ -169,8 +181,14 @@ Future<void> setupLocator() async {
   getIt.registerFactory<LocationBloc>(
     () => LocationBloc(locationRepository: getIt()),
   );
+  getIt.registerFactory<LongDistanceBloc>(
+    () => LongDistanceBloc(coupleRepository: getIt(), locationRepository: getIt()),
+  );
+  getIt.registerFactory<BucketBloc>(
+    () => BucketBloc(bucketRepository: getIt()),
+  );
   getIt.registerFactory<QuestionBloc>(
-    () => QuestionBloc(questionRepository: getIt()),
+    () => QuestionBloc(questionRepository: getIt(), coupleRepository: getIt()),
   );
   getIt.registerFactory<MoodBloc>(
     () => MoodBloc(moodRepository: getIt()),

@@ -18,10 +18,12 @@ abstract final class RouteNames {
   static const String mood         = '/mood';
   static const String location     = '/location';
   static const String question     = '/question';
+  static const String bucketList   = '/bucket-list';
   static const String memoryDetail = '/memories/:id';
   static const String notifications= '/notifications';
   static const String timeline     = '/timeline';
   static const String settings     = '/settings';
   static const String themes       = '/themes';
   static const String alertSounds  = '/alert-sounds';
+  static const String about        = '/about';
 }

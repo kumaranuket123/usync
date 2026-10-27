@@ -16,6 +16,8 @@ import '../../../shared/widgets/particle_field.dart';
 import '../../../../core/di/injection.dart';
 import '../../auth/bloc/auth_bloc.dart';
 import '../bloc/pairing_bloc.dart';
+import '../../../../core/utils/app_snack_bar.dart';
+import '../../settings/widgets/account_links.dart';
 
 class PairInviteScreen extends StatelessWidget {
   const PairInviteScreen({super.key});
@@ -54,7 +56,7 @@ class _PairInviteBodyState extends State<_PairInviteBody> {
         if (state is PartnerJoined) {
           context.go(RouteNames.pairSuccess);
         } else if (state is PairingError) {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(state.message)));
+          ScaffoldMessenger.of(context).showSnackBar(appSnackBar(content: Text(state.message)));
         }
       },
       child: Scaffold(
@@ -167,6 +169,7 @@ class _PairInviteBodyState extends State<_PairInviteBody> {
                         onPressed: () => _confirmSignOut(context),
                         child: Text('Use a different account', style: AppTextStyles.bodyMuted.copyWith(fontSize: 14)),
                       ),
+                      const AccountLinks(),
                     ],
                   ),
                 ),
