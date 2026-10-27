@@ -1,7 +1,11 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get_it/get_it.dart';
+import 'package:home_widget/home_widget.dart';
 
+import '../../../../core/services/home_widget_service.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_gradients.dart';
 import '../../../../core/theme/app_text_styles.dart';
@@ -18,7 +22,7 @@ class WidgetsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final auth     = context.read<AuthBloc>().state;
+    final auth = context.read<AuthBloc>().state;
     final coupleId = auth is Authenticated ? (auth.user.coupleId ?? '') : '';
     return BlocProvider(
       create: (_) => GetIt.I<WidgetsBloc>()..add(WidgetsLoaded(coupleId)),
@@ -49,106 +53,120 @@ class _WidgetsBody extends StatelessWidget {
               ),
             ),
             Expanded(
-              child: GridView(
+              child: ListView(
                 padding: const EdgeInsets.fromLTRB(18, 0, 18, 100),
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount:  2,
-                  mainAxisSpacing: 13,
-                  crossAxisSpacing:13,
-                  childAspectRatio: 0.70,
-                ),
                 children: [
-                  // Heartbeat
-                  _WidgetCard(
-                    icon: '💓', name: 'Heartbeat', desc: 'Live pulse from your partner',
-                    glowColor: AppColors.pink,
-                    child: Padding(
-                      padding: const EdgeInsets.only(top: 12),
-                      child: HeartbeatVisualizer(width: 120, height: 30),
+                  const _DoodleWidgetCard(),
+                  const SizedBox(height: 13),
+                  GridView(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    gridDelegate:
+                        const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 2,
+                      mainAxisSpacing: 13,
+                      crossAxisSpacing: 13,
+                      childAspectRatio: 0.70,
                     ),
-                  ),
-
-                  // Mood
-                  _WidgetCard(
-                    icon: '💭', name: 'Mood', desc: "Partner's current vibe",
-                    glowColor: AppColors.purple,
-                    child: Padding(
-                      padding: const EdgeInsets.only(top: 12),
-                      child: GlassCard(
-                        borderRadius: 12,
-                        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-                        child: Column(
-                          children: [
-                            const Text('😊', style: TextStyle(fontSize: 22)),
-                            Text('Happy', style: AppTextStyles.labelSmall),
-                          ],
+                    children: [
+                      // Heartbeat
+                      _WidgetCard(
+                        icon: '💓',
+                        name: 'Heartbeat',
+                        desc: 'Coming soon',
+                        glowColor: AppColors.pink,
+                        child: Padding(
+                          padding: const EdgeInsets.only(top: 12),
+                          child: HeartbeatVisualizer(width: 120, height: 30),
                         ),
                       ),
-                    ),
-                  ),
 
-                  // Doodle
-                  _WidgetCard(
-                    icon: '✏️', name: 'Live Doodle', desc: 'See sketches in real time',
-                    glowColor: AppColors.cyan,
-                    child: Padding(
-                      padding: const EdgeInsets.only(top: 10),
-                      child: CustomPaint(
-                        size: const Size(120, 40),
-                        painter: _DoodlePreviewPainter(),
-                      ),
-                    ),
-                  ),
-
-                  // Presence
-                  _WidgetCard(
-                    icon: '🌐', name: 'Presence', desc: 'Is your partner nearby?',
-                    glowColor: AppColors.pinkLight,
-                    child: Padding(
-                      padding: const EdgeInsets.only(top: 12),
-                      child: LiveIndicator(label: 'Active 2m ago', color: AppColors.cyan),
-                    ),
-                  ),
-
-                  // Streak (full width)
-                  Container(
-                    decoration: BoxDecoration(
-                      color: AppColors.glass,
-                      borderRadius: BorderRadius.circular(24),
-                      border: Border.all(color: AppColors.glassBorder),
-                    ),
-                    padding: const EdgeInsets.all(20),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text('🔥', style: TextStyle(fontSize: 32)),
-                              const SizedBox(height: 6),
-                              Text('Connection Streak', style: AppTextStyles.label.copyWith(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 14)),
-                              Text("You've been in sync every day", style: AppTextStyles.labelSmall),
-                            ],
+                      // Mood
+                      _WidgetCard(
+                        icon: '💭',
+                        name: 'Mood',
+                        desc: 'Coming soon',
+                        glowColor: AppColors.purple,
+                        child: Padding(
+                          padding: const EdgeInsets.only(top: 12),
+                          child: GlassCard(
+                            borderRadius: 12,
+                            padding: const EdgeInsets.symmetric(
+                                vertical: 8, horizontal: 16),
+                            child: Column(
+                              children: [
+                                const Text('😊',
+                                    style: TextStyle(fontSize: 22)),
+                                Text('Happy', style: AppTextStyles.labelSmall),
+                              ],
+                            ),
                           ),
                         ),
-                        Column(
-                          mainAxisSize: MainAxisSize.min,
-                          crossAxisAlignment: CrossAxisAlignment.end,
+                      ),
+
+                      // Presence
+                      _WidgetCard(
+                        icon: '🌐',
+                        name: 'Presence',
+                        desc: 'Coming soon',
+                        glowColor: AppColors.pinkLight,
+                        child: Padding(
+                          padding: const EdgeInsets.only(top: 12),
+                          child: LiveIndicator(
+                              label: 'Active 2m ago', color: AppColors.cyan),
+                        ),
+                      ),
+
+                      // Streak (full width)
+                      Container(
+                        decoration: BoxDecoration(
+                          color: AppColors.glass,
+                          borderRadius: BorderRadius.circular(24),
+                          border: Border.all(color: AppColors.glassBorder),
+                        ),
+                        padding: const EdgeInsets.all(20),
+                        child: Row(
                           children: [
-                            BlocBuilder<WidgetsBloc, WidgetsBlocState>(
-                              builder: (context, state) {
-                                final streak = state is WidgetsReady
-                                    ? state.couple.streakDays.toString()
-                                    : '—';
-                                return GradientText(streak, gradient: AppGradients.gradientText2,
-                                    style: const TextStyle(fontSize: 40, fontWeight: FontWeight.w800));
-                              },
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text('🔥',
+                                      style: TextStyle(fontSize: 32)),
+                                  const SizedBox(height: 6),
+                                  Text('Connection Streak',
+                                      style: AppTextStyles.label.copyWith(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.w700,
+                                          fontSize: 14)),
+                                  Text("You've been in sync every day",
+                                      style: AppTextStyles.labelSmall),
+                                ],
+                              ),
                             ),
-                            Text('days', style: AppTextStyles.label),
+                            Column(
+                              mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                BlocBuilder<WidgetsBloc, WidgetsBlocState>(
+                                  builder: (context, state) {
+                                    final streak = state is WidgetsReady
+                                        ? state.couple.streakDays.toString()
+                                        : '—';
+                                    return GradientText(streak,
+                                        gradient: AppGradients.gradientText2,
+                                        style: const TextStyle(
+                                            fontSize: 40,
+                                            fontWeight: FontWeight.w800));
+                                  },
+                                ),
+                                Text('days', style: AppTextStyles.label),
+                              ],
+                            ),
                           ],
                         ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -161,10 +179,15 @@ class _WidgetsBody extends StatelessWidget {
 }
 
 class _WidgetCard extends StatelessWidget {
-  const _WidgetCard({required this.icon, required this.name, required this.desc, required this.glowColor, this.child});
+  const _WidgetCard(
+      {required this.icon,
+      required this.name,
+      required this.desc,
+      required this.glowColor,
+      this.child});
   final String icon;
   final String name, desc;
-  final Color  glowColor;
+  final Color glowColor;
   final Widget? child;
 
   @override
@@ -175,13 +198,18 @@ class _WidgetCard extends StatelessWidget {
         children: [
           // Glow blob — positioned relative to the card, clipped by Stack
           Positioned(
-            top: -20, right: -20,
+            top: -20,
+            right: -20,
             child: Container(
-              width: 80, height: 80,
+              width: 80,
+              height: 80,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 gradient: RadialGradient(
-                  colors: [glowColor.withValues(alpha: 0.4), Colors.transparent],
+                  colors: [
+                    glowColor.withValues(alpha: 0.4),
+                    Colors.transparent
+                  ],
                 ),
               ),
             ),
@@ -203,9 +231,14 @@ class _WidgetCard extends StatelessWidget {
                   const SizedBox(height: 6),
                   Text(name,
                       style: AppTextStyles.label.copyWith(
-                          color: Colors.white, fontWeight: FontWeight.w700, fontSize: 12)),
+                          color: Colors.white,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 12)),
                   const SizedBox(height: 3),
-                  Text(desc, style: AppTextStyles.labelSmall, maxLines: 2, overflow: TextOverflow.ellipsis),
+                  Text(desc,
+                      style: AppTextStyles.labelSmall,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis),
                   if (child != null) child!,
                 ],
               ),
@@ -217,24 +250,125 @@ class _WidgetCard extends StatelessWidget {
   }
 }
 
-class _DoodlePreviewPainter extends CustomPainter {
+/// The one widget that is live: shows the shared canvas as it is on the home screen.
+class _DoodleWidgetCard extends StatefulWidget {
+  const _DoodleWidgetCard();
   @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = const Color(0xFFFF6EC7).withValues(alpha: 0.8)
-      ..strokeWidth = 2
-      ..strokeCap = StrokeCap.round
-      ..style = PaintingStyle.stroke
-      ..maskFilter = const MaskFilter.blur(BlurStyle.solid, 1.5);
+  State<_DoodleWidgetCard> createState() => _DoodleWidgetCardState();
+}
 
-    final path = Path()
-      ..moveTo(5, 20)
-      ..cubicTo(20, 10, 35, 30, 50, 18)
-      ..cubicTo(65, 6, 80, 28, 95, 16)
-      ..lineTo(115, 20);
-    canvas.drawPath(path, paint);
+class _DoodleWidgetCardState extends State<_DoodleWidgetCard> {
+  File? _image;
+  String? _caption;
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    String? path, caption;
+    try {
+      await HomeWidgetService.syncFromServer();
+      path = await HomeWidget.getWidgetData<String>('doodle_path');
+      caption = await HomeWidget.getWidgetData<String>('doodle_updated');
+    } catch (_) {
+      // Widget storage unavailable (e.g. unsupported platform): show the empty state.
+    }
+    if (!mounted) return;
+    // A new file object every time, so Image.file does not reuse its cached picture.
+    imageCache.clear();
+    setState(() {
+      _image = path == null ? null : File(path);
+      _caption = caption;
+      _loading = false;
+    });
+  }
+
+  Future<void> _add() async {
+    final messenger = ScaffoldMessenger.of(context);
+    String? hint;
+    if (!Platform.isAndroid) {
+      hint = 'Home-screen widgets are available on Android for now.';
+    } else if (await HomeWidget.isRequestPinWidgetSupported() != true) {
+      hint = 'Long-press your home screen, tap Widgets, and pick Usync.';
+    } else {
+      await HomeWidget.requestPinWidget(
+          qualifiedAndroidName: HomeWidgetService.androidProvider);
+    }
+    if (hint != null) messenger.showSnackBar(SnackBar(content: Text(hint)));
   }
 
   @override
-  bool shouldRepaint(_) => false;
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.glass,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: AppColors.cyan.withValues(alpha: 0.35)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Text('✏️', style: TextStyle(fontSize: 26)),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Live Doodle',
+                        style: AppTextStyles.label.copyWith(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 14)),
+                    Text('What you two draw shows on your home screen',
+                        style: AppTextStyles.labelSmall),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          AspectRatio(
+            aspectRatio: 1.6,
+            child: Container(
+              decoration: BoxDecoration(
+                color: AppColors.bg1,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AppColors.glassBorder),
+              ),
+              clipBehavior: Clip.antiAlias,
+              alignment: Alignment.center,
+              child: _loading
+                  ? const SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: CircularProgressIndicator(strokeWidth: 2))
+                  : _image == null
+                      ? Text('No doodle yet — draw on the canvas',
+                          style: AppTextStyles.labelSmall)
+                      : Image.file(_image!, fit: BoxFit.contain),
+            ),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                  child: Text(_caption ?? '', style: AppTextStyles.labelSmall)),
+              FilledButton.icon(
+                onPressed: _add,
+                icon: const Icon(Icons.add_to_home_screen, size: 18),
+                label: const Text('Add to home screen'),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
 }

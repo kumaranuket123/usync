@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_background"
+    android:padding="8dp">
+
+    <ImageView
+        android:id="@+id/doodle_image"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:contentDescription="Shared doodle"
+        android:scaleType="fitCenter" />
+
+    <TextView
+        android:id="@+id/doodle_empty"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:gravity="center"
+        android:text="✏️\nNo doodle yet"
+        android:textColor="#B8A9D9"
+        android:textSize="14sp" />
+
+    <TextView
+        android:id="@+id/doodle_caption"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|end"
+        android:textColor="#B8A9D9"
+        android:textSize="10sp" />
+</FrameLayout>

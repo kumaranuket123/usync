@@ -6,6 +6,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
 import 'package:uuid/uuid.dart';
 
+import '../../../../core/services/home_widget_service.dart';
 import '../../../../domain/entities/canvas_stroke.dart';
 import '../../../../domain/repositories/i_canvas_repository.dart';
 import '../../../../domain/repositories/i_memory_repository.dart';
@@ -41,6 +42,7 @@ class CanvasBloc extends Bloc<CanvasEvent, CanvasState> {
   StreamSubscription<int>?          _clearSub;
   StreamSubscription<bool>?         _presenceSub;
   Timer?  _flushTimer;
+  Timer?  _widgetTimer;
   final   _pending = <Offset>[];
   int     _seq = 0;
   int?    _clearedAt; // null until the first value arrives (the baseline)
@@ -161,6 +163,12 @@ class CanvasBloc extends Bloc<CanvasEvent, CanvasState> {
   }
 
   void _onRemote(RemoteStrokeReceived e, Emitter<CanvasState> emit) {
+    // Our own strokes come back from the saved history when the canvas is reopened.
+    if (e.stroke.userId == _userId) {
+      if (state.strokes.any((s) => s.id == e.stroke.id)) return;
+      emit(state.copyWith(strokes: [...state.strokes, e.stroke]));
+      return;
+    }
     final current = List<CanvasStroke>.of(state.remoteStrokes);
     final idx     = current.indexWhere((s) => s.id == e.stroke.id);
     if (idx >= 0) {
@@ -175,6 +183,17 @@ class CanvasBloc extends Bloc<CanvasEvent, CanvasState> {
   /// silently lost as unhandled async errors.
   void _guard(Future<void> write) =>
       write.catchError((Object err) => debugPrint('Canvas write failed: $err'));
+
+  /// The shared drawing changed (by either of us): redraw this phone's home-screen
+  /// widget once things settle, rather than on every stroke chunk.
+  @override
+  void onChange(Change<CanvasState> change) {
+    super.onChange(change);
+    if (identical(change.currentState.committed, change.nextState.committed)) return;
+    final committed = change.nextState.committed;
+    _widgetTimer?.cancel();
+    _widgetTimer = Timer(const Duration(seconds: 2), () => HomeWidgetService.refresh(committed));
+  }
 
   @override
   Future<void> close() {

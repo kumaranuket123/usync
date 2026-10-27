@@ -48,13 +48,23 @@ class CanvasRepository implements ICanvasRepository {
   final _finished = <Map<String, dynamic>>[];
   Timer? _batchTimer;
 
+  /// Live events go out one after another. Each is its own network call, and
+  /// without this a stroke's end (or last chunk) can overtake its start and be
+  /// dropped by the partner.
+  Future<void> _sendQueue = Future.value();
+  Future<void> _sendInOrder(String coupleId, String event, Map<String, dynamic> payload) {
+    final next = _sendQueue.then((_) => channelSource.open(coupleId).send(event, payload));
+    _sendQueue = next.catchError((_) {});
+    return next;
+  }
+
   /// Own strokes in flight, kept so the whole stroke can be persisted on completion.
   final _own = <String, _PendingStroke>{};
 
   @override
   Future<void> pushStroke(CanvasStroke stroke) {
     _own[stroke.id] = _PendingStroke(stroke);
-    return channelSource.open(stroke.coupleId).send(CoupleChannel.strokeStart, {
+    return _sendInOrder(stroke.coupleId, CoupleChannel.strokeStart, {
       'id':        stroke.id,
       'user_id':   stroke.userId,
       'color':     stroke.color.toARGB32(),
@@ -69,7 +79,7 @@ class CanvasRepository implements ICanvasRepository {
     // Flat [x0, y0, x1, y1, …] — one small message per batch.
     final flat = <double>[for (final p in points) ...[p.dx, p.dy]];
     _own[strokeId]?.chunks[seq] = flat;
-    return channelSource.open(coupleId).send(CoupleChannel.strokeChunk, {
+    return _sendInOrder(coupleId, CoupleChannel.strokeChunk, {
       'id':  strokeId,
       'seq': seq,
       'pts': flat,
@@ -80,7 +90,11 @@ class CanvasRepository implements ICanvasRepository {
   Future<void> completeStroke(String coupleId, String strokeId) async {
     final pending = _own.remove(strokeId);
     // Tells a partner who is watching live; nothing waits on it.
-    channelSource.open(coupleId).send(CoupleChannel.strokeEnd, {'id': strokeId}).ignore();
+    // The chunk count lets the partner tell whether anything is still missing.
+    _sendInOrder(coupleId, CoupleChannel.strokeEnd, {
+      'id':     strokeId,
+      'chunks': pending?.chunks.length,
+    }).ignore();
     if (pending == null) return;
 
     // Strokes are saved in batches: drawing makes many, and a request each is
@@ -197,6 +211,57 @@ class CanvasRepository implements ICanvasRepository {
 
     // Partner strokes being drawn right now, keyed by stroke id.
     final live = <String, _PendingStroke>{};
+    // Chunks that arrived before their stroke's start.
+    final early = <String, Map<int, List<dynamic>>>{};
+    // Strokes whose end arrived while chunks were still missing: id -> chunk count.
+    final expected = <String, int>{};
+    final waiting  = <String, Timer>{};
+    // Points last shown per stroke, and finished strokes to double-check against
+    // the saved copy (a broadcast that was dropped leaves a stroke incomplete).
+    final shown     = <String, int>{};
+    final attempts  = <String, int>{};
+    Timer? reconcileTimer;
+
+    void emit(CanvasStroke stroke) {
+      shown[stroke.id] = stroke.points.length;
+      if (!out.isClosed) out.add(stroke);
+    }
+
+    Future<void> reconcile() async {
+      final ids = attempts.keys.toList();
+      if (ids.isEmpty || out.isClosed) return;
+      try {
+        final rows = await client.from('canvas_strokes').select().inFilter('id', ids);
+        for (final row in rows) {
+          final id = row['id'] as String;
+          attempts.remove(id);
+          final saved = (row['points'] as List).length ~/ 2;
+          if (saved > (shown[id] ?? -1)) emit(strokeFromRow(row));
+        }
+      } catch (_) {}
+      // Not saved yet (the sender batches, or is offline): look again a few times.
+      for (final id in ids) {
+        final n = attempts[id];
+        if (n == null) continue;
+        if (n >= 3) {
+          attempts.remove(id);
+        } else {
+          attempts[id] = n + 1;
+        }
+      }
+      if (attempts.isNotEmpty) reconcileTimer = Timer(const Duration(seconds: 5), reconcile);
+    }
+
+    void finish(String id) {
+      waiting.remove(id)?.cancel();
+      expected.remove(id);
+      final pending = live.remove(id);
+      if (pending == null) return;
+      emit(pending.snapshot(isComplete: true));
+      attempts[id] = 0;
+      reconcileTimer?.cancel();
+      reconcileTimer = Timer(const Duration(seconds: 5), reconcile);
+    }
 
     out.onListen = () async {
       // Live events first, so nothing is missed while the history loads.
@@ -213,45 +278,80 @@ class CanvasRepository implements ICanvasRepository {
           isEraser:  m['is_eraser'] as bool? ?? false,
           timestamp: DateTime.fromMillisecondsSinceEpoch((m['timestamp'] as num).toInt()),
         );
-        live[id] = _PendingStroke(stroke);
-        out.add(stroke);
+        final pending = live[id] = _PendingStroke(stroke);
+        early.remove(id)?.forEach((seq, pts) => pending.chunks[seq] = pts);
+        emit(pending.snapshot());
       }));
 
       subs.add(channel.on(CoupleChannel.strokeChunk).listen((m) {
-        final pending = live[m['id']];
-        final pts     = m['pts'];
-        if (pending == null || pts is! List) return;
-        pending.chunks[(m['seq'] as num).toInt()] = pts;
-        out.add(pending.snapshot());
+        final id  = m['id'];
+        final pts = m['pts'];
+        if (id is! String || pts is! List) return;
+        final seq     = (m['seq'] as num).toInt();
+        final pending = live[id];
+        if (pending == null) {
+          // Overtook its start: keep it until the start shows up.
+          early.putIfAbsent(id, () => {})[seq] = pts;
+          return;
+        }
+        pending.chunks[seq] = pts;
+        emit(pending.snapshot());
+        final want = expected[id];
+        if (want != null && pending.chunks.length >= want) finish(id);
       }));
 
       subs.add(channel.on(CoupleChannel.strokeEnd).listen((m) {
-        final pending = live.remove(m['id']);
-        if (pending != null) out.add(pending.snapshot(isComplete: true));
+        final id = m['id'];
+        if (id is! String) return;
+        final pending = live[id];
+        if (pending == null) return;
+        final want = (m['chunks'] as num?)?.toInt();
+        if (want == null || pending.chunks.length >= want) {
+          finish(id);
+        } else {
+          // The end overtook some chunks: give them a moment, then settle for
+          // what arrived (the saved copy fills in the rest).
+          expected[id] = want;
+          waiting[id]  = Timer(const Duration(seconds: 3), () => finish(id));
+        }
       }));
 
-      subs.add(channel.on(CoupleChannel.canvasClear).listen((_) => live.clear()));
+      subs.add(channel.on(CoupleChannel.canvasClear).listen((_) {
+        live.clear();
+        early.clear();
+        expected.clear();
+        attempts.clear();
+        for (final t in waiting.values) {
+          t.cancel();
+        }
+        waiting.clear();
+      }));
 
       try {
         // Wait for the live channel so nothing is missed while the history loads,
         // but not forever: offline, the history can still be tried.
         await channel.whenReady();
+        // Own strokes still waiting for their batch must be saved before they are read back.
+        await flushStrokes().timeout(const Duration(seconds: 5)).catchError((_) {});
+        // Everyone's strokes, including our own: reopening the canvas must show our drawing too.
         final rows = await client
             .from('canvas_strokes')
             .select()
             .eq('couple_id', coupleId)
-            .neq('user_id', excludeUserId)
             .order('created_at');
         for (final row in rows) {
           if (live.containsKey(row['id'])) continue; // already arriving live
-          final stroke = _fromRow(row);
-          if (!out.isClosed) out.add(stroke);
+          emit(strokeFromRow(row));
         }
       } catch (err, st) {
         if (!out.isClosed) out.addError(err, st);
       }
     };
     out.onCancel = () {
+      reconcileTimer?.cancel();
+      for (final t in waiting.values) {
+        t.cancel();
+      }
       for (final s in subs) {
         s.cancel();
       }
@@ -318,7 +418,7 @@ class CanvasRepository implements ICanvasRepository {
   Future<String> saveCanvasBitmap(String coupleId, Uint8List bytes) =>
       storage.uploadPng(coupleId, bytes);
 
-  static CanvasStroke _fromRow(Map<String, dynamic> row) {
+  static CanvasStroke strokeFromRow(Map<String, dynamic> row) {
     final flat   = row['points'] as List;
     final points = <Offset>[
       for (var i = 0; i + 1 < flat.length; i += 2)

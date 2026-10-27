@@ -14,10 +14,11 @@ class WidgetsBloc extends Bloc<WidgetsBlocEvent, WidgetsBlocState> {
     on<WidgetsLoaded>(_onLoaded);
   }
 
-  final IMoodRepository   moodRepository;
+  final IMoodRepository moodRepository;
   final ICoupleRepository coupleRepository;
 
-  Future<void> _onLoaded(WidgetsLoaded e, Emitter<WidgetsBlocState> emit) async {
+  Future<void> _onLoaded(
+      WidgetsLoaded e, Emitter<WidgetsBlocState> emit) async {
     if (e.coupleId.isEmpty) return;
     emit(WidgetsLoading());
     try {

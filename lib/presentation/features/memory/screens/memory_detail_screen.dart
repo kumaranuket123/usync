@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_cache_manager/flutter_cache_manager.dart';
+import 'package:gal/gal.dart';
 import 'package:go_router/go_router.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../../../../core/di/injection.dart';
 import '../../../../core/theme/app_colors.dart';
@@ -14,6 +17,50 @@ class MemoryDetailScreen extends StatelessWidget {
   const MemoryDetailScreen({super.key, required this.memoryId, this.memory});
   final String  memoryId;
   final Memory? memory;
+
+  /// The memory's picture as a local file (from the image cache, else downloaded),
+  /// or null when it only has an emoji.
+  Future<String?> _imagePath(Memory m) async {
+    final url = m.thumbnailUrl;
+    if (url == null || !url.startsWith('http')) return null;
+    // Same key MemoryArt caches under, so an image already on screen isn't fetched again.
+    return (await DefaultCacheManager().getSingleFile(url, key: m.id)).path;
+  }
+
+  Future<void> _share(BuildContext context, Memory m) async {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final path = await _imagePath(m);
+      if (path == null) {
+        messenger.showSnackBar(const SnackBar(content: Text('This memory has no picture to share')));
+        return;
+      }
+      await Share.shareXFiles([XFile(path, mimeType: 'image/png')], text: m.title);
+    } catch (_) {
+      messenger.showSnackBar(const SnackBar(content: Text('Could not share this memory')));
+    }
+  }
+
+  Future<void> _save(BuildContext context, Memory m) async {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final path = await _imagePath(m);
+      if (path == null) {
+        messenger.showSnackBar(const SnackBar(content: Text('This memory has no picture to save')));
+        return;
+      }
+      await Gal.putImage(path, album: 'Usync');
+      messenger.showSnackBar(const SnackBar(content: Text('Saved to your gallery')));
+    } on GalException catch (e) {
+      messenger.showSnackBar(SnackBar(
+        content: Text(e.type == GalExceptionType.accessDenied
+            ? 'Allow photo access to save images'
+            : 'Could not save this memory'),
+      ));
+    } catch (_) {
+      messenger.showSnackBar(const SnackBar(content: Text('Could not save this memory')));
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -57,12 +104,7 @@ class MemoryDetailScreen extends StatelessWidget {
                           },
                           child: const Icon(Icons.delete_outline, color: Colors.white, size: 24),
                         ),
-                        const SizedBox(width: 18),
                       ],
-                      GestureDetector(
-                        onTap: () {},
-                        child: const Text('♡', style: TextStyle(color: Colors.white, fontSize: 22)),
-                      ),
                     ],
                   ),
                 ),
@@ -102,11 +144,9 @@ class MemoryDetailScreen extends StatelessWidget {
                       const SizedBox(height: 22),
                       Row(
                         children: [
-                          Expanded(child: _ActionBtn('🔗 Share', secondary: false)),
+                          Expanded(child: _ActionBtn('🔗 Share', onTap: m == null ? null : () => _share(context, m))),
                           const SizedBox(width: 12),
-                          Expanded(child: _ActionBtn('⬇️ Save', secondary: false)),
-                          const SizedBox(width: 12),
-                          Expanded(child: _ActionBtn('💖 Favourite', secondary: true)),
+                          Expanded(child: _ActionBtn('⬇️ Save', onTap: m == null ? null : () => _save(context, m))),
                         ],
                       ),
                     ],
@@ -122,28 +162,30 @@ class MemoryDetailScreen extends StatelessWidget {
 }
 
 class _ActionBtn extends StatelessWidget {
-  const _ActionBtn(this.label, {required this.secondary});
-  final String label;
-  final bool   secondary;
+  const _ActionBtn(this.label, {required this.onTap});
+  final String        label;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 15),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(15),
-        color: secondary ? AppColors.pink.withValues(alpha: 0.2) : AppColors.glass,
-        border: Border.all(
-          color: secondary ? AppColors.pink.withValues(alpha: 0.3) : AppColors.glassBorder,
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 15),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(15),
+          color: AppColors.glass,
+          border: Border.all(color: AppColors.glassBorder),
         ),
-      ),
-      child: Center(
-        child: Text(
-          label,
-          style: TextStyle(
-            fontSize: 13,
-            color: secondary ? Colors.white : AppColors.textMuted,
-            fontWeight: FontWeight.w500,
+        child: Center(
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 13,
+              color: onTap == null ? AppColors.textDim : Colors.white,
+              fontWeight: FontWeight.w500,
+            ),
           ),
         ),
       ),

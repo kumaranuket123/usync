@@ -1,5 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart' hide User;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
@@ -33,7 +34,7 @@ class _PairJoinBody extends StatefulWidget {
 
 class _PairJoinBodyState extends State<_PairJoinBody> {
   final _ctrls = List.generate(4, (_) => TextEditingController());
-  final _foci  = List.generate(4, (_) => FocusNode());
+  final _foci = List.generate(4, (_) => FocusNode());
 
   @override
   void dispose() {
@@ -53,7 +54,9 @@ class _PairJoinBodyState extends State<_PairJoinBody> {
     return BlocListener<PairingBloc, PairingState>(
       listener: (context, state) {
         if (state is PairingSuccess) context.go(RouteNames.pairSuccess);
-        if (state is PairingError) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(state.message)));
+        if (state is PairingError) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(state.message)));
+        }
       },
       child: Scaffold(
         backgroundColor: AppColors.bg1,
@@ -64,7 +67,8 @@ class _PairJoinBodyState extends State<_PairJoinBody> {
                 padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
                 child: Align(
                   alignment: Alignment.centerLeft,
-                  child: NeonBackButton(onTap: () => context.go(RouteNames.pairInvite)),
+                  child: NeonBackButton(
+                      onTap: () => context.go(RouteNames.pairInvite)),
                 ),
               ),
               Expanded(
@@ -75,13 +79,17 @@ class _PairJoinBodyState extends State<_PairJoinBody> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         BreatheAnimation(
-                          child: const Text('🔑', style: TextStyle(fontSize: 60)),
+                          child:
+                              const Text('🔑', style: TextStyle(fontSize: 60)),
                         ),
                         const SizedBox(height: 24),
-                        Text("Enter partner's code", style: AppTextStyles.h1.copyWith(fontSize: 30)),
+                        Text("Enter partner's code",
+                            style: AppTextStyles.h1.copyWith(fontSize: 30)),
                         const SizedBox(height: 12),
-                        Text("Type the invite code\nyour partner shared with you.",
-                            textAlign: TextAlign.center, style: AppTextStyles.bodyMuted),
+                        Text(
+                            "Type the invite code\nyour partner shared with you.",
+                            textAlign: TextAlign.center,
+                            style: AppTextStyles.bodyMuted),
                         const SizedBox(height: 32),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.center,
@@ -89,30 +97,56 @@ class _PairJoinBodyState extends State<_PairJoinBody> {
                             return Container(
                               width: 56, height: 66,
                               margin: const EdgeInsets.symmetric(horizontal: 5),
-                              child: TextField(
-                                controller:  _ctrls[i],
-                                focusNode:   _foci[i],
-                                maxLength:   1,
-                                textAlign:   TextAlign.center,
-                                textCapitalization: TextCapitalization.characters,
-                                style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w700, color: Colors.white),
-                                decoration: InputDecoration(
-                                  counterText: '',
-                                  // The app theme pads inputs 20px each side, which leaves a 56px box
-                                  // too little room for a letter (it was clipped away).
-                                  contentPadding: EdgeInsets.zero,
-                                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                                  focusedBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                    borderSide: BorderSide(color: AppColors.pink.withValues(alpha: 0.6), width: 1.5),
-                                  ),
-                                  fillColor: AppColors.pink.withValues(alpha: 0.08),
-                                ),
-                                onChanged: (val) {
-                                  if (val.isNotEmpty && i < 3) {
-                                    _foci[i + 1].requestFocus();
+                              // Backspace on an empty box never reaches onChanged, so catch the key
+                              // here and step back to clear the previous box.
+                              child: Focus(
+                                onKeyEvent: (_, event) {
+                                  if (event is KeyDownEvent &&
+                                      event.logicalKey ==
+                                          LogicalKeyboardKey.backspace &&
+                                      _ctrls[i].text.isEmpty &&
+                                      i > 0) {
+                                    _ctrls[i - 1].clear();
+                                    _foci[i - 1].requestFocus();
+                                    return KeyEventResult.handled;
                                   }
+                                  return KeyEventResult.ignored;
                                 },
+                                child: TextField(
+                                  controller: _ctrls[i],
+                                  focusNode: _foci[i],
+                                  maxLength: 1,
+                                  textAlign: TextAlign.center,
+                                  textCapitalization:
+                                      TextCapitalization.characters,
+                                  style: const TextStyle(
+                                      fontSize: 24,
+                                      fontWeight: FontWeight.w700,
+                                      color: Colors.white),
+                                  decoration: InputDecoration(
+                                    counterText: '',
+                                    // The app theme pads inputs 20px each side, which leaves a 56px box
+                                    // too little room for a letter (it was clipped away).
+                                    contentPadding: EdgeInsets.zero,
+                                    border: OutlineInputBorder(
+                                        borderRadius:
+                                            BorderRadius.circular(12)),
+                                    focusedBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                      borderSide: BorderSide(
+                                          color: AppColors.pink
+                                              .withValues(alpha: 0.6),
+                                          width: 1.5),
+                                    ),
+                                    fillColor:
+                                        AppColors.pink.withValues(alpha: 0.08),
+                                  ),
+                                  onChanged: (val) {
+                                    if (val.isNotEmpty && i < 3) {
+                                      _foci[i + 1].requestFocus();
+                                    }
+                                  },
+                                ),
                               ),
                             );
                           }),
@@ -123,11 +157,12 @@ class _PairJoinBodyState extends State<_PairJoinBody> {
                             label: 'Connect ✦',
                             isLoading: state is PairingLoading,
                             onTap: () => context.read<PairingBloc>().add(
-                              JoinWithCodeRequested(
-                                code:   _code.toUpperCase(),
-                                userId: Supabase.instance.client.auth.currentUser!.id,
-                              ),
-                            ),
+                                  JoinWithCodeRequested(
+                                    code: _code.toUpperCase(),
+                                    userId: Supabase
+                                        .instance.client.auth.currentUser!.id,
+                                  ),
+                                ),
                           ),
                         ),
                       ],

@@ -167,14 +167,46 @@ class _LocationBodyState extends State<_LocationBody> {
                   ]),
                 ],
               ),
+              // Dark scrim keeps the header legible over the light map tiles.
+              Positioned(
+                top: 0, left: 0, right: 0,
+                child: IgnorePointer(
+                  child: Container(
+                    height: MediaQuery.paddingOf(context).top + 90,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          AppColors.bg1.withValues(alpha: 0.85),
+                          AppColors.bg1.withValues(alpha: 0),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
               SafeArea(
                 child: Padding(
                   padding: const EdgeInsets.all(16),
                   child: Row(
                     children: [
-                      const NeonBackButton(),
+                      // Solid backing: the glass back button vanishes on a white map.
+                      DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: AppColors.bg2,
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.35),
+                              blurRadius: 8,
+                            ),
+                          ],
+                        ),
+                        child: const NeonBackButton(),
+                      ),
                       const SizedBox(width: 12),
-                      Text('Location', style: AppTextStyles.h3.copyWith(color: Colors.white)),
+                      Text('Location', style: AppTextStyles.h3.copyWith(color: AppColors.textPrimary)),
                       const Spacer(),
                       if (own != null || partner != null)
                         _MapButton(
@@ -194,12 +226,18 @@ class _LocationBodyState extends State<_LocationBody> {
                   ),
                 ),
               ),
-              Positioned(
-                left: 16, right: 16, bottom: 0,
-                child: SafeArea(
-                  child: Padding(
-                    padding: const EdgeInsets.only(bottom: 16),
-                    child: _Panel(
+              LayoutBuilder(
+                builder: (context, c) {
+                  // Collapsed height fits the grabber + distance/updated row.
+                  final peek = (96 + MediaQuery.paddingOf(context).bottom) / c.maxHeight;
+                  return DraggableScrollableSheet(
+                    initialChildSize: peek,
+                    minChildSize: peek,
+                    maxChildSize: 0.62,
+                    snap: true,
+                    snapSizes: [peek],
+                    builder: (context, scroll) => _Panel(
+                      scroll: scroll,
                       state: state,
                       partnerName: _partnerName,
                       onToggle: () => context.read<LocationBloc>().add(LocationSharingToggled()),
@@ -211,8 +249,8 @@ class _LocationBodyState extends State<_LocationBody> {
                           ? null
                           : () => _map.move(LatLng(partner.latitude, partner.longitude), 16),
                     ),
-                  ),
-                ),
+                  );
+                },
               ),
             ],
           );
@@ -264,6 +302,7 @@ class _MapButton extends StatelessWidget {
 
 class _Panel extends StatelessWidget {
   const _Panel({
+    required this.scroll,
     required this.state,
     required this.partnerName,
     required this.onToggle,
@@ -274,6 +313,7 @@ class _Panel extends StatelessWidget {
     required this.onShowPartner,
   });
 
+  final ScrollController scroll;
   final LocationReady state;
   final String partnerName;
   final VoidCallback onToggle, onRefresh, onLocate, onBackground, onSettings;
@@ -287,19 +327,23 @@ class _Panel extends StatelessWidget {
     return '${d.inDays} d ago';
   }
 
-  String get _partnerLine {
+  String get _headline {
     final p = state.partner;
     if (p == null) return '$partnerName hasn\'t shared a location yet';
     final own = state.own;
-    final seen = 'seen ${_ago(p.timestamp)}';
-    if (own == null) return '$partnerName · $seen';
+    if (own == null) return partnerName;
     final metres = const Distance().as(
       LengthUnit.Meter,
       LatLng(own.latitude, own.longitude),
       LatLng(p.latitude, p.longitude),
     );
     final away = metres >= 1000 ? '${(metres / 1000).toStringAsFixed(1)} km' : '$metres m';
-    return '$partnerName is $away away · $seen';
+    return '$away away';
+  }
+
+  String? get _updated {
+    final p = state.partner;
+    return p == null ? null : 'Updated ${_ago(p.timestamp)}';
   }
 
   String? get _accessMessage => switch (state.access) {
@@ -314,23 +358,42 @@ class _Panel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final message = _accessMessage;
+    final updated = _updated;
     return Container(
-      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.bg2.withValues(alpha: 0.95),
-        borderRadius: BorderRadius.circular(20),
+        color: AppColors.bg2.withValues(alpha: 0.97),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
         border: Border.all(color: AppColors.glassBorder),
       ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: ListView(
+        controller: scroll,
+        padding: EdgeInsets.fromLTRB(
+          16, 8, 16, 16 + MediaQuery.paddingOf(context).bottom,
+        ),
         children: [
+          Center(
+            child: Container(
+              width: 40, height: 4,
+              decoration: BoxDecoration(
+                color: Colors.white38,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
           Row(
             children: [
               Expanded(
                 child: GestureDetector(
                   onTap: onShowPartner,
-                  child: Text(_partnerLine, style: AppTextStyles.bodyLarge.copyWith(color: Colors.white)),
+                  behavior: HitTestBehavior.opaque,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(_headline, style: AppTextStyles.bodyLarge.copyWith(color: Colors.white)),
+                      if (updated != null) Text(updated, style: AppTextStyles.bodyMuted),
+                    ],
+                  ),
                 ),
               ),
               if (state.isBusy)
@@ -346,7 +409,7 @@ class _Panel extends StatelessWidget {
                 ),
             ],
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 12),
           Text(
             state.isSharing
                 ? 'Your location is updated each time you open the app. $partnerName can see it.'

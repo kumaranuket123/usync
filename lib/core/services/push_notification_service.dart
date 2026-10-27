@@ -7,6 +7,7 @@ import '../../domain/repositories/i_auth_repository.dart';
 import '../constants/route_names.dart';
 import '../di/injection.dart';
 import '../router/app_router.dart';
+import 'home_widget_service.dart';
 import 'location_sync_service.dart';
 
 /// Used by the app shell to show pushes that arrive while the app is open.
@@ -17,7 +18,10 @@ final GlobalKey<ScaffoldMessengerState> rootMessengerKey = GlobalKey<ScaffoldMes
 /// data-only message is the partner's "locate" request.
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  if (message.data['action'] == 'locate') await LocationSyncService.answerLocateRequest();
+  switch (message.data['action']) {
+    case 'locate':       await LocationSyncService.answerLocateRequest();
+    case 'canvas_widget': await HomeWidgetService.syncFromServer();
+  }
 }
 
 abstract final class PushNotificationService {
@@ -53,6 +57,11 @@ abstract final class PushNotificationService {
   }
 
   static void _showBanner(RemoteMessage message) {
+    // Silent: the partner drew something, so redraw the home-screen widget.
+    if (message.data['action'] == 'canvas_widget') {
+      HomeWidgetService.syncFromServer();
+      return;
+    }
     // The user switched push notifications off: no banners either.
     if (!getIt<PrefsSource>().notificationsEnabled) return;
     if (message.data['action'] == 'locate') {

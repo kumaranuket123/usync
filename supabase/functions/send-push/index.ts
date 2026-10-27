@@ -84,6 +84,38 @@ Deno.serve(async (req) => {
   if (!raw) return new Response('FCM_SERVICE_ACCOUNT not set', { status: 500 });
   const sa = JSON.parse(raw);
 
+  // Silent canvas change: wakes the partner's app so it redraws its home-screen
+  // widget. Data only, so no notification is shown and the silent setting is moot.
+  if (record.type === 'canvasWidget') {
+    const accessToken = await fcmAccessToken(sa);
+    await Promise.all(devices.map(async ({ fcm_token }: { fcm_token: string }) => {
+      const res = await fetch(`https://fcm.googleapis.com/v1/projects/${sa.project_id}/messages:send`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({
+          message: {
+            token: fcm_token,
+            data: { action: 'canvas_widget', couple_id: String(record.couple_id) },
+            android: { priority: 'high' },
+            apns: {
+              headers: { 'apns-priority': '5', 'apns-push-type': 'background' },
+              payload: { aps: { 'content-available': 1 } },
+            },
+          },
+        }),
+      });
+      if (!res.ok) {
+        const body = await res.text();
+        if (res.status === 404 || body.includes('UNREGISTERED')) {
+          await db.from('device_tokens').delete().eq('fcm_token', fcm_token);
+        } else {
+          console.error('FCM send failed', res.status, body);
+        }
+      }
+    }));
+    return new Response('ok', { status: 200 });
+  }
+
   // A locate request only goes through if the recipient opted in to background location.
   const isLocate = record.type === 'locate';
   if (isLocate) {
