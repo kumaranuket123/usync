@@ -61,6 +61,8 @@ class StorageSource {
     await _files.remove([for (final o in objects) '$coupleId/${o.name}']);
   }
 
+  Future<Uint8List> download(String path) => _files.download(path);
+
   Future<void> remove(String path) async {
     if (path.isEmpty || path.startsWith('http')) return;
     await _files.remove([path]);

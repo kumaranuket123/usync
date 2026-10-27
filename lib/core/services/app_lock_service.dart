@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:local_auth/local_auth.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -56,6 +57,10 @@ class AppLockService extends ChangeNotifier with WidgetsBindingObserver {
         _locked = true;
         _obscured = true;
       case AppLifecycleState.inactive:
+        // Android also reports "inactive" for the notification shade or a system dialog,
+        // where the app is still on screen; its app-switcher preview is blanked natively
+        // (MainActivity) instead.
+        if (defaultTargetPlatform != TargetPlatform.android) _obscured = true;
       case AppLifecycleState.hidden:
         _obscured = true;
       case AppLifecycleState.detached:

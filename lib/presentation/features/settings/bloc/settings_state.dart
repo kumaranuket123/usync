@@ -14,6 +14,7 @@ class SettingsState {
   bool get notificationsEnabled => toggles['notifications'] ?? true;
   bool get hapticEnabled        => toggles['haptic']        ?? true;
   bool get animationsEnabled    => toggles['animations']    ?? true;
+  bool get galleryBackupEnabled => toggles['gallery_backup'] ?? false;
 
   SettingsState withToggle(String key, bool value) =>
       SettingsState(toggles: {...toggles, key: value}, silentTypes: silentTypes, silentTypesLoaded: silentTypesLoaded);

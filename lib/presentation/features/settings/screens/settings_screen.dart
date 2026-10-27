@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:gal/gal.dart';
 import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide User;
@@ -8,6 +9,7 @@ import '../../../../core/constants/route_names.dart';
 import '../../../../core/di/injection.dart';
 import '../../../../core/services/app_lock_service.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../domain/repositories/i_memory_repository.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../shared/widgets/neon_back_button.dart';
 import '../../../shared/widgets/outline_button.dart';
@@ -52,6 +54,34 @@ class _SettingsScreenState extends State<SettingsScreen> {
         child: _scaffold(context),
       ),
     );
+  }
+
+  Future<void> _setGalleryBackup(BuildContext context, bool on) async {
+    final bloc      = context.read<SettingsBloc>();
+    final messenger = ScaffoldMessenger.of(context);
+    if (!on) {
+      bloc.add(const ToggleChanged(key: 'gallery_backup', value: false));
+      messenger.showSnackBar(const SnackBar(
+        content: Text('New older pictures stay in the app only. Copies already in your gallery are kept.'),
+      ));
+      return;
+    }
+    // Asked here, so a refusal leaves the switch off instead of silently doing nothing.
+    if (!await Gal.requestAccess(toAlbum: true)) {
+      messenger.showSnackBar(const SnackBar(content: Text('Allow photo access to save pictures to your gallery')));
+      return;
+    }
+    bloc.add(const ToggleChanged(key: 'gallery_backup', value: true));
+    try {
+      final n = await GetIt.I<IMemoryRepository>().backupArchivedToGallery();
+      messenger.showSnackBar(SnackBar(
+        content: Text(n == 0
+            ? 'Older pictures will be saved to your "Usync" gallery album as they are moved off the server.'
+            : 'Saved $n ${n == 1 ? 'picture' : 'pictures'} to your "Usync" gallery album. Newer ones will follow automatically.'),
+      ));
+    } catch (_) {
+      messenger.showSnackBar(const SnackBar(content: Text('Could not save to your gallery just now. It will be tried again.')));
+    }
   }
 
   Widget _scaffold(BuildContext context) {
@@ -111,6 +141,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       _ToggleRow('📳', const Color(0x1FFF2D78), 'Haptic feedback', 'Vibrate on partner touch',
                           value: settings.hapticEnabled,
                           onChanged: (v) => context.read<SettingsBloc>().add(ToggleChanged(key: 'haptic', value: v))),
+
+                      _SectionLabel('STORAGE'),
+                      _ToggleRow('🖼️', const Color(0x1FFF6EC7), 'Save older memories to gallery',
+                          'Copy pictures moved off the server into your "Usync" album',
+                          value: settings.galleryBackupEnabled,
+                          onChanged: (v) => _setGalleryBackup(context, v)),
 
                       _SectionLabel('ABOUT'),
                       _Row('ℹ️', const Color(0x0FFFFFFF), 'About Usync', 'Version 1.0.0', onTap: () {}),

@@ -11,6 +11,7 @@ class MemoryModel extends Memory {
     required super.createdByUserId,
     super.thumbnailUrl,
     super.isFavourited,
+    super.imageArchived,
   });
 
   /// Row from the Supabase `memories` table.
@@ -24,6 +25,7 @@ class MemoryModel extends Memory {
     createdByUserId: row['created_by_user_id'] as String,
     thumbnailUrl:    row['thumbnail_url']      as String?,
     isFavourited:    row['is_favourited']      as bool? ?? false,
+    imageArchived:   row['image_archived']     as bool? ?? false,
   );
 
   Map<String, dynamic> toRow() => {
@@ -46,5 +48,6 @@ class MemoryModel extends Memory {
     createdByUserId: m.createdByUserId,
     thumbnailUrl:    m.thumbnailUrl,
     isFavourited:    m.isFavourited,
+    imageArchived:   m.imageArchived,
   );
 }

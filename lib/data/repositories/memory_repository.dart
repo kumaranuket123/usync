@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:typed_data';
 
+import 'package:gal/gal.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
 
@@ -9,6 +10,8 @@ import '../../domain/entities/memory.dart';
 import '../../domain/entities/notification_item.dart';
 import '../../domain/repositories/i_memory_repository.dart';
 import '../../domain/repositories/i_notification_repository.dart';
+import '../datasources/local/local_memory_images.dart';
+import '../datasources/local/prefs_source.dart';
 import '../datasources/remote/storage_source.dart';
 import '../models/memory_model.dart';
 
@@ -18,6 +21,7 @@ class MemoryRepository implements IMemoryRepository {
     required this.storage,
     required this.notifications,
     required this.outbox,
+    required this.prefs,
   }) {
     outbox.register(_doodleType, _deliverDoodle);
   }
@@ -28,10 +32,14 @@ class MemoryRepository implements IMemoryRepository {
   /// costlier with every memory a couple adds.
   static const _pageSize = 100;
 
+  /// Pictures beyond the newest this many are moved onto the couple's phones.
+  static const keepOnServer = 10;
+
   final SupabaseClient          client;
   final StorageSource           storage;
   final INotificationRepository notifications;
   final OutboxService           outbox;
+  final PrefsSource             prefs;
   final _uuid = const Uuid();
 
   /// The file path and memory id are chosen here, not when sending, so retrying
@@ -157,13 +165,108 @@ class MemoryRepository implements IMemoryRepository {
     try {
       urls = await storage.signedUrls(rows.map((r) => (r['thumbnail_url'] as String?) ?? ''));
     } catch (_) {} // fall back to the emoji thumbnail
+    // A picture saved on this phone is shown from there (works for archived ones too).
+    final local = <String, String>{};
+    try {
+      for (final id in await LocalMemoryImages.ids()) {
+        final path = await LocalMemoryImages.pathIfExists(id);
+        if (path != null) local[id] = path;
+      }
+    } catch (_) {}
     return [
       for (final row in rows)
         MemoryModel.fromRow({
           ...row,
-          'thumbnail_url': urls[row['thumbnail_url']] ?? row['thumbnail_url'],
+          'thumbnail_url': local[row['id']] ?? urls[row['thumbnail_url']] ?? row['thumbnail_url'],
         }),
     ];
+  }
+
+  bool _archiving = false;
+
+  @override
+  Future<int> archiveOlderImages(String coupleId) async {
+    if (_archiving) return 0;
+    _archiving = true;
+    var saved = 0;
+    try {
+      final uid = client.auth.currentUser?.id;
+      if (uid == null) return 0;
+
+      final older = await client
+          .from('memories')
+          .select('id, thumbnail_url, archived_by')
+          .eq('couple_id', coupleId)
+          .or('thumbnail_url.not.is.null,image_archived.eq.true')
+          .order('created_at', ascending: false)
+          .range(keepOnServer, _pageSize - 1);
+
+      for (final row in older) {
+        final path = row['thumbnail_url'] as String?;
+        if (path == null) continue; // already off the server
+        final id = row['id'] as String;
+        try {
+          // 1. A copy on this phone first: nothing is deleted without one.
+          if (await LocalMemoryImages.pathIfExists(id) == null) {
+            await LocalMemoryImages.write(id, await storage.download(path));
+            saved++;
+          }
+          // 2. Tell the server; the picture is removed once both partners have a copy.
+          final archivedBy = (row['archived_by'] as List?)?.cast<String>() ?? const <String>[];
+          final both = archivedBy.contains(uid)
+              ? archivedBy.length >= 2
+              : (await client.rpc('archive_memory_image', params: {'p_memory': id})) == true;
+          if (!both) continue;
+          await storage.remove(path);
+          await client.rpc('finish_memory_archive', params: {'p_memory': id});
+        } catch (_) {
+          // This one is tried again next time; the others carry on.
+        }
+      }
+
+      await _dropOrphanedCopies(coupleId);
+      if (prefs.galleryBackupEnabled) await backupArchivedToGallery();
+    } catch (_) {
+      // Best effort: pictures simply stay on the server until the next try.
+    } finally {
+      _archiving = false;
+    }
+    return saved;
+  }
+
+  bool _backingUp = false;
+
+  @override
+  Future<int> backupArchivedToGallery() async {
+    if (_backingUp) return 0;
+    _backingUp = true;
+    var copied = 0;
+    try {
+      final saved = prefs.gallerySavedIds;
+      for (final id in await LocalMemoryImages.ids()) {
+        if (saved.contains(id)) continue;
+        final path = await LocalMemoryImages.pathIfExists(id);
+        if (path == null) continue;
+        await Gal.putImage(path, album: 'Usync');
+        saved.add(id);
+        copied++;
+        // Remembered one by one, so an interruption never makes the next run save it again.
+        await prefs.setGallerySavedIds(saved);
+      }
+    } finally {
+      _backingUp = false;
+    }
+    return copied;
+  }
+
+  /// Copies kept for memories that no longer exist (deleted by the partner).
+  Future<void> _dropOrphanedCopies(String coupleId) async {
+    final rows = await client.from('memories').select('id').eq('couple_id', coupleId).limit(_pageSize + 1);
+    if (rows.length > _pageSize) return; // not the whole list: could not tell
+    final existing = {for (final r in rows) r['id'] as String};
+    for (final id in await LocalMemoryImages.ids()) {
+      if (!existing.contains(id)) await LocalMemoryImages.delete(id);
+    }
   }
 
   @override
@@ -175,6 +278,7 @@ class MemoryRepository implements IMemoryRepository {
     final row = await client.from('memories').select('thumbnail_url').eq('id', memoryId).maybeSingle();
     await client.from('memories').delete().eq('id', memoryId);
     _deleted.add(memoryId);
+    await LocalMemoryImages.delete(memoryId);
     final path = row?['thumbnail_url'] as String?;
     if (path != null) {
       try { await storage.remove(path); } catch (_) {}

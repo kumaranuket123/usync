@@ -50,6 +50,7 @@ class Memory extends Equatable {
     required this.createdByUserId,
     this.thumbnailUrl,
     this.isFavourited = false,
+    this.imageArchived = false,
   });
 
   final String     id;
@@ -61,6 +62,9 @@ class Memory extends Equatable {
   final String     createdByUserId;
   final String?    thumbnailUrl;
   final bool       isFavourited;
+  /// The picture was moved off the server (see `archive_memory_image`); it now
+  /// only exists on the phones that saved it.
+  final bool       imageArchived;
 
   Memory copyWith({bool? isFavourited, String? thumbnailUrl}) {
     return Memory(
@@ -73,9 +77,10 @@ class Memory extends Equatable {
       createdByUserId: createdByUserId,
       thumbnailUrl:    thumbnailUrl    ?? this.thumbnailUrl,
       isFavourited:    isFavourited    ?? this.isFavourited,
+      imageArchived:   imageArchived,
     );
   }
 
   @override
-  List<Object?> get props => [id, coupleId, type, title, createdAt, isFavourited];
+  List<Object?> get props => [id, coupleId, type, title, createdAt, isFavourited, imageArchived, thumbnailUrl];
 }

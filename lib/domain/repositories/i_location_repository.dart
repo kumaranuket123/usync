@@ -26,14 +26,14 @@ abstract interface class ILocationRepository {
   /// Lets the partner request our location while the app is closed. Needs the
   /// "always" permission; returns [LocationAccess.backgroundDenied] without it.
   Future<LocationAccess> enableBackground(String userId);
+
+  /// Whether "Allow all the time" is currently granted (never prompts).
+  Future<bool> hasAlwaysPermission();
   Future<void> disableBackground(String userId);
 
   /// Asks the partner's phone for a fresh fix. Only delivered if they opted in,
   /// and they always get a visible notification.
   Future<void> requestPartnerLocation(String coupleId, String userId);
-
-  /// Pushes "your partner is looking at your location" (rate-limited).
-  Future<void> notifyPartnerViewing(String coupleId, String userId);
 }
 
 class SyncResult {

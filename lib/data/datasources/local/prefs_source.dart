@@ -17,6 +17,14 @@ class PrefsSource {
   bool get hapticEnabled        => prefs.getBool('setting_haptic')        ?? true;
   bool get animationsEnabled    => prefs.getBool('setting_animations')    ?? true;
 
+  /// Off unless the user switched it on: archived memory pictures are also copied
+  /// to the gallery's "Usync" album.
+  bool get galleryBackupEnabled => prefs.getBool('setting_gallery_backup') ?? false;
+
+  /// Memory ids already copied to the gallery, so none is saved twice.
+  Set<String> get gallerySavedIds => (prefs.getStringList('gallery_saved_ids') ?? const []).toSet();
+  Future<void> setGallerySavedIds(Set<String> ids) => prefs.setStringList('gallery_saved_ids', ids.toList());
+
   Future<void> setToggle(String key, bool value) =>
       prefs.setBool('setting_$key', value);
 
@@ -44,10 +52,6 @@ class PrefsSource {
   bool get locationSharing => prefs.getBool('location_sharing') ?? false;
   Future<void> setLocationSharing(bool value) => prefs.setBool('location_sharing', value);
 
-  /// When we last told the partner we looked at their location (ms since epoch).
-  int get locationViewNotifiedAt => prefs.getInt('location_view_notified_at') ?? 0;
-  Future<void> setLocationViewNotifiedAt(int ms) => prefs.setInt('location_view_notified_at', ms);
-
   // ── Clear (sign-out) ──────────────────────────────────────────
   Future<void> clearSession() async {
     await prefs.remove('onboarding_seen');
@@ -58,6 +62,8 @@ class PrefsSource {
     await prefs.remove('location_sharing');
     await prefs.remove('location_view_notified_at');
     await prefs.remove('app_lock');
+    await prefs.remove('setting_gallery_backup');
+    await prefs.remove('gallery_saved_ids');
     // Preserve theme_id, haptics and animations across sign-out: those are about the phone.
   }
 }

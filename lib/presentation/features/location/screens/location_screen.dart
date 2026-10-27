@@ -34,7 +34,7 @@ class _LocationBody extends StatefulWidget {
   State<_LocationBody> createState() => _LocationBodyState();
 }
 
-class _LocationBodyState extends State<_LocationBody> {
+class _LocationBodyState extends State<_LocationBody> with WidgetsBindingObserver {
   final _map = MapController();
   String _ownEmoji = '🙂', _partnerEmoji = '💜', _partnerName = 'Partner';
   bool _fitted = false;
@@ -42,7 +42,17 @@ class _LocationBodyState extends State<_LocationBody> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _mount();
+  }
+
+  /// Back from the permission settings page: finish turning on background access
+  /// if "Allow all the time" was chosen there.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      context.read<LocationBloc>().add(BackgroundPermissionRechecked());
+    }
   }
 
   Future<void> _mount() async {
@@ -117,6 +127,7 @@ class _LocationBodyState extends State<_LocationBody> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _map.dispose();
     super.dispose();
   }
@@ -352,7 +363,7 @@ class _Panel extends StatelessWidget {
         LocationAccess.deniedForever   => 'Location permission is blocked. Enable it in settings.',
         LocationAccess.serviceDisabled => 'Turn on location services to share.',
         LocationAccess.backgroundDenied =>
-          'Choose "Allow all the time" so $partnerName can locate you when the app is closed.',
+          'In the settings page that opened, tap Location and choose "Allow all the time" so $partnerName can locate you when the app is closed.',
       };
 
   @override

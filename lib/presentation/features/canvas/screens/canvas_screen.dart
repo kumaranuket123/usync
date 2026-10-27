@@ -255,7 +255,8 @@ class _CanvasBodyState extends State<_CanvasBody> with WidgetsBindingObserver {
                           onTap: () => context.read<CanvasBloc>().add(ColorChanged(c)),
                         )),
                         const _Divider(),
-                        _ToolBtn('🗑️', onTap: () => context.read<CanvasBloc>().add(CanvasCleared())),
+                        _ToolBtn.icon(Icons.delete_outline,
+                            onTap: () => context.read<CanvasBloc>().add(CanvasCleared())),
                         _ToolBtn(state.isSaving ? '⏳' : '💾', onTap: _save),
                       ],
                     ),
@@ -298,9 +299,13 @@ class _ChromeButton extends StatelessWidget {
 }
 
 class _ToolBtn extends StatelessWidget {
-  const _ToolBtn(this.icon, {this.active = false, required this.onTap});
-  final String icon;
-  final bool   active;
+  const _ToolBtn(this.icon, {this.active = false, required this.onTap}) : iconData = null;
+  const _ToolBtn.icon(this.iconData, {required this.onTap})
+      : icon = '',
+        active = false;
+  final String    icon;
+  final IconData? iconData;
+  final bool      active;
   final VoidCallback onTap;
 
   @override
@@ -314,7 +319,11 @@ class _ToolBtn extends StatelessWidget {
           color: active ? AppColors.pink.withValues(alpha: 0.2) : Colors.transparent,
           shape: BoxShape.circle,
         ),
-        child: Center(child: Text(icon, style: const TextStyle(fontSize: 20))),
+        child: Center(
+          child: iconData == null
+              ? Text(icon, style: const TextStyle(fontSize: 20))
+              : Icon(iconData, color: Colors.white, size: 22),
+        ),
       ),
     );
   }

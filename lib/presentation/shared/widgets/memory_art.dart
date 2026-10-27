@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
@@ -22,6 +24,16 @@ class MemoryArt extends StatelessWidget {
   Widget build(BuildContext context) {
     final emoji = Center(child: Text(memory.thumbnailEmoji, style: TextStyle(fontSize: emojiSize)));
     final url   = memory.thumbnailUrl;
+    // A picture saved on this phone (older memories) is a file path, not a link.
+    if (url != null && url.startsWith('/')) {
+      return Image.file(
+        File(url),
+        fit:    fill ? BoxFit.cover : BoxFit.contain,
+        width:  fill ? double.infinity : null,
+        height: fill ? double.infinity : null,
+        errorBuilder: (_, __, ___) => emoji,
+      );
+    }
     // The repository swaps the stored path for a signed URL; anything else
     // means signing failed, so show the emoji.
     if (url == null || !url.startsWith('http')) return emoji;

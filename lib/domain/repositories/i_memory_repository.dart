@@ -16,6 +16,14 @@ abstract interface class IMemoryRepository {
     required String    title,
   });
   Future<void>          toggleFavourite(String memoryId, String coupleId, {required bool isFavourited});
+  /// Keeps only the newest [MemoryRepository.keepOnServer] pictures on the server:
+  /// older ones are saved on this phone and, once both partners hold a copy,
+  /// deleted from the server. Returns how many were newly saved on this phone.
+  Future<int>           archiveOlderImages(String coupleId);
+  /// Copies every picture kept on this phone to the gallery's "Usync" album,
+  /// skipping ones already copied. Returns how many were copied; throws a
+  /// `GalException` when photo access is denied.
+  Future<int>           backupArchivedToGallery();
   Future<void>          deleteMemory(String memoryId, String coupleId);
   Future<String>        uploadCanvasBitmap(String coupleId, Uint8List bytes);
 }

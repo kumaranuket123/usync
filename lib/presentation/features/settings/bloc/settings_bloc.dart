@@ -24,6 +24,7 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
       'notifications': prefsSource.notificationsEnabled,
       'haptic':        prefsSource.hapticEnabled,
       'animations':    prefsSource.animationsEnabled,
+      'gallery_backup': prefsSource.galleryBackupEnabled,
     }));
   }
 

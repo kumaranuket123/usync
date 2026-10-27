@@ -22,6 +22,7 @@ class MemoryDetailScreen extends StatelessWidget {
   /// or null when it only has an emoji.
   Future<String?> _imagePath(Memory m) async {
     final url = m.thumbnailUrl;
+    if (url != null && url.startsWith('/')) return url; // already a file on this phone
     if (url == null || !url.startsWith('http')) return null;
     // Same key MemoryArt caches under, so an image already on screen isn't fetched again.
     return (await DefaultCacheManager().getSingleFile(url, key: m.id)).path;
@@ -141,6 +142,13 @@ class MemoryDetailScreen extends StatelessWidget {
                       const SizedBox(height: 6),
                       Text('${m?.createdAt.formatted ?? ''} · ${m?.type.tagLabel ?? ''}',
                           style: AppTextStyles.label),
+                      if (m != null && m.imageArchived && !(m.thumbnailUrl ?? '').startsWith('/')) ...[
+                        const SizedBox(height: 10),
+                        Text(
+                          'To save storage, this picture was moved off the server and now lives only on the phones that were using Usync then.',
+                          style: AppTextStyles.labelSmall,
+                        ),
+                      ],
                       const SizedBox(height: 22),
                       Row(
                         children: [

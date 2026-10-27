@@ -18,9 +18,15 @@ class MemoryBloc extends Bloc<MemoryEvent, MemoryState> {
 
   final IMemoryRepository memoryRepository;
   StreamSubscription<List<Memory>>? _sub;
+  String _coupleId = '';
+
+  final _archived = StreamController<int>.broadcast();
+  /// Emits how many older pictures were just moved onto this phone, so the screen can say so.
+  Stream<int> get archived => _archived.stream;
 
   Future<void> _onLoaded(MemoriesLoaded e, Emitter<MemoryState> emit) async {
     if (e.coupleId.isEmpty) { emit(MemoryEmpty()); return; }
+    _coupleId = e.coupleId;
     emit(MemoryLoading());
     _sub = memoryRepository
         .watchMemories(e.coupleId)
@@ -32,7 +38,15 @@ class MemoryBloc extends Bloc<MemoryEvent, MemoryState> {
       emit(MemoryEmpty());
     } else {
       emit(MemoryLoaded(e.memories));
+      _archiveOlder();
     }
+  }
+
+  /// Runs after every list update; the repository ignores a call while one is running.
+  Future<void> _archiveOlder() async {
+    if (_coupleId.isEmpty) return;
+    final saved = await memoryRepository.archiveOlderImages(_coupleId);
+    if (saved > 0 && !_archived.isClosed) _archived.add(saved);
   }
 
   Future<void> _onFavourite(MemoryFavourited e, Emitter<MemoryState> emit) async {
@@ -53,6 +67,7 @@ class MemoryBloc extends Bloc<MemoryEvent, MemoryState> {
   @override
   Future<void> close() {
     _sub?.cancel();
+    _archived.close();
     return super.close();
   }
 }

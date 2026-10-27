@@ -1,11 +1,13 @@
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide User;
 
+import '../../core/services/home_widget_service.dart';
 import '../../core/services/outbox_service.dart';
 import '../../core/utils/network_errors.dart';
 import '../../domain/entities/user.dart';
 import '../../domain/repositories/i_auth_repository.dart';
 import '../datasources/local/identity_cache.dart';
+import '../datasources/local/local_memory_images.dart';
 import '../datasources/local/prefs_source.dart';
 import '../datasources/local/session_cache.dart';
 import '../datasources/remote/couple_channel_source.dart';
@@ -97,6 +99,7 @@ class AuthRepository implements IAuthRepository {
     final coupleId = (await getCurrentUser())?.coupleId;
     if (coupleId != null) await storage.removeFolder(coupleId);
     await client.rpc('delete_my_account');
+    await _quietly(LocalMemoryImages.deleteAll);
     // The account is gone; this clears this device (push token, caches, session).
     await signOut();
   }
@@ -106,6 +109,8 @@ class AuthRepository implements IAuthRepository {
     await prefsSource.clearSession();
     await sessionCache.clear();
     await outbox.clear();
+    // The home-screen doodle widget would otherwise keep showing this couple's drawing.
+    await _quietly(() => HomeWidgetService.refresh(const []));
     identity.clear();
     // The live channel belongs to this session; the next one needs its own.
     channels.close();

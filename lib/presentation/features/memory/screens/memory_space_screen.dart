@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -31,8 +33,35 @@ class MemorySpaceScreen extends StatelessWidget {
   }
 }
 
-class _MemorySpaceBody extends StatelessWidget {
+class _MemorySpaceBody extends StatefulWidget {
   const _MemorySpaceBody();
+  @override
+  State<_MemorySpaceBody> createState() => _MemorySpaceBodyState();
+}
+
+class _MemorySpaceBodyState extends State<_MemorySpaceBody> {
+  StreamSubscription<int>? _archivedSub;
+
+  @override
+  void initState() {
+    super.initState();
+    _archivedSub = context.read<MemoryBloc>().archived.listen((n) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        duration: const Duration(seconds: 8),
+        content: Text(
+          '$n older ${n == 1 ? 'picture was' : 'pictures were'} saved on this phone to free up '
+          'online storage. They stay here, so keep the app installed or use Save to keep a copy in your gallery.',
+        ),
+      ));
+    });
+  }
+
+  @override
+  void dispose() {
+    _archivedSub?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -49,6 +78,11 @@ class _MemorySpaceBody extends StatelessWidget {
                 children: [
                   Text('Memory Space', style: AppTextStyles.h2),
                   Text('Your shared emotional archive', style: AppTextStyles.label),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Your latest 10 pictures stay online. Older ones are kept on both of your phones to save storage.',
+                    style: AppTextStyles.labelSmall,
+                  ),
                 ],
               ),
             ),

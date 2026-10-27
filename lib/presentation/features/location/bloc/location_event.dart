@@ -8,6 +8,7 @@ final class LocationScreenMounted extends LocationEvent {
 final class LocationSharingToggled    extends LocationEvent {}
 final class LocateRequested          extends LocationEvent {}
 final class BackgroundToggled         extends LocationEvent {}
+final class BackgroundPermissionRechecked extends LocationEvent {}
 final class PartnerLocationChanged    extends LocationEvent { PartnerLocationChanged(this.location); final SharedLocation? location; }
 final class LocationRefreshed         extends LocationEvent {}
 final class LocationSettingsRequested extends LocationEvent {}

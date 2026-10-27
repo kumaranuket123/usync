@@ -16,9 +16,6 @@ class LocationRepository implements ILocationRepository {
   final PrefsSource             prefs;
   final INotificationRepository notifications;
 
-  /// Looking at the map repeatedly must not buzz the partner every time.
-  static const _notifyEvery = Duration(minutes: 15);
-
   @override
   bool get sharingEnabled => prefs.locationSharing;
 
@@ -112,10 +109,19 @@ class LocationRepository implements ILocationRepository {
     if (permission != LocationPermission.always) {
       permission = await Geolocator.requestPermission();
     }
-    if (permission != LocationPermission.always) return LocationAccess.backgroundDenied;
+    if (permission != LocationPermission.always) {
+      // Android 11+ never shows a dialog for "all the time": the user has to pick it on
+      // the app's permission page. Send them there; the screen re-checks on return.
+      await Geolocator.openAppSettings();
+      return LocationAccess.backgroundDenied;
+    }
     await client.from('locations').update({'allow_background': true}).eq('user_id', userId);
     return LocationAccess.granted;
   }
+
+  @override
+  Future<bool> hasAlwaysPermission() async =>
+      await Geolocator.checkPermission() == LocationPermission.always;
 
   @override
   Future<void> disableBackground(String userId) =>
@@ -129,17 +135,4 @@ class LocationRepository implements ILocationRepository {
         type:       NotifType.locate,
         body:       (name) => '$name checked your location 📍',
       );
-
-  @override
-  Future<void> notifyPartnerViewing(String coupleId, String userId) async {
-    final now = DateTime.now().millisecondsSinceEpoch;
-    if (now - prefs.locationViewNotifiedAt < _notifyEvery.inMilliseconds) return;
-    await prefs.setLocationViewNotifiedAt(now);
-    await notifications.notifyPartner(
-      coupleId:   coupleId,
-      fromUserId: userId,
-      type:       NotifType.location,
-      body:       (name) => '$name is looking at your location 👀',
-    );
-  }
 }

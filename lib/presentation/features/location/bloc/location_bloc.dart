@@ -15,6 +15,7 @@ class LocationBloc extends Bloc<LocationEvent, LocationState> {
     on<LocationRefreshed>(_onRefreshed);
     on<LocateRequested>(_onLocate);
     on<BackgroundToggled>(_onBackgroundToggled);
+    on<BackgroundPermissionRechecked>(_onBackgroundRechecked);
     on<PartnerLocationChanged>(_onPartnerChanged);
     on<LocationSettingsRequested>(_onSettings);
   }
@@ -23,6 +24,8 @@ class LocationBloc extends Bloc<LocationEvent, LocationState> {
   String _coupleId = '', _userId = '', _partnerId = '';
   StreamSubscription<SharedLocation?>? _partnerSub;
   Timer? _locateTimeout;
+  /// Set when we sent the user to settings to pick "Allow all the time".
+  bool _awaitingBackground = false;
 
   /// How long to wait for the partner's phone before giving up on a request.
   static const _locateWait = Duration(seconds: 45);
@@ -33,8 +36,6 @@ class LocationBloc extends Bloc<LocationEvent, LocationState> {
     _partnerId = e.partnerUserId;
 
     final sharing = locationRepository.sharingEnabled;
-    // Let the partner know we looked; it never blocks or fails the screen.
-    locationRepository.notifyPartnerViewing(_coupleId, _userId).ignore();
 
     // One subscription gives the partner's position now and every later change
     // (including a requested fix), so there is no separate read first.
@@ -97,11 +98,22 @@ class LocationBloc extends Bloc<LocationEvent, LocationState> {
     }
     final access = await locationRepository.enableBackground(_userId);
     final granted = access == LocationAccess.granted;
+    _awaitingBackground = access == LocationAccess.backgroundDenied;
     emit(current.copyWith(
       isBusy: false,
       access: access,
       own:    granted ? () => _withBackground(current.own!, true) : null,
     ));
+  }
+
+  Future<void> _onBackgroundRechecked(BackgroundPermissionRechecked _, Emitter<LocationState> emit) async {
+    final current = state;
+    if (!_awaitingBackground || current is! LocationReady || current.isBusy || current.own == null) return;
+    if (!await locationRepository.hasAlwaysPermission()) return;
+    _awaitingBackground = false;
+    final access = await locationRepository.enableBackground(_userId);
+    if (access != LocationAccess.granted) return;
+    emit(current.copyWith(access: access, own: () => _withBackground(current.own!, true)));
   }
 
   static SharedLocation _withBackground(SharedLocation l, bool allow) => SharedLocation(
