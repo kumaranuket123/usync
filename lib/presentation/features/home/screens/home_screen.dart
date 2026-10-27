@@ -150,15 +150,22 @@ class _HomeBody extends StatelessWidget {
                     // Quick actions
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 24),
-                      child: Wrap(
-                        alignment: WrapAlignment.center,
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: [
-                          _ActionPill('👆', 'Touch',  () => context.push(RouteNames.touchSync)),
-                          _ActionPill('📍', 'Location', () => context.push(RouteNames.location)),
-                          _ActionPill('💭', 'Mood',   () => context.push(RouteNames.mood)),
-                        ],
+                      // One row that scales down on narrow screens; wrapping would add a
+                      // line and push the Home column past the screen height.
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            _ActionPill('👆', 'Touch',  () => context.push(RouteNames.touchSync)),
+                            const SizedBox(width: 8),
+                            _ActionPill('📍', 'Location', () => context.push(RouteNames.location)),
+                            const SizedBox(width: 8),
+                            _ActionPill('💭', 'Mood',   () => context.push(RouteNames.mood)),
+                            const SizedBox(width: 8),
+                            _ActionPill('💬', 'Question', () => context.push(RouteNames.question)),
+                          ],
+                        ),
                       ),
                     ),
 

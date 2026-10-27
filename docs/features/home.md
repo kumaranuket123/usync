@@ -50,11 +50,11 @@ BoxShadow(color: purple.withOpacity(0.2), blurRadius: 100, spreadRadius: 0)
 
 ### QuickActionsRow
 
-Four glass pills in a horizontal `Row`:
+Four glass pills in a single `Row`, wrapped in a `FittedBox(scaleDown)` so they stay on one line (and shrink slightly) on narrow screens instead of wrapping and overflowing the Home column:
 - 👆 Touch → navigates to `/touch-sync`
+- 📍 Location → navigates to `/location`
 - 💭 Mood → navigates to `/mood`
-- ✏️ Draw → navigates to `/canvas`
-- 🫧 Memory → navigates to `/memories`
+- 💬 Question → navigates to `/question` (see [question-of-the-day](question-of-the-day.md))
 
 Each pill is a `GestureDetector`-wrapped `GlassCard` with an icon + label. Active/pressed state tints background to `primary.withOpacity(0.15)`.
 

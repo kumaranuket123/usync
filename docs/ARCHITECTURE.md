@@ -41,7 +41,7 @@ flowchart LR
   PG -->|notifications insert trigger| EF[send-push Edge Function] --> FCM --> Partner
 ```
 
-- **Postgres** holds anything that must survive: profiles, couples, moods, memories, milestones, notifications, canvas strokes, locations. Every row carries `couple_id`; RLS uses `is_couple_member` / `is_active_couple_member`.
+- **Postgres** holds anything that must survive: profiles, couples, moods, memories, milestones, notifications, canvas strokes, locations, question answers. Every row carries `couple_id`; RLS uses `is_couple_member` / `is_active_couple_member`.
 - **Realtime** carries ephemeral state on one private channel per couple. Access is enforced by policies on `realtime.messages`. Finished strokes are then persisted.
 - **RPCs** (`join_with_code`, `disconnect_couple`, `delete_my_account`) own couple state transitions; clients cannot write those tables directly.
 

@@ -29,7 +29,7 @@ On `ProfileDisconnected` the screen refreshes the app-wide user (`AuthStateCheck
 
 ### AlertSoundsScreen (`/alert-sounds`)
 
-One switch per alert group, keyed by `NotifType.soundGroup`: `touch`, `doodle`, `moodChange`, `streak`, `milestone`, `location` (a partner's "locate" request counts as `location`). Each emits `AlertSilenceChanged(group, silent)`. `location` is silent by default (`NotifType.defaultSilent`).
+One switch per alert group, keyed by `NotifType.soundGroup`: `touch`, `doodle`, `moodChange`, `streak`, `milestone`, `question`, `location` (a partner's "locate" request counts as `location`). Each emits `AlertSilenceChanged(group, silent)`. `location` is silent by default (`NotifType.defaultSilent`).
 
 ### ThemeSelectionScreen (`/themes`)
 
@@ -98,14 +98,14 @@ The `send-push` Edge Function reads `profiles.silent_types` and sends quiet type
 Confirm ("unlinks you both right away and permanently deletes everything you shared")
   -> ProfileBloc.DisconnectCouple -> disconnect_couple RPC
 ```
-Either partner can do this alone. The RPC (`disconnect_deletes_data.sql`) deletes moods, memories, milestones, notifications, canvas strokes, locations and streak activity, leaves the `couples` row as an empty tombstone with `disconnected_at` set (so the partner's app sees it via Realtime), resets streak counters and clears both profiles' `couple_id`. Memory images in Storage are removed by the app before the RPC, because SQL cannot delete Storage objects. Pair again with a new code ([pairing](pairing.md)).
+Either partner can do this alone. The RPC (`disconnect_deletes_data.sql`) deletes moods, memories, milestones, notifications, canvas strokes, locations, question answers and streak activity, leaves the `couples` row as an empty tombstone with `disconnected_at` set (so the partner's app sees it via Realtime), resets streak counters and clears both profiles' `couple_id`. Memory images in Storage are removed by the app before the RPC, because SQL cannot delete Storage objects. Pair again with a new code ([pairing](pairing.md)).
 
 ### Delete account
 ```
 Dialog: "Type DELETE to confirm" (button enabled only when the text matches, case-insensitive)
   -> AuthBloc.DeleteAccountRequested -> delete_my_account RPC
 ```
-Required by Google Play. Deletes the user's data in every couple they were in, then the auth user; the partner is left disconnected. Locally saved memory pictures are removed too (`LocalMemoryImages.deleteAll`). Migration: `delete_account.sql`.
+Required by Google Play. Deletes the user's data in every couple they were in, then the auth user; the partner is left disconnected. Locally saved memory pictures are removed too (`LocalMemoryImages.deleteAll`). Migrations: `delete_account.sql`, `question_of_the_day.sql` (also removes question answers).
 
 ### Sign out
 ```

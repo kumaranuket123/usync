@@ -19,6 +19,7 @@ class AlertSoundsScreen extends StatelessWidget {
     _Group('moodChange', '💭', Color(0x1F9D4EDD), 'Mood updates',   'Your partner shared how they feel'),
     _Group('streak',     '🔥', Color(0x1AFFD700), 'Streaks',        'Streak reminders and records'),
     _Group('milestone',  '💖', Color(0x1FC77DFF), 'Milestones',     'Pairing and anniversaries'),
+    _Group('question',   '💬', Color(0x1F00D4FF), 'Daily question', 'Your partner answered the question of the day'),
     _Group('location',   '📍', Color(0x1F00E676), 'Location checks', 'Your partner looks at or requests your location'),
   ];
 

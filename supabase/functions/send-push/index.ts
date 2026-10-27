@@ -15,6 +15,7 @@ const TITLES: Record<string, string> = {
   milestone: 'Usync 💖',
   location: 'Location 📍',
   locate: 'Location 📍',
+  question: 'Question of the day 💬',
 };
 
 const db = createClient(

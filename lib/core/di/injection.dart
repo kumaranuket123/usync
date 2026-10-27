@@ -13,6 +13,7 @@ import '../../data/repositories/canvas_repository.dart';
 import '../../data/repositories/couple_repository.dart';
 import '../../data/repositories/memory_repository.dart';
 import '../../data/repositories/mood_repository.dart';
+import '../../data/repositories/question_repository.dart';
 import '../../data/repositories/notification_repository.dart';
 import '../../data/datasources/local/identity_cache.dart';
 import '../../data/datasources/local/session_cache.dart';
@@ -27,6 +28,7 @@ import '../../domain/repositories/i_canvas_repository.dart';
 import '../../domain/repositories/i_couple_repository.dart';
 import '../../domain/repositories/i_memory_repository.dart';
 import '../../domain/repositories/i_mood_repository.dart';
+import '../../domain/repositories/i_question_repository.dart';
 import '../../domain/repositories/i_notification_repository.dart';
 import '../../domain/repositories/i_location_repository.dart';
 import '../../domain/repositories/i_touch_repository.dart';
@@ -35,6 +37,7 @@ import '../../presentation/features/canvas/bloc/canvas_bloc.dart';
 import '../../presentation/features/home/bloc/home_bloc.dart';
 import '../../presentation/features/memory/bloc/memory_bloc.dart';
 import '../../presentation/features/mood/bloc/mood_bloc.dart';
+import '../../presentation/features/question/bloc/question_bloc.dart';
 import '../../presentation/features/notifications/bloc/notification_bloc.dart';
 import '../../presentation/features/pairing/bloc/pairing_bloc.dart';
 import '../../presentation/features/profile/bloc/profile_bloc.dart';
@@ -110,6 +113,9 @@ Future<void> setupLocator() async {
       sessionCache: getIt(),
     ),
   );
+  getIt.registerLazySingleton<IQuestionRepository>(
+    () => QuestionRepository(client: getIt(), notifications: getIt()),
+  );
   getIt.registerLazySingleton<IMilestoneRepository>(
     () => MilestoneRepository(
       client: getIt(),
@@ -162,6 +168,9 @@ Future<void> setupLocator() async {
   );
   getIt.registerFactory<LocationBloc>(
     () => LocationBloc(locationRepository: getIt()),
+  );
+  getIt.registerFactory<QuestionBloc>(
+    () => QuestionBloc(questionRepository: getIt()),
   );
   getIt.registerFactory<MoodBloc>(
     () => MoodBloc(moodRepository: getIt()),

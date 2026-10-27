@@ -1,6 +1,6 @@
 # Usync
 
-Realtime emotional connection for couples. Two partners pair with an invite code, then share a live drawing canvas, synchronised touch, moods, memories, a timeline, and (opt-in) location. Android + iOS, portrait only.
+Realtime emotional connection for couples. Two partners pair with an invite code, then share a live drawing canvas, synchronised touch, moods, a daily question, memories, a timeline, and (opt-in) location. Android + iOS, portrait only.
 
 [![CI](https://github.com/kumaranuket123/usync/actions/workflows/ci.yml/badge.svg)](https://github.com/kumaranuket123/usync/actions/workflows/ci.yml)
 
@@ -14,6 +14,7 @@ Realtime emotional connection for couples. Two partners pair with an invite code
 | Mood | Preset and custom moods, partner's latest mood on home | [mood](docs/features/mood.md) |
 | Memories | Saved doodles/images in a private bucket, signed URLs | [memories](docs/features/memories.md) |
 | Timeline & streaks | Milestones, custom dates, streak tracking | [timeline](docs/features/timeline.md) |
+| Question of the day | One shared question a day; answers stay private until both partners reply | [question-of-the-day](docs/features/question-of-the-day.md) |
 | Location | Opt-in partner location on a map | [location](docs/features/location.md) |
 | Home-screen widget | Android widget for Live Doodle | [home-widget](docs/features/home-widget.md) |
 | App lock | Biometric lock | [app-lock](docs/features/app-lock.md) |

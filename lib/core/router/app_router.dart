@@ -9,6 +9,7 @@ import '../../presentation/features/location/screens/location_screen.dart';
 import '../../presentation/features/memory/screens/memory_detail_screen.dart';
 import '../../presentation/features/memory/screens/memory_space_screen.dart';
 import '../../presentation/features/mood/screens/mood_screen.dart';
+import '../../presentation/features/question/screens/question_screen.dart';
 import '../../presentation/features/notifications/screens/notifications_screen.dart';
 import '../../presentation/features/onboarding/screens/onboarding_screen.dart';
 import '../../presentation/features/pairing/screens/pair_invite_screen.dart';
@@ -101,6 +102,11 @@ abstract final class AppRouter {
         path: RouteNames.location,
         parentNavigatorKey: _rootKey,
         builder: (_, __) => const LocationScreen(),
+      ),
+      GoRoute(
+        path: RouteNames.question,
+        parentNavigatorKey: _rootKey,
+        builder: (_, __) => const QuestionScreen(),
       ),
       GoRoute(
         path: RouteNames.mood,

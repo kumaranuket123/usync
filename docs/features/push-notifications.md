@@ -1,6 +1,6 @@
 # Feature: Push notifications
 
-Partner actions (touch, doodle, mood change, streak, milestone, location) arrive as FCM pushes. Supabase has no mobile push, so Firebase is used for delivery only.
+Partner actions (touch, doodle, mood change, streak, milestone, location, daily question) arrive as FCM pushes. Supabase has no mobile push, so Firebase is used for delivery only.
 
 ---
 
@@ -26,7 +26,7 @@ flowchart LR
 
 | Kind | Shown? | Trigger |
 |---|---|---|
-| Normal (`touch`, `doodle`, `moodChange`, `streak`, `milestone`, `location`) | Yes | `notifications` insert |
+| Normal (`touch`, `doodle`, `moodChange`, `streak`, `milestone`, `location`, `question`) | Yes | `notifications` insert |
 | `locate` | Yes, plus a silent data push, only if recipient allows background location | `notifications` insert (see [location](location.md)) |
 | `canvasWidget` | No (data only) | `canvas_strokes` trigger (see [home-widget](home-widget.md)) |
 
