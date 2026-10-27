@@ -20,8 +20,9 @@ abstract final class RouteGuards {
   static String? redirect(BuildContext _, GoRouterState state) {
     final path = state.matchedLocation;
 
-    // Splash always renders regardless.
-    if (path == RouteNames.splash) return null;
+    // Splash always renders regardless, and so does the "please update" screen:
+    // it is shown to signed-in and signed-out people alike.
+    if (path == RouteNames.splash || path == RouteNames.updateRequired) return null;
 
     final user = Supabase.instance.client.auth.currentUser;
     final isPublic  = _publicRoutes.contains(path);

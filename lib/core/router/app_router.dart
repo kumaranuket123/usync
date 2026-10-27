@@ -17,6 +17,8 @@ import '../../presentation/features/pairing/screens/pair_invite_screen.dart';
 import '../../presentation/features/pairing/screens/pair_join_screen.dart';
 import '../../presentation/features/pairing/screens/pair_success_screen.dart';
 import '../../presentation/features/profile/screens/profile_screen.dart';
+import '../../presentation/features/access/screens/paywall_screen.dart';
+import '../../presentation/features/access/screens/update_required_screen.dart';
 import '../../presentation/features/settings/screens/about_screen.dart';
 import '../../presentation/features/settings/screens/alert_sounds_screen.dart';
 import '../../presentation/features/settings/screens/settings_screen.dart';
@@ -42,6 +44,10 @@ abstract final class AppRouter {
       GoRoute(
         path: RouteNames.splash,
         builder: (_, __) => const SplashScreen(),
+      ),
+      GoRoute(
+        path: RouteNames.updateRequired,
+        builder: (_, __) => const UpdateRequiredScreen(),
       ),
       GoRoute(
         path: RouteNames.onboarding,
@@ -143,6 +149,11 @@ abstract final class AppRouter {
         path: RouteNames.settings,
         parentNavigatorKey: _rootKey,
         builder: (_, __) => const SettingsScreen(),
+      ),
+      GoRoute(
+        path: RouteNames.paywall,
+        parentNavigatorKey: _rootKey,
+        builder: (_, __) => const PaywallScreen(),
       ),
       GoRoute(
         path: RouteNames.about,

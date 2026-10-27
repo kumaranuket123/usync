@@ -2,6 +2,7 @@ abstract final class RouteNames {
   static const String splash       = '/';
   static const String onboarding   = '/onboarding';
   static const String login        = '/login';
+  static const String updateRequired = '/update-required';
   static const String pairInvite   = '/pair-invite';
   static const String pairJoin     = '/pair-join';
   static const String pairSuccess  = '/pair-success';
@@ -26,4 +27,5 @@ abstract final class RouteNames {
   static const String themes       = '/themes';
   static const String alertSounds  = '/alert-sounds';
   static const String about        = '/about';
+  static const String paywall      = '/paywall';
 }

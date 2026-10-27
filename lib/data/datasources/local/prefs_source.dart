@@ -43,6 +43,11 @@ class PrefsSource {
 
   Future<void> clearFcmSaved(String uid) => prefs.remove('fcm_saved:$uid');
 
+  // ── Server switches ───────────────────────────────────────────
+  /// The last `get_app_config` answer (JSON), used when the server cannot be reached.
+  String? get appConfigCache => prefs.getString('app_config_cache');
+  Future<void> setAppConfigCache(String json) => prefs.setString('app_config_cache', json);
+
   // ── App lock ──────────────────────────────────────────────────
   /// On unless the user (or a phone with no screen lock) switched it off.
   bool get appLockEnabled => prefs.getBool('app_lock') ?? true;

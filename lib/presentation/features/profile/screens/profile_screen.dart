@@ -17,7 +17,10 @@ import '../../../shared/widgets/glow_button.dart';
 import '../../../shared/widgets/gradient_text.dart';
 import '../../../shared/widgets/loading_dots.dart';
 import '../../../../core/di/injection.dart';
+import '../../../../domain/entities/access.dart';
 import '../../../../domain/entities/couple.dart';
+import '../../../../domain/repositories/i_access_repository.dart';
+import '../../access/screens/paywall_screen.dart';
 import '../../../../domain/repositories/i_auth_repository.dart';
 import '../../../features/auth/bloc/auth_bloc.dart';
 import '../bloc/profile_bloc.dart';
@@ -73,6 +76,7 @@ class _ProfileBody extends StatelessWidget {
                       if (state is ProfileReady)
                         _NavRow(state.couple.relationshipMode.emoji, const Color(0x1F9D4EDD), 'Relationship type',
                             state.couple.relationshipMode.label, () => _pickMode(context, state)),
+                      if (state is ProfileReady) _SubscriptionRow(coupleId: state.couple.id),
                       _NavRow('🎯', const Color(0x1F00D4FF), 'Bucket list', 'Things we want to do together', () => context.push(RouteNames.bucketList)),
                       _NavRow('🕰️', const Color(0x1FFF2D78), 'Relationship Timeline', 'View your shared journey', () => context.push(RouteNames.timeline)),
                       _SectionLabel('PREFERENCES'),
@@ -84,6 +88,33 @@ class _ProfileBody extends StatelessWidget {
             ),
           ),
         );
+      },
+    );
+  }
+}
+
+/// Where the couple stands with the subscription. Takes no space until the paywall
+/// is switched on on the server, so today nothing shows.
+class _SubscriptionRow extends StatefulWidget {
+  const _SubscriptionRow({required this.coupleId});
+  final String coupleId;
+
+  @override
+  State<_SubscriptionRow> createState() => _SubscriptionRowState();
+}
+
+class _SubscriptionRowState extends State<_SubscriptionRow> {
+  late final Future<Access> _access = getIt<IAccessRepository>().getAccess(widget.coupleId);
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<Access>(
+      future: _access,
+      builder: (context, snapshot) {
+        final access = snapshot.data;
+        if (access == null || !access.paywallEnabled) return const SizedBox.shrink();
+        return _NavRow(accessEmoji(access.status), const Color(0x1FFFD700), 'Subscription',
+            accessTitle(access, DateTime.now()), () => context.push(RouteNames.paywall));
       },
     );
   }

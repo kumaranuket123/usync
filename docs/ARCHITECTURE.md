@@ -43,7 +43,7 @@ flowchart LR
 
 - **Postgres** holds anything that must survive: profiles, couples, moods, memories, milestones, notifications, canvas strokes, locations, question answers, bucket items. Every row carries `couple_id`; RLS uses `is_couple_member` / `is_active_couple_member`.
 - **Realtime** carries ephemeral state on one private channel per couple. Access is enforced by policies on `realtime.messages`. Finished strokes are then persisted.
-- **RPCs** (`join_with_code`, `disconnect_couple`, `delete_my_account`, `set_relationship_mode`, `set_next_meet`, `set_bucket_item_done`) own couple state transitions; clients cannot write those tables directly.
+- **RPCs** (`join_with_code`, `disconnect_couple`, `delete_my_account`, `set_relationship_mode`, `set_next_meet`, `set_bucket_item_done`; plus `get_app_config` and `get_access` for the subscription groundwork) own couple state transitions; clients cannot write those tables directly.
 
 ## Realtime canvas flow
 

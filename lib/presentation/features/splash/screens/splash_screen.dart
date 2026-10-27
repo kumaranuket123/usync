@@ -10,6 +10,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_gradients.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../data/datasources/local/prefs_source.dart';
+import '../../../../domain/repositories/i_access_repository.dart';
 import '../../../../domain/repositories/i_auth_repository.dart';
 import '../../../shared/painters/conic_orb_painter.dart';
 import '../../../shared/widgets/gradient_text.dart';
@@ -26,6 +27,7 @@ class SplashScreen extends StatelessWidget {
       create: (_) => SplashBloc(
         authRepository: GetIt.I<IAuthRepository>(),
         prefsSource:    GetIt.I<PrefsSource>(),
+        accessRepository: GetIt.I<IAccessRepository>(),
       )..add(SplashStarted()),
       child: BlocListener<SplashBloc, SplashState>(
         listener: (context, state) {
@@ -35,6 +37,7 @@ class SplashScreen extends StatelessWidget {
               SplashDestination.login      => RouteNames.login,
               SplashDestination.pairInvite => RouteNames.pairInvite,
               SplashDestination.home       => RouteNames.home,
+              SplashDestination.updateRequired => RouteNames.updateRequired,
             };
             context.go(route);
           }

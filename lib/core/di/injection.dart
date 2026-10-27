@@ -13,6 +13,7 @@ import '../../data/repositories/canvas_repository.dart';
 import '../../data/repositories/couple_repository.dart';
 import '../../data/repositories/memory_repository.dart';
 import '../../data/repositories/mood_repository.dart';
+import '../../data/repositories/access_repository.dart';
 import '../../data/repositories/bucket_repository.dart';
 import '../../data/repositories/question_repository.dart';
 import '../../data/repositories/notification_repository.dart';
@@ -29,6 +30,7 @@ import '../../domain/repositories/i_canvas_repository.dart';
 import '../../domain/repositories/i_couple_repository.dart';
 import '../../domain/repositories/i_memory_repository.dart';
 import '../../domain/repositories/i_mood_repository.dart';
+import '../../domain/repositories/i_access_repository.dart';
 import '../../domain/repositories/i_bucket_repository.dart';
 import '../../domain/repositories/i_question_repository.dart';
 import '../../domain/repositories/i_notification_repository.dart';
@@ -116,6 +118,9 @@ Future<void> setupLocator() async {
       outbox: getIt(),
       sessionCache: getIt(),
     ),
+  );
+  getIt.registerLazySingleton<IAccessRepository>(
+    () => AccessRepository(client: getIt(), prefs: getIt()),
   );
   getIt.registerLazySingleton<IBucketRepository>(
     () => BucketRepository(
