@@ -161,6 +161,42 @@ void main() {
       expect(find.text('I have written it down'), findsOneWidget);
     });
 
+    testWidgets('Copy and Save to… hand the labelled phrase to the clipboard and the share sheet', (tester) async {
+      final copied = <String>[];
+      final shared = <String>[];
+      await pump(tester, RecoveryPhraseSheet(phrase: _phrase, copy: (t) async => copied.add(t), share: (t) async => shared.add(t)));
+
+      await tester.tap(find.text('Copy'));
+      await tester.pump();
+      expect(copied, ['Usync recovery phrase: $_phrase']);
+      expect(find.text('Copied'), findsOneWidget);
+      expect(find.textContaining('removed from the clipboard'), findsOneWidget);
+      await tester.pump(const Duration(seconds: 5));
+      expect(find.text('Copy'), findsOneWidget, reason: 'the button goes back after a moment');
+
+      await tester.tap(find.text('Save to…'));
+      await tester.pump();
+      expect(shared, ['Usync recovery phrase: $_phrase']);
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets('a share sheet that fails does not break the screen', (tester) async {
+      await pump(tester, RecoveryPhraseSheet(phrase: _phrase, share: (_) async => throw Exception('no share sheet')));
+      await tester.tap(find.text('Save to…'));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      expect(find.text('I have written it down'), findsOneWidget);
+    });
+
+    testWidgets('copying does not skip the check: the quiz still has to be passed', (tester) async {
+      await pump(tester, RecoveryPhraseSheet(phrase: _phrase, copy: (_) async {}));
+      await tester.tap(find.text('Copy'));
+      await tester.pump();
+      await tester.tap(find.text('I have written it down'));
+      await tester.pumpAndSettle();
+      expect(find.text('Check your phrase'), findsOneWidget);
+    });
+
     testWidgets('does not overflow on a small screen with large text', (tester) async {
       await pump(tester, const RecoveryPhraseSheet(phrase: _phrase), size: const Size(320, 480), scale: 1.5);
       expect(tester.takeException(), isNull);
@@ -169,35 +205,85 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('asks for three words; the right ones confirm', (tester) async {
+    /// The positions asked, as 1-based numbers.
+    List<int> asked(WidgetTester tester) =>
+        tester.widgetList<Text>(find.textContaining('WORD ')).map((t) => int.parse(t.data!.replaceFirst('WORD ', ''))).toList();
+
+    Finder choice(int question, String word) =>
+        find.descendant(of: find.byKey(ValueKey('quiz-q$question')), matching: find.text(word));
+
+    testWidgets('asks which word is at three positions, offering four words each; no typing', (tester) async {
       await pump(tester, const RecoveryPhraseSheet(phrase: _phrase));
       await tester.tap(find.text('I have written it down'));
       await tester.pumpAndSettle();
 
-      final labels = tester.widgetList<Text>(find.textContaining('WORD ')).map((t) => t.data!).toList();
-      expect(labels, hasLength(3));
-      final words = _phrase.split(' ');
-      final fields = find.byType(TextField);
-      for (var i = 0; i < 3; i++) {
-        final position = int.parse(labels[i].replaceFirst('WORD ', ''));
-        await tester.enterText(fields.at(i), words[position - 1].toUpperCase()); // capitals are forgiven
+      expect(asked(tester), hasLength(3));
+      expect(find.byType(TextField), findsNothing);
+      for (var q = 0; q < 3; q++) {
+        final options = tester.widgetList<Text>(find.descendant(of: find.byKey(ValueKey('quiz-q$q')), matching: find.byType(Text))).map((t) => t.data!).toList();
+        expect(options, hasLength(4));
+        expect(options.toSet(), hasLength(4), reason: 'four different words');
+        expect(options, contains(_phrase.split(' ')[asked(tester)[q] - 1]), reason: 'the right word is among them');
       }
-      await tester.tap(find.text('Confirm'));
-      await tester.pumpAndSettle();
-      expect(find.text('Check your phrase'), findsNothing, reason: 'the sheet closed with a confirmation');
     });
 
-    testWidgets('wrong words are rejected with a message and the sheet stays', (tester) async {
+    testWidgets('tapping the right word for all three closes the sheet with a confirmation', (tester) async {
+      bool? result;
+      await pump(
+        tester,
+        Builder(
+          builder: (context) => TextButton(
+            onPressed: () async => result = await showModalBottomSheet<bool>(
+              context: context,
+              isScrollControlled: true,
+              builder: (_) => const RecoveryPhraseSheet(phrase: _phrase),
+            ),
+            child: const Text('open'),
+          ),
+        ),
+      );
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('I have written it down'));
+      await tester.pumpAndSettle();
+
+      final words = _phrase.split(' ');
+      final positions = asked(tester);
+      for (var q = 0; q < 3; q++) {
+        await tester.tap(choice(q, words[positions[q] - 1]));
+        await tester.pump();
+      }
+      await tester.pumpAndSettle();
+
+      expect(find.text('Check your phrase'), findsNothing, reason: 'the sheet closed');
+      expect(result, isTrue);
+    });
+
+    testWidgets('a wrong pick is rejected with a message, the picks are cleared, and trying again works', (tester) async {
       await pump(tester, const RecoveryPhraseSheet(phrase: _phrase));
       await tester.tap(find.text('I have written it down'));
       await tester.pumpAndSettle();
-      for (var i = 0; i < 3; i++) {
-        await tester.enterText(find.byType(TextField).at(i), 'wrong');
+      final words = _phrase.split(' ');
+      final positions = asked(tester);
+
+      for (var q = 0; q < 3; q++) {
+        final right = words[positions[q] - 1];
+        final texts = tester.widgetList<Text>(find.descendant(of: find.byKey(ValueKey('quiz-q$q')), matching: find.byType(Text))).map((t) => t.data!);
+        final wrong = texts.firstWhere((t) => t != right);
+        await tester.tap(choice(q, wrong));
+        await tester.pump();
       }
-      await tester.tap(find.text('Confirm'));
       await tester.pumpAndSettle();
-      expect(find.textContaining('do not match'), findsOneWidget);
-      expect(find.text('Check your phrase'), findsOneWidget);
+
+      expect(find.textContaining('Not quite'), findsOneWidget);
+      expect(find.text('Check your phrase'), findsOneWidget, reason: 'the sheet stays');
+
+      for (var q = 0; q < 3; q++) {
+        await tester.tap(choice(q, words[positions[q] - 1]));
+        await tester.pump();
+      }
+      await tester.pumpAndSettle();
+      expect(find.text('Check your phrase'), findsNothing, reason: 'the second try, all right, confirms');
     });
 
     testWidgets('you can go back and look at the words again', (tester) async {
