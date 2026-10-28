@@ -7,6 +7,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../../../../core/di/injection.dart';
+import '../../../../core/extensions/datetime_ext.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../domain/entities/memory.dart';
@@ -165,7 +166,7 @@ class MemoryDetailScreen extends StatelessWidget {
                     children: [
                       Text(m?.title ?? 'Memory', style: AppTextStyles.h2.copyWith(fontSize: 26)),
                       const SizedBox(height: 6),
-                      Text('${m?.createdAt.formatted ?? ''} · ${m?.type.tagLabel ?? ''}',
+                      Text('${m?.createdAt.formattedWithTime ?? ''} · ${m?.type.tagLabel ?? ''}',
                           style: AppTextStyles.label),
                       if (m != null && m.imageArchived && !(m.thumbnailUrl ?? '').startsWith('/')) ...[
                         const SizedBox(height: 10),
@@ -225,13 +226,6 @@ class _ActionBtn extends StatelessWidget {
         ),
       ),
     );
-  }
-}
-
-extension _DateExt on DateTime {
-  String get formatted {
-    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-    return '${months[month - 1]} $day, $year';
   }
 }
 

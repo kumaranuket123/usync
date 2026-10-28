@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/constants/route_names.dart';
+import '../../../../core/extensions/datetime_ext.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_gradients.dart';
 import '../../../../core/theme/app_text_styles.dart';
@@ -502,6 +503,5 @@ class _NavRow extends StatelessWidget {
 }
 
 String _formatSince(DateTime dt) {
-  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  return 'Together since ${months[dt.month - 1]} ${dt.day}, ${dt.year}';
+  return dt.togetheSince;
 }

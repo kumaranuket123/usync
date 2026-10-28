@@ -4,6 +4,7 @@ import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/route_names.dart';
+import '../../../../core/extensions/datetime_ext.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../domain/entities/notification_item.dart';
@@ -132,7 +133,7 @@ class _NotifItem extends StatelessWidget {
                 children: [
                   Text(item.bodyText, style: AppTextStyles.body.copyWith(fontSize: 14)),
                   const SizedBox(height: 4),
-                  Text(item.timestamp.timeAgo, style: AppTextStyles.labelSmall),
+                  Text('${item.timestamp.timeAgo} · ${item.timestamp.timeOfDay}', style: AppTextStyles.labelSmall),
                 ],
               ),
             ),
@@ -153,16 +154,5 @@ class _NotifItem extends StatelessWidget {
         ),
       ),
     );
-  }
-}
-
-extension _DateExt on DateTime {
-  String get timeAgo {
-    final diff = DateTime.now().difference(this);
-    if (diff.inSeconds < 60)  return 'Just now';
-    if (diff.inMinutes < 60)  return '${diff.inMinutes} min ago';
-    if (diff.inHours < 24)    return '${diff.inHours} hours ago';
-    if (diff.inDays == 1)     return 'Yesterday';
-    return '${diff.inDays} days ago';
   }
 }

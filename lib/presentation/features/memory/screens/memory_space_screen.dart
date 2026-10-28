@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../core/extensions/datetime_ext.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_gradients.dart';
 import '../../../../core/theme/app_text_styles.dart';
@@ -166,7 +167,7 @@ class _MemoryCard extends StatelessWidget {
                       children: [
                         Text(memory.title, style: AppTextStyles.label.copyWith(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 14)),
                         const SizedBox(height: 3),
-                        Text(memory.createdAt.formatted, style: AppTextStyles.labelSmall),
+                        Text(memory.createdAt.formattedWithTime, style: AppTextStyles.labelSmall),
                       ],
                     ),
                   ),
@@ -219,12 +220,5 @@ class _EmptyState extends StatelessWidget {
         ),
       ),
     );
-  }
-}
-
-extension _DateExt on DateTime {
-  String get formatted {
-    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-    return '${months[month - 1]} $day, $year';
   }
 }
