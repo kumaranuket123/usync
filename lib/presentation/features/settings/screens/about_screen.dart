@@ -234,7 +234,7 @@ const _sections = <_Section>[
     _Feature('🛡️', _green, 'Only the two of you',
         'Everything you share is visible only to you and your partner. There are no ads and no third-party analytics.'),
     _Feature('🔒', _purple, 'End-to-end encryption',
-        'Your moods, question answers, bucket list and next-meet date are locked on your phone with a key only the two of you hold, so even we cannot read them. Notifications on your lock screen never show what you wrote. Memories, drawings and location join later. Check your security code and keep your recovery phrase under Profile → Security.'),
+        'Your moods, question answers, bucket list, next-meet date, memories and pictures, shared drawing and location are locked on your phone with a key only the two of you hold, so even we cannot read them. Notifications on your lock screen never show what you wrote. The timeline and things you added before updating are still being covered. Check your security code and keep your recovery phrase under Profile → Security.'),
     _Feature('💔', _pink, 'You are in control',
         'Disconnect from your partner or delete your account at any time in Settings. Everything you shared is permanently deleted.'),
   ]),

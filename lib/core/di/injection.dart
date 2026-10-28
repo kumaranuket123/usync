@@ -188,7 +188,7 @@ Future<void> setupLocator() async {
     () => TouchRepository(channelSource: getIt(), notifications: getIt()),
   );
   getIt.registerLazySingleton<ILocationRepository>(
-    () => LocationRepository(client: getIt(), prefs: getIt(), notifications: getIt()),
+    () => LocationRepository(client: getIt(), prefs: getIt(), notifications: getIt(), cipher: getIt()),
   );
   getIt.registerLazySingleton<INotificationRepository>(
     () => NotificationRepository(client: getIt(), cipher: getIt()),

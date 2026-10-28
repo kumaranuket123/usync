@@ -74,17 +74,16 @@ class LocationSyncService with WidgetsBindingObserver {
       if (coupleId == null) return;
 
       final prefs = PrefsSource(prefs: await SharedPreferences.getInstance());
+      // In this background task there is no service registry: read the keys straight from secure storage.
+      final cipher = ContentCipher(
+        keysFor: (userId) => KeyService(store: const FlutterSecureKeyStore(), namespace: userId),
+        currentUserId: () => client.auth.currentUser?.id,
+      );
       await LocationRepository(
         client:        client,
         prefs:         prefs,
-        notifications: NotificationRepository(
-          client: client,
-          // In this background task there is no service registry: read the keys straight from secure storage.
-          cipher: ContentCipher(
-            keysFor: (userId) => KeyService(store: const FlutterSecureKeyStore(), namespace: userId),
-            currentUserId: () => client.auth.currentUser?.id,
-          ),
-        ),
+        notifications: NotificationRepository(client: client, cipher: cipher),
+        cipher:        cipher,
       ).syncOwnLocation(coupleId, uid, prompt: false);
     } catch (_) {
       // Best effort: the requester simply keeps seeing the older location.

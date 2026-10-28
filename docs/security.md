@@ -9,7 +9,7 @@ Goal: nobody but the two partners can read their content, **including the develo
 | E0 | Crypto foundation: `CryptoService`, `KeyService`, key storage, recovery phrase, security code | **Built, not used by any feature yet** |
 | E1 | Identity keys published, pairing handshake, security-code verification, recovery and partner approval | **Built** (database migration `e2ee_keys.sql` must be applied) |
 | E2 | Text content encrypted: moods, bucket list, answers, next meet, notification details (memories wait for E3 with their pictures, timeline dates for E4 with local reminders) | **Built** (migration `e2ee_content_text.sql` must be applied, then `min_supported_build` raised) |
-| E3 | Binary and live data. **E3a** memories (titles, emoji, pictures): **built** (migration `e2ee_memories.sql` must be applied). **E3b** the shared drawing (saved and live strokes, widget): **built** (migration `e2ee_strokes.sql` must be applied). E3c locations and the background locate: planned | In progress |
+| E3 | Binary and live data: memories and pictures (`e2ee_memories.sql`), the shared drawing, saved and live, and the widget (`e2ee_strokes.sql`), locations and the background locate (`e2ee_locations.sql`) | **Built** (E3c migration must be applied) |
 | E4 | Local caches encrypted at rest, local date reminders | Planned |
 | E5 | Re-encrypt existing data, then require encryption on new rows | Planned |
 
@@ -55,6 +55,13 @@ Not stored: the recovery phrase is never saved on the phone, so it cannot be sho
 - Strokes are sealed when a stroke finishes, so only ciphertext waits in memory and in the outbox. A change queued by an older version of the app is sealed before it is sent. Without the couple key the canvas shows "Finish securing your connection first" and nothing is drawn or sent.
 - The home-screen widget (also in the background push isolate) builds its own cipher from secure storage and opens the strokes itself; if it cannot read them yet it keeps the last picture. The rendered widget PNG stays readable in the app-private folder, because the launcher has to draw it.
 - **Nonce budget:** every message uses a fresh random 96-bit nonce under the one couple key. That stays safe far beyond any realistic use (the risk only becomes meaningful after billions of messages under the same key); the practical limit for a couple is far below it. Key rotation (see below) would reset it.
+
+## E3c: locations (`LocationRepository`)
+
+- A person's one `locations` row keeps latitude, longitude, accuracy and the time of the fix in `enc` (bound to couple, table and that person's user id). The readable columns are written as null on every save, which also clears an older readable position. `allow_background` and `updated_at` stay readable (the push function needs the first).
+- The time shown comes from inside the sealed value, so a stale value replayed by the server shows its real age. A row this phone cannot open shows as no location.
+- Without the couple key `syncOwnLocation` returns `LocationAccess.notSecured` before touching the GPS, and the screen says to finish securing the connection. The background locate answer builds its own cipher from secure storage and simply does not answer without a key.
+- The server still sees that a location was updated and when, and the person's opt-in to background requests.
 
 ## What it protects, and what it cannot
 
