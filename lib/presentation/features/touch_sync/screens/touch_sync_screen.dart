@@ -10,6 +10,7 @@ import '../../../../domain/repositories/i_couple_repository.dart';
 import '../../../shared/animations/breathe_animation.dart';
 import '../../../shared/widgets/live_indicator.dart';
 import '../../../shared/widgets/loading_dots.dart';
+import '../../../shared/widgets/centered_scroll.dart';
 import '../../../shared/widgets/neon_back_button.dart';
 import '../../../shared/widgets/pulse_rings.dart';
 import '../bloc/touch_sync_bloc.dart';
@@ -100,8 +101,12 @@ class _TouchSyncBodyState extends State<_TouchSyncBody> {
                       ),
                     ),
 
-                    const Spacer(),
-
+                    // Scrolls when a large font or display size makes the content taller than the space.
+                    Expanded(
+                      child: CenteredScroll(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
                     // Touch area
                     SizedBox(
                       width: 300, height: 300,
@@ -173,7 +178,10 @@ class _TouchSyncBodyState extends State<_TouchSyncBody> {
                         ],
                       ),
                     ),
-                    const Spacer(),
+                          ],
+                        ),
+                      ),
+                    ),
                   ],
                 ),
               ),

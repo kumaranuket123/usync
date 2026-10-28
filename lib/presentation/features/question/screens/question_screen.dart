@@ -82,12 +82,15 @@ class _QuestionBodyState extends State<_QuestionBody> {
                 children: [
                   const NeonBackButton(),
                   const SizedBox(width: 14),
-                  Column(
+                  // Expanded so a long title wraps instead of overflowing at large font sizes.
+                  Expanded(
+                    child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text('Question of the day', style: AppTextStyles.h2.copyWith(fontSize: 22)),
                       Text('Answers are shown once you both reply', style: AppTextStyles.label),
                     ],
+                    ),
                   ),
                 ],
               ),

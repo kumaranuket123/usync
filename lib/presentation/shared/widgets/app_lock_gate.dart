@@ -4,6 +4,7 @@ import 'package:get_it/get_it.dart';
 import '../../../core/services/app_lock_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
+import 'centered_scroll.dart';
 
 /// Covers the app with the lock screen while [AppLockService] says so.
 class AppLockGate extends StatelessWidget {
@@ -53,7 +54,7 @@ class _LockScreenState extends State<_LockScreen> {
     final primary = Theme.of(context).colorScheme.primary;
     return Material(
       color: AppColors.bg1,
-      child: Center(
+      child: CenteredScroll(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [

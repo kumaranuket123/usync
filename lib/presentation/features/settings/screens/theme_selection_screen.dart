@@ -44,13 +44,15 @@ class ThemeSelectionScreen extends StatelessWidget {
                 children: [
                   const NeonBackButton(),
                   const SizedBox(width: 14),
-                  Column(
+                  Expanded(
+                    child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text('Themes', style: AppTextStyles.h2.copyWith(fontSize: 24)),
                       Text('Choose your emotional palette', style: AppTextStyles.label),
                     ],
                   ),
+                    ),
                 ],
               ),
             ),

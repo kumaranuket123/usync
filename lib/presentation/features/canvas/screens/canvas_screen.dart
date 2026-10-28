@@ -242,7 +242,10 @@ class _CanvasBodyState extends State<_CanvasBody> with WidgetsBindingObserver {
                       border: Border.all(color: AppColors.glassBorder),
                       boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.4), blurRadius: 32)],
                     ),
-                    child: Row(
+                    // Scales down on a narrow screen or large display size rather than overflowing.
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         _ToolBtn('✏️', active: state.activeTool == CanvasTool.pen,
@@ -260,6 +263,7 @@ class _CanvasBodyState extends State<_CanvasBody> with WidgetsBindingObserver {
                             onTap: () => context.read<CanvasBloc>().add(CanvasCleared())),
                         _ToolBtn(state.isSaving ? '⏳' : '💾', onTap: _save),
                       ],
+                      ),
                     ),
                   ),
                 ),

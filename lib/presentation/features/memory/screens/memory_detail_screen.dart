@@ -126,8 +126,11 @@ class MemoryDetailScreen extends StatelessWidget {
                   ),
                 ),
 
-                // Footer
-                Container(
+                // Footer; scrolls inside half the screen so large text cannot push it off.
+                ConstrainedBox(
+                  constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * 0.5),
+                  child: SingleChildScrollView(
+                    child: Container(
                   padding: const EdgeInsets.fromLTRB(28, 20, 28, 40),
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
@@ -159,6 +162,8 @@ class MemoryDetailScreen extends StatelessWidget {
                         ],
                       ),
                     ],
+                  ),
+                    ),
                   ),
                 ),
               ],

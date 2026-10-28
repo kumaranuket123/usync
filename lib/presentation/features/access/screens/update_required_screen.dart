@@ -7,6 +7,7 @@ import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/utils/app_snack_bar.dart';
 import '../../../../domain/entities/app_config.dart';
 import '../../../../domain/repositories/i_access_repository.dart';
+import '../../../shared/widgets/centered_scroll.dart';
 import '../../../shared/widgets/glow_button.dart';
 
 /// Shown instead of the app when this build is older than the server's
@@ -36,7 +37,7 @@ class _UpdateRequiredScreenState extends State<UpdateRequiredScreen> {
       child: Scaffold(
         backgroundColor: AppColors.bg1,
         body: SafeArea(
-          child: Center(
+          child: CenteredScroll(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 32),
               child: FutureBuilder<AppConfig>(

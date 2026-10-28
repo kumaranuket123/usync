@@ -86,7 +86,8 @@ class _BucketBody extends StatelessWidget {
                     children: [
                       const NeonBackButton(),
                       const SizedBox(width: 14),
-                      Column(
+                      Expanded(
+                        child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text('Bucket list', style: AppTextStyles.h2.copyWith(fontSize: 22)),
@@ -98,6 +99,7 @@ class _BucketBody extends StatelessWidget {
                           ),
                         ],
                       ),
+                        ),
                     ],
                   ),
                 ),

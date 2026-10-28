@@ -99,7 +99,9 @@ class _HomeBody extends StatelessWidget {
               ]),
 
               SafeArea(
-                child: Column(
+                // Scrolls when a large font or display size makes the content taller than the screen.
+                child: SingleChildScrollView(
+                  child: Column(
                   children: [
                     // Header
                     Padding(
@@ -202,6 +204,7 @@ class _HomeBody extends StatelessWidget {
                       ),
                     ),
                   ],
+                  ),
                 ),
               ),
             ],

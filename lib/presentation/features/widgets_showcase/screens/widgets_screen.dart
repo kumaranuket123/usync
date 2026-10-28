@@ -62,12 +62,13 @@ class _WidgetsBody extends StatelessWidget {
                   GridView(
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
-                    gridDelegate:
-                        const SliverGridDelegateWithFixedCrossAxisCount(
+                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                       crossAxisCount: 2,
                       mainAxisSpacing: 13,
                       crossAxisSpacing: 13,
-                      childAspectRatio: 0.70,
+                      // Grows with the text size so a larger font cannot overflow the cards.
+                      mainAxisExtent:
+                          240 * MediaQuery.textScalerOf(context).scale(1).clamp(1.0, 2.0),
                     ),
                     children: [
                       // Heartbeat
@@ -117,57 +118,57 @@ class _WidgetsBody extends StatelessWidget {
                               label: 'Active 2m ago', color: AppColors.cyan),
                         ),
                       ),
-
-                      // Streak (full width)
-                      Container(
-                        decoration: BoxDecoration(
-                          color: AppColors.glass,
-                          borderRadius: BorderRadius.circular(24),
-                          border: Border.all(color: AppColors.glassBorder),
+                    ],
+                  ),
+                  const SizedBox(height: 13),
+                  // Streak (full width)
+                  Container(
+                    decoration: BoxDecoration(
+                      color: AppColors.glass,
+                      borderRadius: BorderRadius.circular(24),
+                      border: Border.all(color: AppColors.glassBorder),
+                    ),
+                    padding: const EdgeInsets.all(20),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text('🔥',
+                                  style: TextStyle(fontSize: 32)),
+                              const SizedBox(height: 6),
+                              Text('Connection Streak',
+                                  style: AppTextStyles.label.copyWith(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 14)),
+                              Text("You've been in sync every day",
+                                  style: AppTextStyles.labelSmall),
+                            ],
+                          ),
                         ),
-                        padding: const EdgeInsets.all(20),
-                        child: Row(
+                        Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.end,
                           children: [
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Text('🔥',
-                                      style: TextStyle(fontSize: 32)),
-                                  const SizedBox(height: 6),
-                                  Text('Connection Streak',
-                                      style: AppTextStyles.label.copyWith(
-                                          color: Colors.white,
-                                          fontWeight: FontWeight.w700,
-                                          fontSize: 14)),
-                                  Text("You've been in sync every day",
-                                      style: AppTextStyles.labelSmall),
-                                ],
-                              ),
+                            BlocBuilder<WidgetsBloc, WidgetsBlocState>(
+                              builder: (context, state) {
+                                final streak = state is WidgetsReady
+                                    ? state.couple.streakDays.toString()
+                                    : '—';
+                                return GradientText(streak,
+                                    gradient: AppGradients.gradientText2,
+                                    style: const TextStyle(
+                                        fontSize: 40,
+                                        fontWeight: FontWeight.w800));
+                              },
                             ),
-                            Column(
-                              mainAxisSize: MainAxisSize.min,
-                              crossAxisAlignment: CrossAxisAlignment.end,
-                              children: [
-                                BlocBuilder<WidgetsBloc, WidgetsBlocState>(
-                                  builder: (context, state) {
-                                    final streak = state is WidgetsReady
-                                        ? state.couple.streakDays.toString()
-                                        : '—';
-                                    return GradientText(streak,
-                                        gradient: AppGradients.gradientText2,
-                                        style: const TextStyle(
-                                            fontSize: 40,
-                                            fontWeight: FontWeight.w800));
-                                  },
-                                ),
-                                Text('days', style: AppTextStyles.label),
-                              ],
-                            ),
+                            Text('days', style: AppTextStyles.label),
                           ],
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ],
               ),
@@ -258,15 +259,43 @@ class _DoodleWidgetCard extends StatefulWidget {
   State<_DoodleWidgetCard> createState() => _DoodleWidgetCardState();
 }
 
-class _DoodleWidgetCardState extends State<_DoodleWidgetCard> {
+class _DoodleWidgetCardState extends State<_DoodleWidgetCard>
+    with WidgetsBindingObserver {
   File? _image;
   String? _caption;
   bool _loading = true;
+  bool _onHomeScreen = false;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _load();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  // Back from the launcher after pinning (or removing) the widget.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _checkInstalled();
+  }
+
+  Future<void> _checkInstalled() async {
+    if (!Platform.isAndroid) return;
+    var installed = false;
+    try {
+      final widgets = await HomeWidget.getInstalledWidgets();
+      installed = widgets.any((w) =>
+          (w.androidClassName ?? '').endsWith('DoodleWidgetProvider'));
+    } catch (_) {
+      // Not available here: keep offering the button.
+    }
+    if (mounted) setState(() => _onHomeScreen = installed);
   }
 
   Future<void> _load() async {
@@ -281,6 +310,7 @@ class _DoodleWidgetCardState extends State<_DoodleWidgetCard> {
     if (!mounted) return;
     // A new file object every time, so Image.file does not reuse its cached picture.
     imageCache.clear();
+    _checkInstalled();
     setState(() {
       _image = path == null ? null : File(path);
       _caption = caption;
@@ -357,14 +387,17 @@ class _DoodleWidgetCardState extends State<_DoodleWidgetCard> {
             ),
           ),
           const SizedBox(height: 10),
-          Row(
+          Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            runSpacing: 8,
             children: [
-              Expanded(
-                  child: Text(_caption ?? '', style: AppTextStyles.labelSmall)),
+              Text(_onHomeScreen ? 'On your home screen ✓' : (_caption ?? ''),
+                  style: AppTextStyles.labelSmall),
               FilledButton.icon(
                 onPressed: _add,
-                icon: const Icon(Icons.add_to_home_screen, size: 18),
-                label: const Text('Add to home screen'),
+                icon: Icon(_onHomeScreen ? Icons.add : Icons.add_to_home_screen, size: 18),
+                label: Text(_onHomeScreen ? 'Add another' : 'Add to home screen'),
               ),
             ],
           ),

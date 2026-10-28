@@ -115,7 +115,9 @@ class _MoodBodyState extends State<_MoodBody> {
                 children: [
                   const NeonBackButton(),
                   const SizedBox(width: 14),
-                  Column(
+                  // Expanded so a long title wraps instead of overflowing at large font sizes.
+                  Expanded(
+                    child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text('How are you feeling?',
@@ -123,6 +125,7 @@ class _MoodBodyState extends State<_MoodBody> {
                       Text('Your partner will feel this',
                           style: AppTextStyles.label),
                     ],
+                    ),
                   ),
                 ],
               ),
