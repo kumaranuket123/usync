@@ -12,8 +12,9 @@ class StrokesUnreadable implements Exception {
 }
 
 abstract interface class ICanvasRepository {
-  /// Creates the stroke node (metadata only, `isComplete: false`).
-  Future<void>          pushStroke(CanvasStroke stroke);
+  /// Starts a stroke. With [live] (the partner is on the canvas) its start, chunks and end are also sent over
+  /// the live channel; without it nothing is sent live and the stroke only reaches the partner when it is saved.
+  Future<void>          pushStroke(CanvasStroke stroke, {bool live = true});
 
   /// Appends a batch of points so the partner sees the stroke while it is drawn.
   /// [seq] orders chunks within the stroke.

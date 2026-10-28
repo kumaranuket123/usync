@@ -67,8 +67,9 @@ class CanvasRepository implements ICanvasRepository {
   final _own = <String, _PendingStroke>{};
 
   @override
-  Future<void> pushStroke(CanvasStroke stroke) {
-    _own[stroke.id] = _PendingStroke(stroke);
+  Future<void> pushStroke(CanvasStroke stroke, {bool live = true}) {
+    _own[stroke.id] = _PendingStroke(stroke, live: live);
+    if (!live) return Future.value();
     return _sendInOrder(stroke.coupleId, CoupleChannel.strokeStart, () async => {
       'id':        stroke.id,
       'user_id':   stroke.userId,
@@ -81,7 +82,9 @@ class CanvasRepository implements ICanvasRepository {
   Future<void> pushStrokeChunk(String coupleId, String strokeId, int seq, List<Offset> points) {
     // Flat [x0, y0, x1, y1, …] — one small message per batch.
     final flat = <double>[for (final p in points) ...[p.dx, p.dy]];
-    _own[strokeId]?.chunks[seq] = flat;
+    final own = _own[strokeId];
+    own?.chunks[seq] = flat;
+    if (own != null && !own.live) return Future.value();
     return _sendInOrder(coupleId, CoupleChannel.strokeChunk, () async => {
       'id':  strokeId,
       'seq': seq,
@@ -94,10 +97,12 @@ class CanvasRepository implements ICanvasRepository {
     final pending = _own.remove(strokeId);
     // Tells a partner who is watching live; nothing waits on it.
     // The chunk count lets the partner tell whether anything is still missing.
-    _sendInOrder(coupleId, CoupleChannel.strokeEnd, () async => {
-      'id':     strokeId,
-      'chunks': pending?.chunks.length,
-    }).ignore();
+    if (pending == null || pending.live) {
+      _sendInOrder(coupleId, CoupleChannel.strokeEnd, () async => {
+        'id':     strokeId,
+        'chunks': pending?.chunks.length,
+      }).ignore();
+    }
     if (pending == null) return;
 
     // Strokes are saved in batches: drawing makes many, and a request each is
@@ -105,7 +110,7 @@ class CanvasRepository implements ICanvasRepository {
     // Sealed here, so only ciphertext is ever kept waiting (in memory, then in the outbox). Without the
     // couple key this throws and the stroke is not saved.
     final s = pending.stroke;
-    final sealed = await codec.sealStroke(coupleId, s.id, color: s.color.toARGB32(), width: s.width, isEraser: s.isEraser, points: pending.flatPoints());
+    final sealed = await codec.sealStroke(coupleId, s.id, color: s.color.toARGB32(), width: s.width, isEraser: s.isEraser, points: pending.flatPoints(contiguousOnly: false));
     _finished.add({
       'id':        s.id,
       'coupleId':  coupleId,
@@ -294,7 +299,10 @@ class CanvasRepository implements ICanvasRepository {
     Future<void> catchUp() async {
       if (out.isClosed) return;
       try {
-        final ids = [for (final r in await client.from('canvas_strokes').select('id').eq('couple_id', coupleId)) r['id'] as String];
+        // The partner's strokes only: this phone's own are already on screen.
+        final ids = [
+          for (final r in await client.from('canvas_strokes').select('id').eq('couple_id', coupleId).neq('user_id', excludeUserId)) r['id'] as String,
+        ];
         final missing = ids.where((id) => !known.contains(id) && !live.containsKey(id)).toList();
         if (missing.isEmpty) return;
         await showSaved(await client.from('canvas_strokes').select().inFilter('id', missing).order('created_at'));
@@ -469,17 +477,28 @@ class CanvasRepository implements ICanvasRepository {
 }
 
 class _PendingStroke {
-  _PendingStroke(this.stroke);
+  _PendingStroke(this.stroke, {this.live = true});
   final CanvasStroke stroke;
+  /// Sent over the live channel while drawn (the partner was watching).
+  final bool live;
   final Map<int, List<dynamic>> chunks = {};
 
-  List<double> flatPoints() {
+  /// While the stroke is still arriving, only the unbroken run from the first chunk is drawn: a chunk that is
+  /// late would otherwise show as a straight line across the gap. Once it is finished, whatever arrived is used.
+  List<double> flatPoints({required bool contiguousOnly}) {
     final keys = chunks.keys.toList()..sort();
-    return [for (final k in keys) ...chunks[k]!.map((v) => (v as num).toDouble())];
+    final out = <double>[];
+    var next = keys.isEmpty ? 0 : keys.first == 0 ? 0 : -1;
+    for (final k in keys) {
+      if (contiguousOnly && k != next) break;
+      out.addAll(chunks[k]!.map((v) => (v as num).toDouble()));
+      next = k + 1;
+    }
+    return out;
   }
 
   CanvasStroke snapshot({bool isComplete = false}) {
-    final flat   = flatPoints();
+    final flat   = flatPoints(contiguousOnly: !isComplete);
     final points = <Offset>[
       for (var i = 0; i + 1 < flat.length; i += 2) Offset(flat[i], flat[i + 1]),
     ];

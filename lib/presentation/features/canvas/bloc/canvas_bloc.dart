@@ -35,8 +35,9 @@ class CanvasBloc extends Bloc<CanvasEvent, CanvasState> {
     );
   }
 
-  /// How often points drawn since the last write are sent to the partner.
-  static const _flushInterval = Duration(milliseconds: 150);
+  /// How often points drawn since the last write are sent to the partner, while they are on the canvas.
+  /// When they are not, nothing is sent live: the stroke is saved and they see it when they open the canvas.
+  static const _flushInterval = Duration(milliseconds: 60);
 
   final ICanvasRepository       canvasRepository;
   final IMemoryRepository       memoryRepository;
@@ -107,11 +108,15 @@ class CanvasBloc extends Bloc<CanvasEvent, CanvasState> {
 
     _pending..clear()..add(e.offset);
     _seq = 0;
-    _guard(canvasRepository.pushStroke(stroke));
+    // Decided once per stroke, so its start, chunks and end are all live or none are.
+    final live = state.partnerHere;
+    _guard(canvasRepository.pushStroke(stroke, live: live));
     _flushTimer?.cancel();
-    _flushTimer = Timer.periodic(_flushInterval, (_) {
-      if (!isClosed) add(_FlushRequested());
-    });
+    if (live) {
+      _flushTimer = Timer.periodic(_flushInterval, (_) {
+        if (!isClosed) add(_FlushRequested());
+      });
+    }
   }
 
   void _onUpdate(StrokeUpdated e, Emitter<CanvasState> emit) {

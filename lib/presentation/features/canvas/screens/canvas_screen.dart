@@ -16,6 +16,7 @@ import '../../../shared/widgets/live_indicator.dart';
 import '../../../shared/widgets/loading_dots.dart';
 import '../../../shared/widgets/neon_back_button.dart';
 import '../bloc/canvas_bloc.dart';
+import '../widgets/single_finger_input.dart';
 import '../../../../core/utils/app_snack_bar.dart';
 
 class CanvasScreen extends StatelessWidget {
@@ -168,12 +169,10 @@ class _CanvasBodyState extends State<_CanvasBody> with WidgetsBindingObserver {
             children: [
               // Drawing area — repaints per point without rebuilding the toolbar.
               Positioned.fill(
-                child: GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onPanStart: (d) => context.read<CanvasBloc>().add(StrokeStarted(d.localPosition)),
-                  onPanUpdate:(d) => context.read<CanvasBloc>().add(StrokeUpdated(d.localPosition)),
-                  onPanEnd:   (_) => context.read<CanvasBloc>().add(StrokeEnded()),
-                  onPanCancel: () => context.read<CanvasBloc>().add(StrokeEnded()),
+                child: SingleFingerInput(
+                  onStart:  (o) => context.read<CanvasBloc>().add(StrokeStarted(o)),
+                  onUpdate: (o) => context.read<CanvasBloc>().add(StrokeUpdated(o)),
+                  onEnd:    () => context.read<CanvasBloc>().add(StrokeEnded()),
                   child: RepaintBoundary(
                     key: _canvasKey,
                     child: BlocBuilder<CanvasBloc, CanvasState>(
