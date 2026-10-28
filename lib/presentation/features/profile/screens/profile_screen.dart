@@ -19,6 +19,8 @@ import '../../../shared/widgets/loading_dots.dart';
 import '../../../../core/di/injection.dart';
 import '../../../../domain/entities/access.dart';
 import '../../../../domain/entities/couple.dart';
+import '../../../../domain/entities/encryption_state.dart';
+import '../../../../domain/repositories/i_encryption_repository.dart';
 import '../../../../domain/repositories/i_access_repository.dart';
 import '../../access/screens/paywall_screen.dart';
 import '../../../../domain/repositories/i_auth_repository.dart';
@@ -58,14 +60,16 @@ class _ProfileBody extends StatelessWidget {
         return Scaffold(
           backgroundColor: AppColors.bg1,
           body: SafeArea(
-            child: Column(
+            // The whole page scrolls (header and rows together). With the header fixed, the rows had only
+            // a small window below it and the ones scrolled out of view were hidden behind it.
+            child: ListView(
+              padding: const EdgeInsets.only(bottom: 100),
               children: [
-                // Hero
                 _ProfileHero(state: state),
-                // Body
-                Expanded(
-                  child: ListView(
-                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 100),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       if (state is ProfileReady) ...[
                         _SectionLabel('ACCOUNT'),
@@ -78,6 +82,7 @@ class _ProfileBody extends StatelessWidget {
                             state.couple.relationshipMode.label, () => _pickMode(context, state)),
                       if (state is ProfileReady) _SubscriptionRow(coupleId: state.couple.id),
                       _NavRow('🎯', const Color(0x1F00D4FF), 'Bucket list', 'Things we want to do together', () => context.push(RouteNames.bucketList)),
+                      const _SecurityRow(),
                       _NavRow('💞', const Color(0x1F9D4EDD), 'Mood insights', 'How in sync you\'ve been this week', () => context.push(RouteNames.moodInsights)),
                       _NavRow('🕰️', const Color(0x1FFF2D78), 'Relationship Timeline', 'View your shared journey', () => context.push(RouteNames.timeline)),
                       _SectionLabel('PREFERENCES'),
@@ -92,6 +97,40 @@ class _ProfileBody extends StatelessWidget {
       },
     );
   }
+}
+
+/// Encryption status at a glance; opens the Security page. The subtitle nudges when something needs doing.
+class _SecurityRow extends StatefulWidget {
+  const _SecurityRow();
+
+  @override
+  State<_SecurityRow> createState() => _SecurityRowState();
+}
+
+class _SecurityRowState extends State<_SecurityRow> {
+  late EncryptionState _state = getIt<IEncryptionRepository>().current;
+
+  @override
+  void initState() {
+    super.initState();
+    getIt<IEncryptionRepository>().sync().then((s) {
+      if (mounted) setState(() => _state = s);
+    });
+  }
+
+  String get _subtitle => switch (_state.phase) {
+        EncryptionPhase.needsRestore                                             => 'Restore your keys',
+        EncryptionPhase.needsVerification                                        => 'Compare your security code',
+        EncryptionPhase.partnerKeyChanged                                        => 'Your partner\'s code changed: compare it',
+        EncryptionPhase.needsApproval || EncryptionPhase.waitingForKey || EncryptionPhase.waitingForPartner => 'Waiting for your partner',
+        EncryptionPhase.unknown                                                  => 'Encryption keys and security code',
+        _ when !_state.recoverySetUp                                             => 'Set up your recovery phrase',
+        _                                                                        => 'Keys ready',
+      };
+
+  @override
+  Widget build(BuildContext context) =>
+      _NavRow('🔐', const Color(0x1F00E676), 'Security', _subtitle, () => context.push(RouteNames.security));
 }
 
 /// Where the couple stands with the subscription. Takes no space until the paywall

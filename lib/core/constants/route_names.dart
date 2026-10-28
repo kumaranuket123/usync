@@ -28,5 +28,6 @@ abstract final class RouteNames {
   static const String themes       = '/themes';
   static const String alertSounds  = '/alert-sounds';
   static const String about        = '/about';
+  static const String security     = '/security';
   static const String paywall      = '/paywall';
 }

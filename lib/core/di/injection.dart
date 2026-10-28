@@ -3,6 +3,14 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../crypto/crypto_service.dart';
+import '../../data/datasources/remote/encryption_backend.dart';
+import '../../data/repositories/encryption_context.dart';
+import '../../data/repositories/encryption_repository.dart';
+import '../../domain/repositories/i_encryption_repository.dart';
+import '../../presentation/features/security/bloc/security_bloc.dart';
+import '../crypto/key_service.dart';
+import '../crypto/secure_key_store.dart';
 import '../../data/datasources/local/hive_source.dart';
 import '../../data/datasources/local/prefs_source.dart';
 import '../../data/datasources/remote/couple_channel_source.dart';
@@ -13,6 +21,7 @@ import '../../data/repositories/canvas_repository.dart';
 import '../../data/repositories/couple_repository.dart';
 import '../../data/repositories/memory_repository.dart';
 import '../../data/repositories/mood_repository.dart';
+import '../../data/datasources/local/flutter_secure_key_store.dart';
 import '../../data/repositories/access_repository.dart';
 import '../../data/repositories/bucket_repository.dart';
 import '../../data/repositories/question_repository.dart';
@@ -76,6 +85,14 @@ Future<void> setupLocator() async {
     () => PrefsSource(prefs: getIt()),
   );
 
+  // ── Encryption (not used by any feature yet) ──────────────────
+  getIt.registerLazySingleton<SecureKeyStore>(() => const FlutterSecureKeyStore());
+  getIt.registerLazySingleton<CryptoService>(() => CryptoService());
+  getIt.registerLazySingleton<KeyServiceFor>(
+    () => (userId) => KeyService(store: getIt(), crypto: getIt(), namespace: userId),
+  );
+  getIt.registerLazySingleton<EncryptionBackend>(() => SupabaseEncryptionBackend(client: getIt()));
+
   getIt.registerLazySingleton<AppLockService>(() => AppLockService(prefs: getIt()));
 
   // ── Offline support ───────────────────────────────────────────
@@ -100,6 +117,7 @@ Future<void> setupLocator() async {
       identity: getIt(),
       channels: getIt(),
       storage: getIt(),
+      wipeKeys: (userId) => getIt<KeyServiceFor>()(userId).clearAll(),
     ),
   );
   getIt.registerLazySingleton<ICoupleRepository>(
@@ -122,6 +140,13 @@ Future<void> setupLocator() async {
   );
   getIt.registerLazySingleton<IAccessRepository>(
     () => AccessRepository(client: getIt(), prefs: getIt()),
+  );
+  getIt.registerLazySingleton<IEncryptionRepository>(
+    () => EncryptionRepository(
+      backend: getIt(),
+      context: AppEncryptionContext(authRepository: getIt(), coupleRepository: getIt()),
+      keysFor: getIt(),
+    ),
   );
   getIt.registerLazySingleton<IBucketRepository>(
     () => BucketRepository(
@@ -198,6 +223,9 @@ Future<void> setupLocator() async {
   );
   getIt.registerFactory<MoodInsightsBloc>(
     () => MoodInsightsBloc(moodRepository: getIt(), coupleRepository: getIt(), authRepository: getIt()),
+  );
+  getIt.registerFactory<SecurityBloc>(
+    () => SecurityBloc(encryptionRepository: getIt()),
   );
   getIt.registerFactory<MoodBloc>(
     () => MoodBloc(moodRepository: getIt()),

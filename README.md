@@ -18,6 +18,7 @@ Realtime emotional connection for couples. Two partners pair with an invite code
 | Long-distance card | Distance between partners and a shared "next time we meet" countdown on Home (long-distance couples only) | [long-distance](docs/features/long-distance.md) |
 | Relationship mode | Together or long-distance, shared by both partners; tailors content such as the daily question | [relationship-mode](docs/features/relationship-mode.md) |
 | Bucket list | Shared list of things to do together, ticked off by either partner, works offline | [bucket-list](docs/features/bucket-list.md) |
+| Security (encryption keys) | Key setup between partners, security code to compare, recovery phrase. Content encryption follows in later phases | [security](docs/security.md) |
 | Question of the day | One shared question a day; answers stay private until both partners reply | [question-of-the-day](docs/features/question-of-the-day.md) |
 | Location | Opt-in partner location on a map | [location](docs/features/location.md) |
 | Home-screen widget | Android widget for Live Doodle | [home-widget](docs/features/home-widget.md) |

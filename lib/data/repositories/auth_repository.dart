@@ -25,6 +25,7 @@ class AuthRepository implements IAuthRepository {
     required this.identity,
     required this.channels,
     required this.storage,
+    this.wipeKeys,
   });
 
   final SupabaseAuthSource authSource;
@@ -35,6 +36,8 @@ class AuthRepository implements IAuthRepository {
   final IdentityCache      identity;
   final CoupleChannelSource channels;
   final StorageSource       storage;
+  /// Removes this account's encryption keys from the phone (account deletion). Optional so tests can skip it.
+  final Future<void> Function(String userId)? wipeKeys;
 
   @override
   Stream<AppUser?> watchAuthState() {
@@ -100,6 +103,9 @@ class AuthRepository implements IAuthRepository {
     if (coupleId != null) await storage.removeFolder(coupleId);
     await client.rpc('delete_my_account');
     await _quietly(LocalMemoryImages.deleteAll);
+    // The keys were only ever for this account: nothing may be left on this phone.
+    final wipe = wipeKeys;
+    if (wipe != null) await _quietly(() => wipe(uid));
     // The account is gone; this clears this device (push token, caches, session).
     await signOut();
   }
