@@ -30,6 +30,7 @@ void main() {
         onSetUpRecovery: () => log?.add('recovery'),
         onRestore: (p) => log?.add('restore:$p'),
         onReset: () => log?.add('reset'),
+        onStartFresh: () => log?.add('fresh'),
       );
 
   const states = {
@@ -122,6 +123,28 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('Reset'));
       expect(log.last, 'reset');
+    });
+
+    testWidgets('start fresh is offered only to a stuck phone, and only after confirming', (tester) async {
+      for (final name in ['ready, all done', 'needs verification', 'needs restore']) {
+        await pump(tester, view(states[name]!));
+        expect(find.text('Start fresh'), findsNothing, reason: name);
+      }
+      for (final name in ['waiting for key', 'needs approval']) {
+        final log = <String>[];
+        await pump(tester, view(states[name]!, log: log));
+        await tester.tap(find.text('Start fresh'));
+        await tester.pumpAndSettle();
+        expect(find.text('Start fresh?'), findsOneWidget);
+        await tester.tap(find.text('Cancel'));
+        await tester.pumpAndSettle();
+        expect(log, isEmpty, reason: '$name: cancelling deletes nothing');
+
+        await tester.tap(find.text('Start fresh'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Delete and start fresh'));
+        expect(log, ['fresh'], reason: name);
+      }
     });
 
     testWidgets('while busy the buttons do nothing', (tester) async {

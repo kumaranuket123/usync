@@ -11,6 +11,7 @@ class FakeEncryptionServer {
   final backups = <String, String>{};
   final coupleKeys = <String, Map<String, String>>{};
   var publishCalls = 0;
+  var startFreshCalls = 0;
   var offline = false;
 
   EncryptionBackend as(String userId) => _Backend(this, userId);
@@ -77,6 +78,13 @@ class _Backend implements EncryptionBackend {
     server._check();
     if (userId == me) throw Exception('You cannot replace your own key');
     server.coupleKeys[_k(coupleId, version)]![userId] = wrapped;
+  }
+
+  @override
+  Future<void> startFresh(String coupleId) async {
+    server._check();
+    server.startFreshCalls++;
+    server.coupleKeys.removeWhere((key, _) => key.startsWith('$coupleId|'));
   }
 }
 

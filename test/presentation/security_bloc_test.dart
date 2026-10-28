@@ -50,6 +50,12 @@ class _FakeEncryption implements IEncryptionRepository {
   }
 
   @override
+  Future<EncryptionState> startFresh() async {
+    calls.add('fresh');
+    return state = const EncryptionState(phase: EncryptionPhase.ready);
+  }
+
+  @override
   Future<EncryptionState> approvePartnerKey(String securityCode) async {
     calls.add('approve:$securityCode');
     return state = const EncryptionState(phase: EncryptionPhase.ready);

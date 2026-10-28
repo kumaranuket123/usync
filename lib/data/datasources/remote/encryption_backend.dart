@@ -21,6 +21,9 @@ abstract interface class EncryptionBackend {
 
   /// Replaces the partner's sealed copy after approving their new public key.
   Future<void> replaceWrappedKey(String coupleId, int version, String userId, String wrapped);
+
+  /// Deletes the couple's sealed content and keys (pictures first), so a new key can be made.
+  Future<void> startFresh(String coupleId);
 }
 
 class SupabaseEncryptionBackend implements EncryptionBackend {
@@ -87,4 +90,14 @@ class SupabaseEncryptionBackend implements EncryptionBackend {
         'p_rows':    {userId: wrapped},
         'p_create':  false,
       });
+
+  @override
+  Future<void> startFresh(String coupleId) async {
+    // Sealed pictures are `<memory id>.enc`; SQL cannot remove Storage files, so the app does.
+    final files = client.storage.from('memories');
+    final objects = await files.list(path: coupleId, searchOptions: const SearchOptions(limit: 1000));
+    final sealed = [for (final o in objects) if (o.name.endsWith('.enc')) '$coupleId/${o.name}'];
+    if (sealed.isNotEmpty) await files.remove(sealed);
+    await client.rpc('start_fresh_encryption', params: {'p_couple': coupleId});
+  }
 }

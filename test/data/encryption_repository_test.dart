@@ -436,6 +436,74 @@ void main() {
     });
   });
 
+  group('starting fresh', () {
+    /// Both phones are reinstalled and nobody has the recovery phrase: the server holds a key nobody can open.
+    Future<(FakePhone, FakePhone)> bothLost() async {
+      await pairBoth();
+      await alice.keys.clearAll();
+      await bob.keys.clearAll();
+      final a = alice.newPhone();
+      final b = bob.newPhone();
+      await a.repo.resetKeys();
+      await b.repo.resetKeys();
+      await a.repo.sync();
+      await b.repo.sync();
+      await a.repo.markPartnerVerified(a.repo.current.securityCode!);
+      await b.repo.markPartnerVerified(b.repo.current.securityCode!);
+      return (a, b);
+    }
+
+    test('a stuck couple clears the old key and both phones end up with the same new one', () async {
+      final (a, b) = await bothLost();
+      expect(a.repo.current.phase, EncryptionPhase.needsApproval);
+      expect(b.repo.current.phase, EncryptionPhase.needsApproval);
+
+      expect((await a.repo.startFresh()).phase, EncryptionPhase.ready);
+      expect(server.startFreshCalls, 1);
+      expect((await b.repo.sync()).phase, EncryptionPhase.ready);
+      expect(await (await a.keys.coupleKey('c1'))!.extractBytes(), await (await b.keys.coupleKey('c1'))!.extractBytes());
+    });
+
+    test('a phone that cannot read is the only one allowed to start over', () async {
+      await pairBoth();
+      await expectLater(alice.repo.startFresh(), throwsA(isA<CryptoException>()));
+      expect(server.startFreshCalls, 0);
+      expect(await alice.keys.hasCoupleKey('c1'), isTrue);
+    });
+
+    test('a partner who still holds the old key takes the new one instead of sharing the old', () async {
+      await pairBoth();
+      final old = await coupleKeyOf(bob);
+      await alice.keys.clearAll();
+      final a = alice.newPhone();
+      await a.repo.resetKeys();
+      await a.repo.sync();
+      await a.repo.markPartnerVerified(a.repo.current.securityCode!);
+      expect(a.repo.current.phase, EncryptionPhase.needsApproval);
+
+      await a.repo.startFresh();
+      await bob.repo.sync();
+      expect(bob.repo.current.phase, EncryptionPhase.partnerKeyChanged);
+      await bob.repo.approvePartnerKey(bob.repo.current.securityCode!);
+
+      expect(bob.repo.current.phase, EncryptionPhase.ready);
+      expect(await coupleKeyOf(bob), isNot(old));
+      expect(await coupleKeyOf(bob), await (await a.keys.coupleKey('c1'))!.extractBytes());
+      expect((await a.repo.sync()).phase, EncryptionPhase.ready);
+    });
+
+    test('keys deleted on the server make a phone that still has the old one drop it and make a new one', () async {
+      await pairBoth();
+      final old = await coupleKeyOf(alice);
+      server.coupleKeys.clear();
+
+      expect((await alice.repo.sync()).phase, EncryptionPhase.ready);
+      expect(await coupleKeyOf(alice), isNot(old));
+      expect((await bob.repo.sync()).phase, EncryptionPhase.ready);
+      expect(await coupleKeyOf(bob), await coupleKeyOf(alice));
+    });
+  });
+
   group('disconnecting and failures', () {
     test('leaving a couple forgets its key and what we remembered about the partner', () async {
       await pairBoth();

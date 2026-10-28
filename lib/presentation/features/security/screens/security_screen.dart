@@ -139,6 +139,7 @@ class _SecurityBodyState extends State<_SecurityBody> {
                             onSetUpRecovery: () => bloc.add(const RecoveryPhraseRequested()),
                             onRestore: (phrase) => bloc.add(RestoreSubmitted(phrase)),
                             onReset: () => bloc.add(const KeysResetRequested()),
+                            onStartFresh: () => bloc.add(const StartFreshRequested()),
                           );
                         },
                       ),

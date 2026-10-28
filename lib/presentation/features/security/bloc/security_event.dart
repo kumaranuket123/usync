@@ -26,3 +26,4 @@ final class RestoreSubmitted extends SecurityEvent {
   final String phrase;
 }
 final class KeysResetRequested extends SecurityEvent { const KeysResetRequested(); }
+final class StartFreshRequested extends SecurityEvent { const StartFreshRequested(); }

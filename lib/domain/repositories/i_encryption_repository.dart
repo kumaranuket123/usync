@@ -31,4 +31,9 @@ abstract interface class IEncryptionRepository {
   /// key with the new keys. Throws a `CryptoException`, changing nothing, if the code the server
   /// serves now is not the one that was compared.
   Future<EncryptionState> approvePartnerKey(String securityCode);
+
+  /// Both partners lost the couple's key and nobody can open the sealed history: clears it and makes a new
+  /// key. Only allowed while this phone cannot get the key (waiting for it or for approval); otherwise it
+  /// throws a `CryptoException` and changes nothing. The partner's phone drops its old key on its next sync.
+  Future<EncryptionState> startFresh();
 }

@@ -141,9 +141,9 @@ class EncryptionRepository implements IEncryptionRepository {
     if (partnerPublic == null) return state(EncryptionPhase.waitingForPartner, coupleId: coupleId);
 
     final code = await crypto.securityCode(myPublic, partnerPublic);
+    var hasKey = await keys.hasCoupleKey(coupleId, version: _coupleKeyVersion);
     final verified = await keys.meta(_verifiedName(coupleId)) == code;
     final seen = await keys.meta(_seenName(coupleId));
-    final hasKey = await keys.hasCoupleKey(coupleId, version: _coupleKeyVersion);
 
     // We hold the key and the partner's key is not the one we accepted: a person must decide.
     if (hasKey && seen != null && seen != partnerPublicB64) {
@@ -151,6 +151,13 @@ class EncryptionRepository implements IEncryptionRepository {
     }
     // Nothing is shared or accepted until the code for this exact pair of keys was confirmed.
     if (!verified) return state(EncryptionPhase.needsVerification, code: code, coupleId: coupleId);
+
+    // Keep the key we hold in step with the server's copy. If the couple started fresh, the server has
+    // none (ours opens nothing any more) or a new one from the partner we confirmed.
+    if (hasKey && await _adoptSharedKey(keys, myPair, myPublic, partnerPublic, ctx.userId, coupleId) == _Adopt.none) {
+      await keys.forgetCouple(coupleId);
+      hasKey = false;
+    }
 
     if (!hasKey) {
       var adopted = await _adoptSharedKey(keys, myPair, myPublic, partnerPublic, ctx.userId, coupleId);
@@ -273,12 +280,33 @@ class EncryptionRepository implements IEncryptionRepository {
       });
 
   @override
+  Future<EncryptionState> startFresh() => _operation(() async {
+        final ctx = await context.current();
+        final coupleId = ctx?.coupleId;
+        if (ctx == null || coupleId == null) throw const CryptoException('You are not paired');
+        // Only for a phone that cannot get the key: never for one that can still read the history.
+        final phase = (await _sync()).phase;
+        if (phase != EncryptionPhase.needsApproval && phase != EncryptionPhase.waitingForKey) {
+          throw const CryptoException('Nothing to start over: this phone is not stuck.');
+        }
+        await backend.startFresh(coupleId);
+        return _sync();
+      });
+
+  @override
   Future<EncryptionState> approvePartnerKey(String securityCode) => _operation(() async {
         final c = await _checkedPartner(securityCode);
         final coupleId = c.ctx.coupleId!;
         final partnerId = c.ctx.partnerId!;
         final seen = await c.keys.meta(_seenName(coupleId));
         if (seen == c.partnerPublicB64) return _sync(); // nothing to approve
+        // Never share a key the server no longer holds: the couple may have started fresh meanwhile.
+        final myPair = await c.keys.identityKeyPair();
+        final myPublic = Uint8List.fromList((await myPair.extractPublicKey()).bytes);
+        if (await _adoptSharedKey(c.keys, myPair, myPublic, base64Decode(c.partnerPublicB64), c.ctx.userId, coupleId) == _Adopt.none) {
+          await c.keys.forgetCouple(coupleId);
+          return _sync();
+        }
         final couple = await c.keys.coupleKey(coupleId, version: _coupleKeyVersion);
         if (couple == null) throw const CryptoException('This phone does not have the couple key to share');
         final wrapped = await c.keys.crypto.wrapKey(

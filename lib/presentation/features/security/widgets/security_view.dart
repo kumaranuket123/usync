@@ -18,12 +18,13 @@ class SecurityView extends StatefulWidget {
     required this.onSetUpRecovery,
     required this.onRestore,
     required this.onReset,
+    required this.onStartFresh,
   });
 
   final EncryptionState encryption;
   final String          partnerName;
   final bool            busy;
-  final VoidCallback    onVerify, onApprove, onSetUpRecovery, onReset;
+  final VoidCallback    onVerify, onApprove, onSetUpRecovery, onReset, onStartFresh;
   final ValueChanged<String> onRestore;
 
   @override
@@ -59,6 +60,28 @@ class _SecurityViewState extends State<SecurityView> {
     if (ok == true) widget.onReset();
   }
 
+  Future<void> _confirmStartFresh() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: AppColors.bg2,
+        title: const Text('Start fresh?', style: TextStyle(color: Colors.white)),
+        content: Text(
+          'This permanently deletes your shared history that is encrypted (drawings, moods, memories, dates, answers, '
+          'bucket list and locations) for both of you, and makes a new key. Only do it if neither you nor '
+          '${widget.partnerName} can open the old history, for example after both phones were reset. '
+          'If ${widget.partnerName} still has it, ask them to approve instead.',
+          style: AppTextStyles.bodyMuted,
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Cancel', style: TextStyle(color: AppColors.textMuted))),
+          TextButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('Delete and start fresh', style: TextStyle(color: AppColors.error))),
+        ],
+      ),
+    );
+    if (ok == true) widget.onStartFresh();
+  }
+
   @override
   Widget build(BuildContext context) {
     final e = widget.encryption;
@@ -80,6 +103,24 @@ class _SecurityViewState extends State<SecurityView> {
               busy: widget.busy,
               onVerify: widget.onVerify,
               onApprove: widget.onApprove,
+            ),
+          ],
+          if (e.phase == EncryptionPhase.needsApproval || e.phase == EncryptionPhase.waitingForKey) ...[
+            const SizedBox(height: 14),
+            _Card(
+              title: 'Stuck?',
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'If you and $name both lost your keys (for example you both reinstalled), nobody can open the old history '
+                    'and you will wait forever. You can delete it and start fresh.',
+                    style: AppTextStyles.bodyMuted,
+                  ),
+                  const SizedBox(height: 12),
+                  GlowButton(label: widget.busy ? 'Working…' : 'Start fresh', onTap: widget.busy ? null : _confirmStartFresh),
+                ],
+              ),
             ),
           ],
           if (needsRestore) ...[

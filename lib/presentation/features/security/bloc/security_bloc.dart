@@ -20,6 +20,7 @@ class SecurityBloc extends Bloc<SecurityEvent, SecurityState> {
     });
     on<RecoveryPhraseConfirmed>((e, emit) => _run(emit, () => encryptionRepository.finishRecovery(e.phrase), done: 'Recovery phrase saved', clearPhrase: true));
     on<RestoreSubmitted>(_onRestore);
+    on<StartFreshRequested>((_, emit) => _run(emit, encryptionRepository.startFresh, done: 'Started fresh. New keys are being set up.'));
     on<KeysResetRequested>((_, emit) => _run(emit, encryptionRepository.resetKeys, done: 'New keys made. Ask your partner to approve them.'));
   }
 
