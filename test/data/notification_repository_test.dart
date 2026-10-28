@@ -40,17 +40,32 @@ void main() {
       );
 
       final row = insert();
-      expect(row['body_text'], 'Alex shared a mood 💭');
+      expect(row['body_text'], 'Your partner shared a mood 💭');
       expect(row['detail_enc'], startsWith('u1:'));
       expect(bodyText(row), isNot(contains('Missing')));
       final opened = await cipher.openText(row['detail_enc'] as String, coupleId: 'c1', table: 'notifications', rowId: row['id'] as String, field: 'detail');
       expect(opened, 'Alex is feeling "Missing you terribly"');
     });
 
-    test('a notification without a detail has no detail_enc', () async {
+    test('the sender\'s name is never in the stored row: the nameless sentence is stored and the named one sealed', () async {
       serve();
-      await repo.notifyPartner(coupleId: 'c1', fromUserId: 'u1', type: NotifType.touch, body: (n) => '$n is thinking of you');
-      expect(insert().containsKey('detail_enc'), isFalse);
+      await repo.notifyPartner(coupleId: 'c1', fromUserId: 'u1', type: NotifType.touch, body: (n) => '$n wants to feel you 💞');
+
+      final row = insert();
+      expect(row['body_text'], 'Your partner wants to feel you 💞');
+      expect(bodyText(row), isNot(contains('Alex')));
+      expect(row['detail_enc'], startsWith('u1:'));
+      final opened = await cipher.openText(row['detail_enc'] as String, coupleId: 'c1', table: 'notifications', rowId: row['id'] as String, field: 'detail');
+      expect(opened, 'Alex wants to feel you 💞', reason: 'the app shows the named sentence after opening it');
+    });
+
+    test('a typed detail stays sealed and the name stays out of body_text', () async {
+      serve();
+      await repo.notifyPartner(coupleId: 'c1', fromUserId: 'u1', type: NotifType.moodChange, body: (n) => '$n shared a mood 💭', detail: (n) => '$n is feeling "Calm"');
+
+      final row = insert();
+      expect(bodyText(row), isNot(contains('Alex')));
+      expect(bodyText(row), isNot(contains('Calm')));
     });
 
     test('without the couple key the partner still gets the fixed sentence, never the detail in the clear', () async {
@@ -66,9 +81,10 @@ void main() {
       );
 
       final row = insert();
-      expect(row['body_text'], 'Alex shared a mood 💭');
+      expect(row['body_text'], 'Your partner shared a mood 💭');
       expect(row.containsKey('detail_enc'), isFalse);
       expect(bodyText(row), isNot(contains('Missing')));
+      expect(bodyText(row), isNot(contains('Alex')));
     });
   });
 

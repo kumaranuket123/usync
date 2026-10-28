@@ -47,6 +47,10 @@ Not stored: the recovery phrase is never saved on the phone, so it cannot be sho
 - Older builds show placeholders and cannot decrypt, so release E2 together with raising `app_config.min_supported_build`. The old `set_next_meet` RPC clears the sealed date so the two never disagree.
 - Not yet: direct writes of readable text by a modified client are not blocked by the server (enforced in E5).
 
+### Notifications carry no names
+
+`notifications.body_text` (what the server stores and the lock-screen push shows) says "Your partner …" and never the sender's name or typed words. The full sentence, with the name, is sealed into `detail_enc` for every notification and shown inside the app after it is opened. The in-app list falls back to the nameless sentence when the detail cannot be opened. Old rows with names are rewritten by `e2ee_lockdown.sql`. This only keeps the name out of notifications: the person's display name still exists in `profiles.username` (it comes from Google sign-in and the partner screen needs it), so it is account metadata, not secret from the database.
+
 ## E3b: the shared drawing (`CanvasStrokeCodec`)
 
 - A finished stroke is one sealed value, `canvas_strokes.enc` (colour, width, eraser flag, points), bound to couple, table and stroke id. Who drew it, the stroke id and when stay readable (streaks count on them). Older readable strokes are still read.

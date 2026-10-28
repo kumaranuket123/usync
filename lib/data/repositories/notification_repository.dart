@@ -118,6 +118,10 @@ class NotificationRepository implements INotificationRepository {
         .handleError((Object _) {});
   }
 
+  /// What the stored (and pushed) text says in place of the sender's name: the server and the lock screen
+  /// never get the name from here. The named sentence is sealed into `detail_enc` and shown inside the app.
+  static const anonymousSender = 'Your partner';
+
   @override
   Future<void> notifyPartner({
     required String coupleId,
@@ -129,21 +133,22 @@ class NotificationRepository implements INotificationRepository {
     try {
       final name = await _senderName(fromUserId);
       final id = _uuid.v4(); // chosen here: the encrypted detail is bound to this row
+      // Every notification carries its full sentence (with the name, and any typed words) sealed; when the
+      // caller gave no separate detail, the named version of the body is that sentence.
+      final named = detail != null ? detail(name) : body(name);
       String? sealed;
-      if (detail != null) {
-        try {
-          sealed = await cipher.sealText(detail(name), coupleId: coupleId, table: 'notifications', rowId: id, field: 'detail');
-        } catch (_) {
-          // No couple key yet: the partner gets the fixed sentence only, never the detail in the clear.
-        }
+      try {
+        sealed = await cipher.sealText(named, coupleId: coupleId, table: 'notifications', rowId: id, field: 'detail');
+      } catch (_) {
+        // No couple key yet: the partner gets the nameless sentence only, never the detail in the clear.
       }
-      // The recipient is the sender's partner; the push (phase 5) is sent by an Edge Function.
+      // The recipient is the sender's partner; the push is sent by an Edge Function.
       await client.from('notifications').insert({
         'id':           id,
         'couple_id':    coupleId,
         'from_user_id': fromUserId,
         'type':         type.name,
-        'body_text':    body(name),
+        'body_text':    body(anonymousSender),
         if (sealed != null) 'detail_enc': sealed,
       });
     } catch (_) {}

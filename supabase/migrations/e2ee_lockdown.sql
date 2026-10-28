@@ -78,7 +78,9 @@ revoke update on public.question_answers from authenticated;
 -- ── The readable next-meeting date: the old RPC wrote it in the clear ──────────────────────────────
 drop function if exists public.set_next_meet(uuid, date);
 
--- ── Old notifications quoted what people typed (moods, bucket items, dates) ────────────────────────
+-- ── Old notifications quoted the sender's name and what people typed ───────────────────────────────
+-- Everything written before the sealed detail existed carries a name (and often moods, titles or dates) in
+-- its text. The kind of activity and the time stay; the words go.
 update public.notifications
    set body_text = 'Activity from before encryption'
- where detail_enc is null and type in ('milestone', 'moodChange') and created_at < now();
+ where detail_enc is null and created_at < now();
