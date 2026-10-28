@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:usync/core/crypto/content_cipher.dart';
 import 'package:usync/data/datasources/local/identity_cache.dart';
 import 'package:usync/data/datasources/remote/couple_channel_source.dart';
 import 'package:usync/data/datasources/remote/storage_source.dart';
@@ -6,6 +7,7 @@ import 'package:usync/data/repositories/couple_repository.dart';
 import 'package:usync/domain/entities/couple.dart';
 import 'package:usync/domain/entities/notification_item.dart';
 
+import '../support/test_cipher.dart';
 import 'repository_harness.dart';
 
 void main() {
@@ -15,12 +17,14 @@ void main() {
   late CoupleChannelSource channels;
   late CoupleRepository repo;
   late RecordingNotifications notifications;
+  late ContentCipher cipher;
 
   setUp(() async {
     backend = FakeBackend();
     local = LocalStorage();
     await local.setUp();
     identity = IdentityCache();
+    cipher = await readyCipher();
     notifications = RecordingNotifications();
     channels = CoupleChannelSource(client: backend.client);
     repo = CoupleRepository(
@@ -30,6 +34,7 @@ void main() {
       storage: StorageSource(client: backend.client),
       sessionCache: local.sessionCache,
       identity: identity,
+      cipher: cipher,
     );
   });
 
@@ -163,36 +168,92 @@ void main() {
   });
 
   group('next meet', () {
-    Map<String, dynamic> coupleRow({String? meet}) => {
+    Map<String, dynamic> coupleRow({String? meet, String? enc}) => {
           'id': 'c1',
           'user_a_id': 'a',
           'user_b_id': 'b',
           'paired_at': '2026-01-01T00:00:00Z',
           'next_meet_on': meet,
+          'next_meet_enc': enc,
         };
 
-    test('sets the date through the RPC, refreshes the couple and tells the partner', () async {
+    Future<String> sealedDay(String day, {ContentCipher? by}) =>
+        (by ?? cipher).sealJson({'day': day}, coupleId: 'c1', table: 'couples', rowId: 'c1', field: 'next_meet');
+
+    test('sends the date only sealed, shows it once read back, and tells the partner without the date', () async {
+      final enc = await sealedDay('2026-12-12');
       backend.respond((req) =>
-          req.path.endsWith('/rpc/set_next_meet') ? FakeBackend.ok(null, status: 204) : FakeBackend.ok(coupleRow(meet: '2026-12-12')));
+          req.path.endsWith('/rpc/set_next_meet_enc') ? FakeBackend.ok(null, status: 204) : FakeBackend.ok(coupleRow(enc: enc)));
 
       await repo.setNextMeet('c1', 'a', DateTime(2026, 12, 12));
 
-      expect(backend.requests.first.path, endsWith('/rpc/set_next_meet'));
-      expect(backend.requests.first.json, {'p_couple': 'c1', 'p_day': '2026-12-12'});
+      final rpc = backend.requests.first;
+      expect(rpc.path, endsWith('/rpc/set_next_meet_enc'));
+      expect((rpc.json as Map)['p_couple'], 'c1');
+      expect((rpc.json as Map)['p_enc'], startsWith('u1:'));
+      expect(bodyText(rpc.json), isNot(contains('2026-12-12')));
+      expect(bodyText(rpc.json), isNot(contains('12-12')));
+
       final cached = await identity.couples.get('c1', () async => throw StateError('should be cached'));
       expect(cached.nextMeetOn, DateTime(2026, 12, 12));
       expect(notifications.sent.single.type, NotifType.milestone);
-      expect(notifications.sent.single.body, contains('Dec 12'));
+      expect(notifications.sent.single.body, 'Alex set your next meet ✈️');
+      expect(notifications.sent.single.body, isNot(contains('Dec')));
+      expect(notifications.sent.single.detail, contains('Dec 12'));
     });
 
-    test('clearing sends null and does not notify the partner', () async {
+    test('without the couple key nothing is sent and the caller is told', () async {
+      repo = CoupleRepository(
+        client: backend.client,
+        channelSource: channels,
+        notifications: notifications,
+        storage: StorageSource(client: backend.client),
+        sessionCache: local.sessionCache,
+        identity: identity,
+        cipher: notReadyCipher(),
+      );
+      backend.respond((_) => FakeBackend.ok(null, status: 204));
+
+      await expectLater(repo.setNextMeet('c1', 'a', DateTime(2026, 12, 12)), throwsA(isA<EncryptionNotReady>()));
+
+      expect(backend.requests, isEmpty);
+      expect(notifications.sent, isEmpty);
+    });
+
+    test('clearing sends null, needs no key, and does not notify the partner', () async {
+      repo = CoupleRepository(
+        client: backend.client,
+        channelSource: channels,
+        notifications: notifications,
+        storage: StorageSource(client: backend.client),
+        sessionCache: local.sessionCache,
+        identity: identity,
+        cipher: notReadyCipher(),
+      );
       backend.respond((req) =>
-          req.path.endsWith('/rpc/set_next_meet') ? FakeBackend.ok(null, status: 204) : FakeBackend.ok(coupleRow()));
+          req.path.endsWith('/rpc/set_next_meet_enc') ? FakeBackend.ok(null, status: 204) : FakeBackend.ok(coupleRow()));
 
       await repo.setNextMeet('c1', 'a', null);
 
-      expect(backend.requests.first.json, {'p_couple': 'c1', 'p_day': null});
+      expect(backend.requests.first.json, {'p_couple': 'c1', 'p_enc': null});
       expect(notifications.sent, isEmpty);
+    });
+
+    test('a date set before encryption (readable column) is still shown', () async {
+      backend.respond((_) => FakeBackend.ok(coupleRow(meet: '2026-11-01')));
+      expect((await repo.getCouple('c1')).nextMeetOn, DateTime(2026, 11, 1));
+    });
+
+    test('a sealed date this phone cannot open shows as no date instead of failing', () async {
+      final foreign = await sealedDay('2026-12-12', by: await readyCipher());
+      backend.respond((_) => FakeBackend.ok(coupleRow(enc: foreign)));
+      expect((await repo.getCouple('c1')).nextMeetOn, isNull);
+    });
+
+    test('a sealed date copied to another couple does not open', () async {
+      final enc = await sealedDay('2026-12-12');
+      backend.respond((_) => FakeBackend.ok({...coupleRow(enc: enc), 'id': 'c2'}));
+      expect((await repo.getCouple('c2')).nextMeetOn, isNull);
     });
   });
 }

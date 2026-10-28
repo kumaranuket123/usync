@@ -1,7 +1,7 @@
 name: usync
 description: "Usync — A realtime emotional connection app for couples."
 publish_to: 'none'
-version: 1.0.1+5
+version: 1.1.0+6
 
 environment:
   sdk: ^3.5.0
@@ -61,6 +61,14 @@ dependencies:
   gal: ^2.3.3
   flutter_cache_manager: ^3.4.6
   package_info_plus: ^9.0.1
+  cryptography: 2.9.0
+  cryptography_flutter: 2.3.4
+  flutter_secure_storage: 10.3.4
+  bip39_mnemonic: 4.1.0
+  # Date reminders: scheduled on the phone, because the server can no longer read the dates.
+  flutter_local_notifications: 22.3.1
+  timezone: 0.11.2
+  flutter_timezone: 5.1.1
 dev_dependencies:
   flutter_test:
     sdk: flutter

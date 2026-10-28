@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../../core/crypto/content_cipher.dart';
 import '../../../../domain/entities/bucket_item.dart';
 import '../../../../domain/repositories/i_bucket_repository.dart';
 
@@ -76,6 +77,8 @@ class BucketBloc extends Bloc<BucketEvent, BucketState> {
       if (result.sentNow) return; // the live list brings it back
       _pending[result.item.id] = result.item;
       emit(_ready(notice: 'You are offline. It will be added when you are back online.'));
+    } on EncryptionNotReady catch (e) {
+      emit(_ready(notice: e.message));
     } catch (_) {
       emit(_ready(notice: 'Could not add it. Try again.'));
     }

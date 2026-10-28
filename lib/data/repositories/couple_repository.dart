@@ -1,9 +1,11 @@
 import 'dart:async';
 import 'dart:math';
 
+import 'package:flutter/foundation.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../core/crypto/content_cipher.dart';
 import '../../core/utils/network_errors.dart';
 import '../../domain/entities/couple.dart';
 import '../../domain/entities/notification_item.dart';
@@ -23,6 +25,8 @@ class CoupleRepository implements ICoupleRepository {
     required this.storage,
     required this.sessionCache,
     required this.identity,
+    required this.cipher,
+    this.cancelReminders,
   });
 
   final SupabaseClient          client;
@@ -31,6 +35,9 @@ class CoupleRepository implements ICoupleRepository {
   final StorageSource           storage;
   final SessionCache            sessionCache;
   final IdentityCache           identity;
+  final ContentCipher   cipher;
+  /// Removes the date reminders scheduled on this phone (the couple's dates are gone).
+  final Future<void> Function()? cancelReminders;
 
   @override
   Future<String> generateInviteCode(String userId) async {
@@ -111,12 +118,12 @@ class CoupleRepository implements ICoupleRepository {
     try {
       final row = await client.from('couples').select().eq('id', coupleId).maybeSingle();
       if (row == null) throw Exception('Couple not found');
-      await sessionCache.put(SessionCache.couple(coupleId), row);
-      return CoupleModel.fromRow(row);
+      await sessionCache.put(SessionCache.couple(coupleId), row); // the saved copy keeps the date sealed
+      return CoupleModel.fromRow(await _withReadableNextMeet(row));
     } catch (e) {
       // Offline: the last copy keeps the app usable.
       final cached = isNetworkError(e) ? sessionCache.getMap(SessionCache.couple(coupleId)) : null;
-      if (cached != null) return CoupleModel.fromRow(cached);
+      if (cached != null) return CoupleModel.fromRow(await _withReadableNextMeet(cached));
       rethrow;
     }
   }
@@ -134,19 +141,36 @@ class CoupleRepository implements ICoupleRepository {
     identity.couples.put(coupleId, await _loadCouple(coupleId));
   }
 
+  /// The date is stored sealed; this puts it back as a plain date (`next_meet_on`) for the model. A date
+  /// set before encryption (still in `next_meet_on`) is used as it is. If this phone cannot open it
+  /// yet, there is simply no date to show.
+  Future<Map<String, dynamic>> _withReadableNextMeet(Map<String, dynamic> row) async {
+    final sealed = row['next_meet_enc'] as String?;
+    if (!ContentCipher.isEncrypted(sealed)) return row;
+    try {
+      final content = await cipher.openJson(sealed!, coupleId: row['id'] as String, table: 'couples', rowId: row['id'] as String, field: 'next_meet');
+      return {...row, 'next_meet_on': content['day']};
+    } catch (e) {
+      debugPrint('Could not read the next-meet date: ${e.runtimeType}');
+      return {...row, 'next_meet_on': null};
+    }
+  }
+
   @override
   Future<void> setNextMeet(String coupleId, String userId, DateTime? day) async {
-    await client.rpc('set_next_meet', params: {
-      'p_couple': coupleId,
-      'p_day':    day == null ? null : _ymd(day),
-    });
+    // Sealed before it leaves the phone; the server only ever holds ciphertext. Clearing needs no key.
+    final sealed = day == null
+        ? null
+        : await cipher.sealJson({'day': _ymd(day)}, coupleId: coupleId, table: 'couples', rowId: coupleId, field: 'next_meet');
+    await client.rpc('set_next_meet_enc', params: {'p_couple': coupleId, 'p_enc': sealed});
     identity.couples.put(coupleId, await _loadCouple(coupleId));
     if (day == null) return; // clearing is not news for the partner
     await notifications.notifyPartner(
       coupleId:   coupleId,
       fromUserId: userId,
       type:       NotifType.milestone,
-      body:       (name) => '$name set your next meet for ${DateFormat.MMMd().format(day)} ✈️',
+      body:       (name) => '$name set your next meet ✈️',
+      detail:     (name) => '$name set your next meet for ${DateFormat.MMMd().format(day)} ✈️',
     );
   }
 
@@ -159,8 +183,8 @@ class CoupleRepository implements ICoupleRepository {
       .stream(primaryKey: ['id'])
       .eq('id', coupleId)
       .where((rows) => rows.isNotEmpty)
-      .map((rows) {
-        final couple = CoupleModel.fromRow(rows.first);
+      .asyncMap((rows) async {
+        final couple = CoupleModel.fromRow(await _withReadableNextMeet(rows.first));
         identity.couples.put(coupleId, couple); // keep the remembered copy current
         return couple;
       })
@@ -175,6 +199,9 @@ class CoupleRepository implements ICoupleRepository {
     // Nothing of the couple may stay behind on this phone either.
     await sessionCache.clear();
     identity.clear(); // the couple ends and both profiles lose their couple_id
+    try {
+      await cancelReminders?.call();
+    } catch (_) {}
   }
 
   // ── Presence (Realtime Presence on the shared couple channel) ──────────────

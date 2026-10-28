@@ -6,14 +6,17 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get_it/get_it.dart';
 
+import '../../../../core/crypto/content_cipher.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../domain/repositories/i_auth_repository.dart';
 import '../../../../domain/repositories/i_couple_repository.dart';
 import '../../../shared/painters/canvas_stroke_painter.dart';
 import '../../../shared/widgets/live_indicator.dart';
+import '../../../shared/widgets/loading_dots.dart';
 import '../../../shared/widgets/neon_back_button.dart';
 import '../bloc/canvas_bloc.dart';
+import '../widgets/single_finger_input.dart';
 import '../../../../core/utils/app_snack_bar.dart';
 
 class CanvasScreen extends StatelessWidget {
@@ -44,6 +47,8 @@ class _CanvasBodyState extends State<_CanvasBody> with WidgetsBindingObserver {
   final _canvasKey = GlobalKey();
   /// Hides the header and toolbar so the whole screen is canvas.
   bool _showChrome = true;
+  /// The couple could not be resolved, so the loading overlay offers a retry instead of waiting.
+  bool _connectFailed = false;
 
   @override
   void initState() {
@@ -68,11 +73,13 @@ class _CanvasBodyState extends State<_CanvasBody> with WidgetsBindingObserver {
   }
 
   Future<void> _mount() async {
+    if (_connectFailed) setState(() => _connectFailed = false);
     try {
       final uid  = Supabase.instance.client.auth.currentUser?.id;
-      if (uid == null) return;
+      if (uid == null) throw StateError('Not signed in');
       final user = await GetIt.I<IAuthRepository>().getCurrentUser();
-      if (user?.coupleId == null || !mounted) return;
+      if (!mounted) return;
+      if (user?.coupleId == null) throw StateError('Not paired');
       final couple  = await GetIt.I<ICoupleRepository>().getCouple(user!.coupleId!);
       final partner = await GetIt.I<IAuthRepository>().getUserById(couple.partnerIdFor(uid));
       if (!mounted) return;
@@ -85,6 +92,7 @@ class _CanvasBodyState extends State<_CanvasBody> with WidgetsBindingObserver {
     } catch (err) {
       debugPrint('Canvas mount failed: $err');
       if (!mounted) return;
+      setState(() => _connectFailed = true);
       ScaffoldMessenger.of(context).showSnackBar(appSnackBar(
         content: const Text('Could not connect the shared canvas'),
         action: SnackBarAction(label: 'Retry', onPressed: _mount),
@@ -127,10 +135,22 @@ class _CanvasBodyState extends State<_CanvasBody> with WidgetsBindingObserver {
     return Scaffold(
       backgroundColor: AppColors.bg1,
       body: BlocListener<CanvasBloc, CanvasState>(
+        // Nothing can be drawn until this phone has the couple key: say why, once.
+        listenWhen: (a, b) => !a.needsSecuring && b.needsSecuring && !a.isSaving,
+        listener: (context, state) => ScaffoldMessenger.of(context).showSnackBar(appSnackBar(
+          content: Text(const EncryptionNotReady().message),
+        )),
+        child: BlocListener<CanvasBloc, CanvasState>(
+        // Drawing saved by the partner that this phone cannot read: say so instead of showing nothing.
+        listenWhen: (a, b) => !a.hasUnreadable && b.hasUnreadable,
+        listener: (context, state) => ScaffoldMessenger.of(context).showSnackBar(appSnackBar(
+          content: const Text('Some of your partner\'s drawing cannot be read on this phone. Check Profile → Security on both phones.'),
+        )),
+        child: BlocListener<CanvasBloc, CanvasState>(
         listenWhen: (a, b) => a.isSaving && !b.isSaving,
         listener: (context, state) => ScaffoldMessenger.of(context).showSnackBar(appSnackBar(
           content: Text(state.saveFailed
-              ? 'Could not save the doodle'
+              ? (state.needsSecuring ? const EncryptionNotReady().message : 'Could not save the doodle')
               : state.saveQueued
                   ? 'Saved on this device. It will go to Memories and $_partnerName when you are back online.'
                   : 'Saved to Memories — $_partnerName was notified ✏️'),
@@ -141,18 +161,18 @@ class _CanvasBodyState extends State<_CanvasBody> with WidgetsBindingObserver {
             a.activeTool != b.activeTool ||
             a.activeColor != b.activeColor ||
             a.partnerHere != b.partnerHere ||
-            a.isSaving != b.isSaving,
+            a.isSaving != b.isSaving ||
+            a.isReady != b.isReady ||
+            a.needsSecuring != b.needsSecuring,
         builder: (context, state) {
           return Stack(
             children: [
               // Drawing area — repaints per point without rebuilding the toolbar.
               Positioned.fill(
-                child: GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onPanStart: (d) => context.read<CanvasBloc>().add(StrokeStarted(d.localPosition)),
-                  onPanUpdate:(d) => context.read<CanvasBloc>().add(StrokeUpdated(d.localPosition)),
-                  onPanEnd:   (_) => context.read<CanvasBloc>().add(StrokeEnded()),
-                  onPanCancel: () => context.read<CanvasBloc>().add(StrokeEnded()),
+                child: SingleFingerInput(
+                  onStart:  (o) => context.read<CanvasBloc>().add(StrokeStarted(o)),
+                  onUpdate: (o) => context.read<CanvasBloc>().add(StrokeUpdated(o)),
+                  onEnd:    () => context.read<CanvasBloc>().add(StrokeEnded()),
                   child: RepaintBoundary(
                     key: _canvasKey,
                     child: BlocBuilder<CanvasBloc, CanvasState>(
@@ -268,9 +288,46 @@ class _CanvasBodyState extends State<_CanvasBody> with WidgetsBindingObserver {
                   ),
                 ),
               ),
+
+              // Until the connection is up nothing can be drawn or shared: say so, and let the user leave.
+              if (!state.isReady && !state.needsSecuring)
+                Positioned.fill(
+                  child: Container(
+                    color: AppColors.bg1,
+                    child: SafeArea(
+                      child: Stack(
+                        children: [
+                          const Padding(
+                            padding: EdgeInsets.fromLTRB(20, 10, 20, 0),
+                            child: NeonBackButton(),
+                          ),
+                          Center(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                if (_connectFailed) ...[
+                                  Text('Could not connect the shared canvas',
+                                      style: AppTextStyles.bodyMuted, textAlign: TextAlign.center),
+                                  const SizedBox(height: 16),
+                                  FilledButton(onPressed: _mount, child: const Text('Retry')),
+                                ] else ...[
+                                  const LoadingDots(),
+                                  const SizedBox(height: 16),
+                                  Text('Connecting to the canvas…', style: AppTextStyles.bodyMuted),
+                                ],
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
             ],
           );
         },
+        ),
+        ),
         ),
       ),
     );

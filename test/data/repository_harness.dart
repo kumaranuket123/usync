@@ -14,9 +14,11 @@ import 'package:usync/domain/repositories/i_notification_repository.dart';
 
 /// A request the repository sent, as the fake server saw it.
 class Recorded {
-  Recorded(this.request, this.body);
+  Recorded(this.request, this.body, [this.bodyBytes = const []]);
   final http.BaseRequest request;
   final String body;
+  /// The raw request body (an upload is binary, so [body] is not reliable for it).
+  final List<int> bodyBytes;
 
   String get method => request.method;
   String get path => request.url.path;
@@ -32,12 +34,18 @@ class FakeBackend {
       'http://fake.supabase.test',
       'anon-key',
       httpClient: MockClient((request) async {
-        final body = request.body;
-        final recorded = Recorded(request, body);
+        // An upload is binary and not valid text; tests read it from bodyBytes instead.
+        String body;
+        try {
+          body = request.body;
+        } on FormatException {
+          body = '';
+        }
+        final recorded = Recorded(request, body, request.bodyBytes);
         requests.add(recorded);
         final reply = _handler(recorded);
         // The Postgrest parser reads the originating request off the response.
-        return http.Response(reply.body, reply.statusCode, request: request, headers: reply.headers);
+        return http.Response.bytes(reply.bodyBytes, reply.statusCode, request: request, headers: reply.headers);
       }),
     );
   }
@@ -71,7 +79,7 @@ class FakeConnectivity implements Connectivity {
 
 /// Notification repository that records what would have been sent.
 class RecordingNotifications implements INotificationRepository {
-  final sent = <({String coupleId, String fromUserId, NotifType type, String body})>[];
+  final sent = <({String coupleId, String fromUserId, NotifType type, String body, String? detail})>[];
 
   @override
   Future<void> notifyPartner({
@@ -79,8 +87,9 @@ class RecordingNotifications implements INotificationRepository {
     required String fromUserId,
     required NotifType type,
     required String Function(String senderName) body,
+    String Function(String senderName)? detail,
   }) async =>
-      sent.add((coupleId: coupleId, fromUserId: fromUserId, type: type, body: body('Alex')));
+      sent.add((coupleId: coupleId, fromUserId: fromUserId, type: type, body: body('Alex'), detail: detail?.call('Alex')));
 
   @override
   dynamic noSuchMethod(Invocation invocation) => throw UnimplementedError();

@@ -44,3 +44,8 @@ Besides the sheet on this screen, long-distance couples see the distance on Home
 ## Privacy
 
 Opt-in, deletable (turning sharing off removes the row), visible to the partner only, and a locate request is always announced to the person being located. `location` alerts are silent (no sound/popup) by default.
+
+## Encryption (phase E3c)
+
+A location is sealed on the phone before it is saved and opened on the partner's phone; the server only holds ciphertext, plus when it was updated and whether background requests are allowed. Without the couple key sharing is paused with a message to finish securing the connection (Profile → Security). See "E3c" in [security.md](../security.md). Migration: `supabase/migrations/e2ee_locations.sql`.
+

@@ -25,6 +25,8 @@ class AuthRepository implements IAuthRepository {
     required this.identity,
     required this.channels,
     required this.storage,
+    this.wipeKeys,
+    this.cancelReminders,
   });
 
   final SupabaseAuthSource authSource;
@@ -35,6 +37,10 @@ class AuthRepository implements IAuthRepository {
   final IdentityCache      identity;
   final CoupleChannelSource channels;
   final StorageSource       storage;
+  /// Removes this account's encryption keys from the phone (account deletion). Optional so tests can skip it.
+  final Future<void> Function(String userId)? wipeKeys;
+  /// Removes the date reminders scheduled on this phone.
+  final Future<void> Function()? cancelReminders;
 
   @override
   Stream<AppUser?> watchAuthState() {
@@ -100,6 +106,9 @@ class AuthRepository implements IAuthRepository {
     if (coupleId != null) await storage.removeFolder(coupleId);
     await client.rpc('delete_my_account');
     await _quietly(LocalMemoryImages.deleteAll);
+    // The keys were only ever for this account: nothing may be left on this phone.
+    final wipe = wipeKeys;
+    if (wipe != null) await _quietly(() => wipe(uid));
     // The account is gone; this clears this device (push token, caches, session).
     await signOut();
   }
@@ -111,6 +120,8 @@ class AuthRepository implements IAuthRepository {
     await outbox.clear();
     // The home-screen doodle widget would otherwise keep showing this couple's drawing.
     await _quietly(() => HomeWidgetService.refresh(const []));
+    final cancel = cancelReminders;
+    if (cancel != null) await _quietly(cancel);
     identity.clear();
     // The live channel belongs to this session; the next one needs its own.
     channels.close();

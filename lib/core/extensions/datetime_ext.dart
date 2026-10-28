@@ -10,14 +10,25 @@ extension DateTimeExt on DateTime {
     return formatted;
   }
 
-  /// "May 28, 2026"
+  /// "May 28, 2026", in the device's local time zone.
   String get formatted {
     const months = [
       'Jan','Feb','Mar','Apr','May','Jun',
       'Jul','Aug','Sep','Oct','Nov','Dec',
     ];
-    return '${months[month - 1]} $day, $year';
+    final l = toLocal();
+    return '${months[l.month - 1]} ${l.day}, ${l.year}';
   }
+
+  /// "3:42 PM", in the device's local time zone.
+  String get timeOfDay {
+    final l = toLocal();
+    final h = l.hour % 12 == 0 ? 12 : l.hour % 12;
+    return '$h:${l.minute.toString().padLeft(2, '0')} ${l.hour < 12 ? 'AM' : 'PM'}';
+  }
+
+  /// "May 28, 2026 · 3:42 PM", in the device's local time zone.
+  String get formattedWithTime => '$formatted · $timeOfDay';
 
   /// "Together since Jan 12, 2026"
   String get togetheSince => 'Together since $formatted';

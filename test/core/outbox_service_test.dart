@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:usync/core/crypto/content_cipher.dart';
 import 'package:usync/core/services/outbox_service.dart';
 
 class _FakeConnectivity implements Connectivity {
@@ -186,5 +187,32 @@ void main() {
     net.set([ConnectivityResult.wifi]);
     await Future<void>.delayed(const Duration(milliseconds: 50));
     expect(seen.single, [1, 2, 3, 4]);
+  });
+
+  test('a change waiting for the couple key is kept, never counted as failed, and sent once the key arrives', () async {
+    var keyArrived = false;
+    outbox.register('sealed', (p) async {
+      if (!keyArrived) throw const EncryptionNotReady();
+      delivered.add(p['text'] as String);
+    });
+
+    await expectLater(outbox.submit('sealed', {'text': 'a'}), throwsA(isA<EncryptionNotReady>()), reason: 'the first try tells the caller');
+    expect(outbox.pending, 0);
+
+    // Queued while offline, then the connection returns before the key does.
+    net.set([ConnectivityResult.none]);
+    await Future<void>.delayed(Duration.zero);
+    expect(await outbox.submit('sealed', {'text': 'b'}), isFalse);
+    net.set([ConnectivityResult.wifi]);
+    for (var i = 0; i < outbox.maxAttempts + 2; i++) {
+      await drain(outbox);
+    }
+    expect(outbox.pending, 1, reason: 'still waiting, not dropped');
+    expect(delivered, isEmpty);
+
+    keyArrived = true;
+    await drain(outbox);
+    expect(delivered, ['b']);
+    expect(outbox.pending, 0);
   });
 }

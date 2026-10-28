@@ -259,3 +259,18 @@ CanvasState {
 | `LoadingDots` | Toolbar save button loading state |
 | `UsyncBottomNav` | Persistent footer |
 | `CanvasStrokePainter` | Core drawing — custom painter (canvas/painters/) |
+
+## Encryption (phase E3b)
+
+Strokes are sealed on the phone before they are saved or sent live; the server and Realtime only carry ciphertext (see "E3b" in [security.md](../security.md)). Without the couple key the canvas tells the person to finish securing the connection (Profile → Security) and nothing is drawn. Migration: `supabase/migrations/e2ee_strokes.sql`.
+
+## Catching up with the partner's strokes
+
+A partner's finished strokes are saved a few seconds after they draw, so a canvas opened in that window loads its history before they exist and has missed the live strokes. While the canvas is open the app therefore looks again every four seconds (a cheap list of stroke ids, then only the ones it has not shown) and opens whatever is new. A stroke that was saved but cannot be decrypted on this phone (usually a different couple key on the two phones) is no longer skipped silently: the canvas says "Some of your partner's drawing cannot be read on this phone. Check Profile → Security on both phones."
+
+
+## Drawing input and live strokes (extra lines)
+- **One finger draws** (`SingleFingerInput`): the first finger down starts the stroke and a second finger or a resting palm is ignored until it lifts. A pan gesture used to jump to the newest finger, which drew a straight line between the two. Raw pointers also remove the delay before a stroke starts, so its beginning is no longer cut off.
+- **A partner's live stroke is drawn only up to its first missing chunk.** A late chunk used to show as a straight line across the gap; once the stroke is finished (or the saved copy arrives) everything that arrived is drawn.
+- The periodic catch-up asks only for the partner's strokes, since this phone's own are already on screen.
+- **Live only while the partner is on the canvas.** When the partner is on the canvas (Presence), points go out every 60 ms. When they are away, nothing is sent live (fewer messages and no encryption work for nobody): the stroke is saved a few seconds later and they see it when they open the canvas, or within a few seconds if they join (the catch-up). Live or not is decided once per stroke, so its start, chunks and end always agree.

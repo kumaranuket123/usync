@@ -20,6 +20,7 @@ import '../../presentation/features/pairing/screens/pair_success_screen.dart';
 import '../../presentation/features/profile/screens/profile_screen.dart';
 import '../../presentation/features/access/screens/paywall_screen.dart';
 import '../../presentation/features/access/screens/update_required_screen.dart';
+import '../../presentation/features/security/screens/security_screen.dart';
 import '../../presentation/features/settings/screens/about_screen.dart';
 import '../../presentation/features/settings/screens/alert_sounds_screen.dart';
 import '../../presentation/features/settings/screens/settings_screen.dart';
@@ -160,6 +161,11 @@ abstract final class AppRouter {
         path: RouteNames.paywall,
         parentNavigatorKey: _rootKey,
         builder: (_, __) => const PaywallScreen(),
+      ),
+      GoRoute(
+        path: RouteNames.security,
+        parentNavigatorKey: _rootKey,
+        builder: (_, __) => const SecurityScreen(),
       ),
       GoRoute(
         path: RouteNames.about,

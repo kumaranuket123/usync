@@ -1,10 +1,11 @@
 import 'dart:async';
-import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
 import 'package:gal/gal.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
 
+import '../../core/crypto/content_cipher.dart';
 import '../../core/services/outbox_service.dart';
 import '../../domain/entities/memory.dart';
 import '../../domain/entities/notification_item.dart';
@@ -22,6 +23,7 @@ class MemoryRepository implements IMemoryRepository {
     required this.notifications,
     required this.outbox,
     required this.prefs,
+    required this.cipher,
   }) {
     outbox.register(_doodleType, _deliverDoodle);
   }
@@ -40,11 +42,11 @@ class MemoryRepository implements IMemoryRepository {
   final INotificationRepository notifications;
   final OutboxService           outbox;
   final PrefsSource             prefs;
+  final ContentCipher           cipher;
   final _uuid = const Uuid();
 
-  /// The file path and memory id are chosen here, not when sending, so retrying
-  /// after a lost connection overwrites the same file and cannot add a second
-  /// memory.
+  /// The memory id is chosen here, not when sending, so retrying after a lost connection overwrites the
+  /// same file and cannot add a second memory. The picture's path is derived from it.
   @override
   Future<bool> saveDoodle({
     required String    coupleId,
@@ -57,25 +59,43 @@ class MemoryRepository implements IMemoryRepository {
         'coupleId':  coupleId,
         'userId':    userId,
         'title':     title,
-        'path':      '$coupleId/${_uuid.v4()}.png',
         'png':       png,
         'createdAt': DateTime.now().toUtc().toIso8601String(),
       });
 
+  /// Where a sealed picture lives in Storage.
+  static String sealedPath(String coupleId, String memoryId) => '$coupleId/$memoryId.enc';
+
+  /// What the readable columns hold for a sealed memory (the real text is only in `enc`).
+  static const _placeholder = '🔒';
+
   Future<void> _deliverDoodle(Map<String, dynamic> p) async {
     final coupleId = p['coupleId'] as String;
     final userId   = p['userId'] as String;
-    await storage.uploadPngAt(p['path'] as String, Uint8List.fromList((p['png'] as List).cast<int>()));
+    final id       = p['id'] as String;
+    final emoji    = MemoryType.canvas.defaultEmoji;
+    // Everything is sealed before it leaves the phone; without the couple key this throws and nothing is sent.
+    final sealedText = await cipher.sealJson(
+      {'title': p['title'], 'emoji': emoji},
+      coupleId: coupleId, table: 'memories', rowId: id,
+    );
+    final sealedImage = await cipher.sealBytes(
+      (p['png'] as List).cast<int>(),
+      coupleId: coupleId, table: 'memories', rowId: id, field: 'image',
+    );
+    final path = sealedPath(coupleId, id);
+    await storage.uploadSealedAt(path, sealedImage);
     try {
       await client.from('memories').insert({
-        'id':                 p['id'],
+        'id':                 id,
         'couple_id':          coupleId,
         'type':               MemoryType.canvas.name,
-        'thumbnail_emoji':    MemoryType.canvas.defaultEmoji,
-        'title':              p['title'],
+        'thumbnail_emoji':    _placeholder,
+        'title':              _placeholder,
         'created_by_user_id': userId,
-        'thumbnail_url':      p['path'],
+        'thumbnail_url':      path,
         'created_at':         p['createdAt'],
+        'enc':                sealedText,
       });
     } on PostgrestException catch (e) {
       if (e.code == '23505') return; // an earlier attempt already got through
@@ -110,7 +130,7 @@ class MemoryRepository implements IMemoryRepository {
             .eq('couple_id', coupleId)
             .order('created_at', ascending: false)
             .limit(_pageSize)
-            .asyncMap(_withSignedUrls)
+            .asyncMap(_toMemories)
             .listen((list) {
           latest = list;
           out.add(list);
@@ -138,34 +158,29 @@ class MemoryRepository implements IMemoryRepository {
         .eq('couple_id', coupleId)
         .order('created_at', ascending: false)
         .limit(_pageSize);
-    return _withSignedUrls(rows);
+    return _toMemories(rows);
   }
 
-  @override
-  Future<Memory> saveMemory(Memory memory) async {
-    final row = await client
-        .from('memories')
-        .insert(MemoryModel.fromEntity(memory).toRow())
-        .select()
-        .single();
-    await notifications.notifyPartner(
-      coupleId:   memory.coupleId,
-      fromUserId: memory.createdByUserId,
-      type:       memory.type == MemoryType.canvas ? NotifType.doodle : NotifType.milestone,
-      body:       (name) => memory.type == MemoryType.canvas
-          ? '$name saved a new doodle ✏️'
-          : '$name added a new memory 💖',
-    );
-    return (await _withSignedUrls([row])).first;
+  /// A memory from its row: sealed ones are opened, older readable ones are used as they are. One this phone
+  /// cannot open (no key yet) shows as locked instead of disappearing. A picture saved on this phone (older
+  /// memories, or archived ones) is shown from there; otherwise `thumbnailUrl` is the Storage path, loaded
+  /// through [loadImage].
+  Future<Memory> _toMemory(Map<String, dynamic> row, Map<String, String> local) async {
+    var fields = row;
+    final sealed = row['enc'] as String?;
+    if (ContentCipher.isEncrypted(sealed)) {
+      try {
+        final c = await cipher.openJson(sealed!, coupleId: row['couple_id'] as String, table: 'memories', rowId: row['id'] as String);
+        fields = {...row, 'title': c['title'], 'thumbnail_emoji': c['emoji']};
+      } catch (e) {
+        debugPrint('Could not read a memory: ${e.runtimeType}');
+        fields = {...row, 'title': 'Locked until your key arrives', 'thumbnail_emoji': _placeholder};
+      }
+    }
+    return MemoryModel.fromRow({...fields, 'thumbnail_url': local[row['id']] ?? row['thumbnail_url']});
   }
 
-  /// `thumbnail_url` stores a private storage path; swap it for a signed URL the UI can load.
-  Future<List<Memory>> _withSignedUrls(List<Map<String, dynamic>> rows) async {
-    Map<String, String> urls = {};
-    try {
-      urls = await storage.signedUrls(rows.map((r) => (r['thumbnail_url'] as String?) ?? ''));
-    } catch (_) {} // fall back to the emoji thumbnail
-    // A picture saved on this phone is shown from there (works for archived ones too).
+  Future<List<Memory>> _toMemories(List<Map<String, dynamic>> rows) async {
     final local = <String, String>{};
     try {
       for (final id in await LocalMemoryImages.ids()) {
@@ -173,13 +188,52 @@ class MemoryRepository implements IMemoryRepository {
         if (path != null) local[id] = path;
       }
     } catch (_) {}
-    return [
-      for (final row in rows)
-        MemoryModel.fromRow({
-          ...row,
-          'thumbnail_url': local[row['id']] ?? urls[row['thumbnail_url']] ?? row['thumbnail_url'],
-        }),
-    ];
+    return [for (final row in rows) await _toMemory(row, local)];
+  }
+
+  /// Newest pictures kept decoded in memory so lists and the detail screen do not fetch them again.
+  static const _imageCacheSize = 24;
+  final _images = <String, Uint8List>{};
+  final _loading = <String, Future<Uint8List?>>{};
+
+  @override
+  Future<Uint8List?> loadImage(Memory memory) {
+    final path = memory.thumbnailUrl;
+    if (path == null || path.isEmpty) return Future.value(null);
+    final cached = _images.remove(memory.id);
+    if (cached != null) {
+      _images[memory.id] = cached; // most recently used goes last
+      return Future.value(cached);
+    }
+    return _loading[memory.id] ??= _fetchImage(memory.id, memory.coupleId, path).whenComplete(() {
+      _loading.remove(memory.id); // not returned: a future must not wait for itself
+    });
+  }
+
+  Future<Uint8List?> _fetchImage(String id, String coupleId, String path) async {
+    try {
+      final bytes = await _imageBytes(id, coupleId, path);
+      _images[id] = bytes;
+      if (_images.length > _imageCacheSize) _images.remove(_images.keys.first);
+      return bytes;
+    } catch (e) {
+      debugPrint('Could not load a memory picture: ${e.runtimeType}');
+      return null; // the emoji is shown instead
+    }
+  }
+
+  /// The picture's real bytes: a path on this phone is read as it is, a Storage path is downloaded and, when
+  /// sealed (`.enc`), opened. Older pictures (`.png`) were stored readable.
+  Future<Uint8List> _imageBytes(String id, String coupleId, String path) async {
+    // A picture kept on this phone is encrypted with the phone's key; open it through LocalMemoryImages.
+    if (path.startsWith('/')) {
+      final local = await LocalMemoryImages.read(id);
+      if (local == null) throw StateError('The saved picture cannot be read');
+      return local;
+    }
+    final bytes = await storage.download(path);
+    if (!path.endsWith('.enc')) return bytes;
+    return cipher.openBytes(bytes, coupleId: coupleId, table: 'memories', rowId: id, field: 'image');
   }
 
   bool _archiving = false;
@@ -208,7 +262,7 @@ class MemoryRepository implements IMemoryRepository {
         try {
           // 1. A copy on this phone first: nothing is deleted without one.
           if (await LocalMemoryImages.pathIfExists(id) == null) {
-            await LocalMemoryImages.write(id, await storage.download(path));
+            await LocalMemoryImages.write(id, await _imageBytes(id, coupleId, path));
             saved++;
           }
           // 2. Tell the server; the picture is removed once both partners have a copy.
@@ -245,9 +299,12 @@ class MemoryRepository implements IMemoryRepository {
       final saved = prefs.gallerySavedIds;
       for (final id in await LocalMemoryImages.ids()) {
         if (saved.contains(id)) continue;
-        final path = await LocalMemoryImages.pathIfExists(id);
-        if (path == null) continue;
-        await Gal.putImage(path, album: 'Usync');
+        // The picture is encrypted here: the gallery gets a short-lived readable copy.
+        final wrote = await LocalMemoryImages.withPlainCopy(id, (path) async {
+          await Gal.putImage(path, album: 'Usync');
+          return true;
+        });
+        if (wrote != true) continue;
         saved.add(id);
         copied++;
         // Remembered one by one, so an interruption never makes the next run save it again.
@@ -278,14 +335,11 @@ class MemoryRepository implements IMemoryRepository {
     final row = await client.from('memories').select('thumbnail_url').eq('id', memoryId).maybeSingle();
     await client.from('memories').delete().eq('id', memoryId);
     _deleted.add(memoryId);
+    _images.remove(memoryId);
     await LocalMemoryImages.delete(memoryId);
     final path = row?['thumbnail_url'] as String?;
     if (path != null) {
       try { await storage.remove(path); } catch (_) {}
     }
   }
-
-  @override
-  Future<String> uploadCanvasBitmap(String coupleId, Uint8List bytes) =>
-      storage.uploadPng(coupleId, bytes);
 }

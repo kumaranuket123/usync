@@ -1,7 +1,7 @@
 import 'package:equatable/equatable.dart';
 
-/// A user's position at a moment in time. Only ever travels over the couple's
-/// Realtime channel; it is never persisted.
+/// A user's position at a moment in time. Saved only as ciphertext (one row per person, refreshed
+/// when they open the app); the server cannot read it.
 class SharedLocation extends Equatable {
   const SharedLocation({
     required this.latitude,

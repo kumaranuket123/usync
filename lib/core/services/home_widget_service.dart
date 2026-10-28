@@ -8,10 +8,13 @@ import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../../data/repositories/canvas_repository.dart';
+import '../../data/datasources/local/flutter_secure_key_store.dart';
+import '../../data/models/canvas_stroke_codec.dart';
 import '../../domain/entities/canvas_stroke.dart';
 import '../../presentation/shared/painters/canvas_stroke_painter.dart';
 import '../constants/supabase_config.dart';
+import '../crypto/content_cipher.dart';
+import '../crypto/key_service.dart';
 
 /// Keeps the Android home-screen "Live Doodle" widget in step with the shared
 /// canvas: the drawing is rendered to a PNG that the native widget displays.
@@ -62,7 +65,17 @@ class HomeWidgetService with WidgetsBindingObserver {
       if (coupleId == null) return await refresh(const []);
 
       final rows = await client.from('canvas_strokes').select().eq('couple_id', coupleId).order('created_at');
-      await refresh([for (final r in rows) CanvasRepository.strokeFromRow(r)]);
+      // In this background task there is no service registry: read the keys straight from secure storage.
+      final codec = CanvasStrokeCodec(ContentCipher(
+        keysFor: (userId) => KeyService(store: const FlutterSecureKeyStore(), namespace: userId),
+        currentUserId: () => client.auth.currentUser?.id,
+      ));
+      final strokes = <CanvasStroke>[
+        for (final r in rows) ...[if (await codec.openRow(r) case final stroke?) stroke],
+      ];
+      // Strokes this phone cannot read yet (no key): keep the last picture instead of blanking the widget.
+      if (rows.isNotEmpty && strokes.isEmpty) return;
+      await refresh(strokes);
     } catch (_) {
       // Best effort: the widget keeps showing the last picture.
     }

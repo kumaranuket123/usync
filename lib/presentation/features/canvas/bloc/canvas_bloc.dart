@@ -6,6 +6,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
 import 'package:uuid/uuid.dart';
 
+import '../../../../core/crypto/content_cipher.dart';
 import '../../../../core/services/home_widget_service.dart';
 import '../../../../domain/entities/canvas_stroke.dart';
 import '../../../../domain/repositories/i_canvas_repository.dart';
@@ -28,13 +29,15 @@ class CanvasBloc extends Bloc<CanvasEvent, CanvasState> {
     on<StrokesFlushRequested>((_, __) => _guard(canvasRepository.flushStrokes()));
     on<PartnerHereChanged>((e, emit) => emit(state.copyWith(partnerHere: e.isHere)));
     on<RemoteStrokeReceived>(_onRemote);
+    on<StrokesUnreadableDetected>((_, emit) => emit(state.copyWith(hasUnreadable: true)));
     on<RemoteCanvasCleared>(
       (_, emit) => emit(state.copyWith(strokes: [], remoteStrokes: [], clearActive: true)),
     );
   }
 
-  /// How often points drawn since the last write are sent to the partner.
-  static const _flushInterval = Duration(milliseconds: 150);
+  /// How often points drawn since the last write are sent to the partner, while they are on the canvas.
+  /// When they are not, nothing is sent live: the stroke is saved and they see it when they open the canvas.
+  static const _flushInterval = Duration(milliseconds: 60);
 
   final ICanvasRepository       canvasRepository;
   final IMemoryRepository       memoryRepository;
@@ -67,7 +70,10 @@ class CanvasBloc extends Bloc<CanvasEvent, CanvasState> {
 
     _remoteSub = canvasRepository.watchRemoteStrokes(_coupleId, _userId).listen(
       (stroke) { if (!isClosed) add(RemoteStrokeReceived(stroke)); },
-      onError: (Object err) => debugPrint('Canvas stroke stream error: $err'),
+      onError: (Object err) {
+        debugPrint('Canvas stroke stream error: $err');
+        if (err is StrokesUnreadable && !isClosed) add(StrokesUnreadableDetected());
+      },
     );
 
     // The first value is the existing clearedAt (or 0), which is only a baseline —
@@ -81,7 +87,9 @@ class CanvasBloc extends Bloc<CanvasEvent, CanvasState> {
       onError: (Object err) => debugPrint('Canvas clear stream error: $err'),
     );
 
-    emit(state.copyWith(isReady: true));
+    // The drawing is sealed on this phone; without the couple key nothing is drawn (or sent) readable.
+    final secured = await canvasRepository.isReady(_coupleId);
+    emit(state.copyWith(isReady: secured, needsSecuring: !secured));
   }
 
   void _onStart(StrokeStarted e, Emitter<CanvasState> emit) {
@@ -100,11 +108,15 @@ class CanvasBloc extends Bloc<CanvasEvent, CanvasState> {
 
     _pending..clear()..add(e.offset);
     _seq = 0;
-    _guard(canvasRepository.pushStroke(stroke));
+    // Decided once per stroke, so its start, chunks and end are all live or none are.
+    final live = state.partnerHere;
+    _guard(canvasRepository.pushStroke(stroke, live: live));
     _flushTimer?.cancel();
-    _flushTimer = Timer.periodic(_flushInterval, (_) {
-      if (!isClosed) add(_FlushRequested());
-    });
+    if (live) {
+      _flushTimer = Timer.periodic(_flushInterval, (_) {
+        if (!isClosed) add(_FlushRequested());
+      });
+    }
   }
 
   void _onUpdate(StrokeUpdated e, Emitter<CanvasState> emit) {
@@ -158,7 +170,7 @@ class CanvasBloc extends Bloc<CanvasEvent, CanvasState> {
       emit(state.copyWith(isSaving: false, saveQueued: !sentNow));
     } catch (err) {
       debugPrint('Canvas save failed: $err');
-      emit(state.copyWith(isSaving: false, saveFailed: true));
+      emit(state.copyWith(isSaving: false, saveFailed: true, needsSecuring: err is EncryptionNotReady ? true : null));
     }
   }
 

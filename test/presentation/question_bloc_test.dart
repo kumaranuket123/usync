@@ -12,7 +12,7 @@ class _FakeQuestionRepository implements IQuestionRepository {
   final answers = <String>[];
 
   @override
-  Future<QuestionState> getState(String coupleId, DailyQuestion question) async {
+  Future<QuestionState> getState(String coupleId, DailyQuestion question, {required String userId, required String partnerId}) async {
     if (loadFails) throw Exception('offline');
     return state;
   }

@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/constants/route_names.dart';
+import 'encryption_sync_gate.dart';
 
 /// Shell wrapper — wraps every main-tab screen with the bottom nav.
 class UsyncShell extends StatelessWidget {
@@ -15,7 +16,7 @@ class UsyncShell extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.bg1,
-      body: child,
+      body: EncryptionSyncGate(child: child),
       bottomNavigationBar: const _UsyncBottomNav(),
     );
   }

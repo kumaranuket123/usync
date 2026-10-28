@@ -1,10 +1,13 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
-import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:gal/gal.dart';
 import 'package:go_router/go_router.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../../../../core/di/injection.dart';
+import '../../../../core/extensions/datetime_ext.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../domain/entities/memory.dart';
@@ -19,14 +22,27 @@ class MemoryDetailScreen extends StatelessWidget {
   final String  memoryId;
   final Memory? memory;
 
-  /// The memory's picture as a local file (from the image cache, else downloaded),
-  /// or null when it only has an emoji.
+  /// The memory's picture as a short-lived readable file for the share sheet or the gallery, or null when
+  /// it only has an emoji. The picture is opened first (it is encrypted everywhere it is kept); the caller
+  /// deletes the copy when it is done.
   Future<String?> _imagePath(Memory m) async {
-    final url = m.thumbnailUrl;
-    if (url != null && url.startsWith('/')) return url; // already a file on this phone
-    if (url == null || !url.startsWith('http')) return null;
-    // Same key MemoryArt caches under, so an image already on screen isn't fetched again.
-    return (await DefaultCacheManager().getSingleFile(url, key: m.id)).path;
+    final bytes = await getIt<IMemoryRepository>().loadImage(m);
+    if (bytes == null) return null;
+    final dir = await getTemporaryDirectory();
+    // Readable copies left by an earlier share are removed first.
+    await for (final e in dir.list()) {
+      if (e is File && e.uri.pathSegments.last.startsWith('share_')) await _forget(e.path);
+    }
+    final file = File('${dir.path}/share_${m.id}.png');
+    await file.writeAsBytes(bytes, flush: true);
+    return file.path;
+  }
+
+  static Future<void> _forget(String? path) async {
+    if (path == null) return;
+    try {
+      await File(path).delete();
+    } catch (_) {}
   }
 
   Future<void> _share(BuildContext context, Memory m) async {
@@ -38,6 +54,8 @@ class MemoryDetailScreen extends StatelessWidget {
         return;
       }
       await Share.shareXFiles([XFile(path, mimeType: 'image/png')], text: m.title);
+      // The app that received it may still be reading the file: remove the readable copy a little later.
+      Future<void>.delayed(const Duration(minutes: 2), () => _forget(path));
     } catch (_) {
       messenger.showSnackBar(appSnackBar(content: Text('Could not share this memory')));
     }
@@ -51,7 +69,11 @@ class MemoryDetailScreen extends StatelessWidget {
         messenger.showSnackBar(appSnackBar(content: Text('This memory has no picture to save')));
         return;
       }
-      await Gal.putImage(path, album: 'Usync');
+      try {
+        await Gal.putImage(path, album: 'Usync');
+      } finally {
+        await _forget(path);
+      }
       messenger.showSnackBar(appSnackBar(content: Text('Saved to your gallery')));
     } on GalException catch (e) {
       messenger.showSnackBar(appSnackBar(
@@ -144,7 +166,7 @@ class MemoryDetailScreen extends StatelessWidget {
                     children: [
                       Text(m?.title ?? 'Memory', style: AppTextStyles.h2.copyWith(fontSize: 26)),
                       const SizedBox(height: 6),
-                      Text('${m?.createdAt.formatted ?? ''} · ${m?.type.tagLabel ?? ''}',
+                      Text('${m?.createdAt.formattedWithTime ?? ''} · ${m?.type.tagLabel ?? ''}',
                           style: AppTextStyles.label),
                       if (m != null && m.imageArchived && !(m.thumbnailUrl ?? '').startsWith('/')) ...[
                         const SizedBox(height: 10),
@@ -204,13 +226,6 @@ class _ActionBtn extends StatelessWidget {
         ),
       ),
     );
-  }
-}
-
-extension _DateExt on DateTime {
-  String get formatted {
-    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-    return '${months[month - 1]} $day, $year';
   }
 }
 

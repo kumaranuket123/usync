@@ -1,11 +1,20 @@
-import 'dart:typed_data';
 import 'dart:ui';
 
 import '../entities/canvas_stroke.dart';
 
+/// Reported (once) on [ICanvasRepository.watchRemoteStrokes] when strokes were saved but this phone cannot
+/// read them, usually because it does not hold the same couple key as the partner's phone.
+class StrokesUnreadable implements Exception {
+  const StrokesUnreadable();
+
+  @override
+  String toString() => 'Some of the drawing cannot be read on this phone';
+}
+
 abstract interface class ICanvasRepository {
-  /// Creates the stroke node (metadata only, `isComplete: false`).
-  Future<void>          pushStroke(CanvasStroke stroke);
+  /// Starts a stroke. With [live] (the partner is on the canvas) its start, chunks and end are also sent over
+  /// the live channel; without it nothing is sent live and the stroke only reaches the partner when it is saved.
+  Future<void>          pushStroke(CanvasStroke stroke, {bool live = true});
 
   /// Appends a batch of points so the partner sees the stroke while it is drawn.
   /// [seq] orders chunks within the stroke.
@@ -17,12 +26,14 @@ abstract interface class ICanvasRepository {
   Future<void>          flushStrokes();
   Stream<CanvasStroke>  watchRemoteStrokes(String coupleId, String excludeUserId);
 
+  /// Whether this phone has the couple key, so the drawing can be sealed. Without it nothing is drawn.
+  Future<bool>          isReady(String coupleId);
+
   /// Removes all strokes and returns the clear timestamp written for the partner.
   Future<int>           clearCanvas(String coupleId);
 
   /// Emits the current `clearedAt` timestamp (0 if never cleared), then every change.
   Stream<int>           watchCanvasCleared(String coupleId);
-  Future<String>        saveCanvasBitmap(String coupleId, Uint8List bytes);
 
   /// Announces us on Presence as being on the canvas.
   Future<void>          enterCanvas(String coupleId, String userId);

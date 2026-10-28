@@ -1,8 +1,21 @@
+import 'package:flutter/foundation.dart';
 import 'package:get_it/get_it.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../crypto/content_cipher.dart';
+import '../crypto/crypto_service.dart';
+import '../../data/datasources/remote/encryption_backend.dart';
+import '../../data/repositories/encryption_context.dart';
+import '../../data/repositories/encryption_repository.dart';
+import '../../domain/repositories/i_encryption_repository.dart';
+import '../../presentation/features/security/bloc/security_bloc.dart';
+import '../crypto/key_service.dart';
+import '../crypto/device_key.dart';
+import '../../data/datasources/local/protected_boxes.dart';
+import '../../data/datasources/local/local_memory_images.dart';
+import '../crypto/secure_key_store.dart';
 import '../../data/datasources/local/hive_source.dart';
 import '../../data/datasources/local/prefs_source.dart';
 import '../../data/datasources/remote/couple_channel_source.dart';
@@ -13,16 +26,19 @@ import '../../data/repositories/canvas_repository.dart';
 import '../../data/repositories/couple_repository.dart';
 import '../../data/repositories/memory_repository.dart';
 import '../../data/repositories/mood_repository.dart';
+import '../../data/datasources/local/flutter_secure_key_store.dart';
 import '../../data/repositories/access_repository.dart';
 import '../../data/repositories/bucket_repository.dart';
 import '../../data/repositories/question_repository.dart';
 import '../../data/repositories/notification_repository.dart';
 import '../../data/datasources/local/identity_cache.dart';
 import '../../data/datasources/local/session_cache.dart';
+import '../../data/repositories/legacy_content_sealer.dart';
 import '../../data/repositories/location_repository.dart';
 import '../../data/repositories/milestone_repository.dart';
 import '../../domain/repositories/i_milestone_repository.dart';
 import '../services/outbox_service.dart';
+import '../services/reminder_service.dart';
 import '../services/app_lock_service.dart';
 import '../../data/repositories/touch_repository.dart';
 import '../../domain/repositories/i_auth_repository.dart';
@@ -76,18 +92,34 @@ Future<void> setupLocator() async {
     () => PrefsSource(prefs: getIt()),
   );
 
+  // ── Encryption (not used by any feature yet) ──────────────────
+  getIt.registerLazySingleton<SecureKeyStore>(() => const FlutterSecureKeyStore());
+  getIt.registerLazySingleton<CryptoService>(() => CryptoService());
+  getIt.registerLazySingleton<KeyServiceFor>(
+    () => (userId) => KeyService(store: getIt(), crypto: getIt(), namespace: userId),
+  );
+  getIt.registerLazySingleton<DeviceKey>(() => DeviceKey(store: getIt()));
+  getIt.registerLazySingleton<ContentCipher>(
+    () => ContentCipher(
+      keysFor: getIt(),
+      currentUserId: () => getIt<SupabaseClient>().auth.currentUser?.id,
+      crypto: getIt(),
+    ),
+  );
+  getIt.registerLazySingleton<EncryptionBackend>(() => SupabaseEncryptionBackend(client: getIt()));
+
   getIt.registerLazySingleton<AppLockService>(() => AppLockService(prefs: getIt()));
+  getIt.registerLazySingleton<ReminderService>(() => ReminderService(scheduler: PluginReminderScheduler()));
 
   // ── Offline support ───────────────────────────────────────────
   // Changes made without a connection wait in the outbox; the session cache
   // keeps who you are, your couple and recent data so the app can start offline.
-  getIt.registerSingleton<SessionCache>(
-    SessionCache(box: await Hive.openBox<dynamic>(SessionCache.boxName)),
-  );
+  // Both boxes (and the pictures kept on the phone) are encrypted with a key that only lives in the
+  // Keystore / Keychain. The old unencrypted boxes are copied over once and deleted.
+  final (sessionBox, outboxBox) = await _openLocalBoxes();
+  getIt.registerSingleton<SessionCache>(SessionCache(box: sessionBox));
   getIt.registerSingleton<IdentityCache>(IdentityCache());
-  getIt.registerSingleton<OutboxService>(
-    OutboxService(box: await Hive.openBox<dynamic>('outbox')),
-  );
+  getIt.registerSingleton<OutboxService>(OutboxService(box: outboxBox));
 
   // ── Repositories ──────────────────────────────────────────────
   getIt.registerLazySingleton<IAuthRepository>(
@@ -100,6 +132,8 @@ Future<void> setupLocator() async {
       identity: getIt(),
       channels: getIt(),
       storage: getIt(),
+      wipeKeys: (userId) => getIt<KeyServiceFor>()(userId).clearAll(),
+      cancelReminders: () => getIt<ReminderService>().cancelAll(),
     ),
   );
   getIt.registerLazySingleton<ICoupleRepository>(
@@ -110,6 +144,8 @@ Future<void> setupLocator() async {
       storage: getIt(),
       sessionCache: getIt(),
       identity: getIt(),
+      cipher: getIt(),
+      cancelReminders: () => getIt<ReminderService>().cancelAll(),
     ),
   );
   getIt.registerLazySingleton<IMoodRepository>(
@@ -118,10 +154,18 @@ Future<void> setupLocator() async {
       notifications: getIt(),
       outbox: getIt(),
       sessionCache: getIt(),
+      cipher: getIt(),
     ),
   );
   getIt.registerLazySingleton<IAccessRepository>(
     () => AccessRepository(client: getIt(), prefs: getIt()),
+  );
+  getIt.registerLazySingleton<IEncryptionRepository>(
+    () => EncryptionRepository(
+      backend: getIt(),
+      context: AppEncryptionContext(authRepository: getIt(), coupleRepository: getIt()),
+      keysFor: getIt(),
+    ),
   );
   getIt.registerLazySingleton<IBucketRepository>(
     () => BucketRepository(
@@ -129,10 +173,11 @@ Future<void> setupLocator() async {
       notifications: getIt(),
       outbox: getIt(),
       sessionCache: getIt(),
+      cipher: getIt(),
     ),
   );
   getIt.registerLazySingleton<IQuestionRepository>(
-    () => QuestionRepository(client: getIt(), notifications: getIt()),
+    () => QuestionRepository(client: getIt(), notifications: getIt(), cipher: getIt()),
   );
   getIt.registerLazySingleton<IMilestoneRepository>(
     () => MilestoneRepository(
@@ -140,22 +185,36 @@ Future<void> setupLocator() async {
       notifications: getIt(),
       outbox: getIt(),
       sessionCache: getIt(),
+      cipher: getIt(),
     ),
   );
   getIt.registerLazySingleton<IMemoryRepository>(
-    () => MemoryRepository(client: getIt(), storage: getIt(), notifications: getIt(), outbox: getIt(), prefs: getIt()),
+    () => MemoryRepository(client: getIt(), storage: getIt(), notifications: getIt(), outbox: getIt(), prefs: getIt(), cipher: getIt()),
   );
   getIt.registerLazySingleton<ICanvasRepository>(
-    () => CanvasRepository(client: getIt(), channelSource: getIt(), storage: getIt(), outbox: getIt()),
+    () => CanvasRepository(client: getIt(), channelSource: getIt(), outbox: getIt(), cipher: getIt()),
   );
   getIt.registerLazySingleton<ITouchRepository>(
     () => TouchRepository(channelSource: getIt(), notifications: getIt()),
   );
   getIt.registerLazySingleton<ILocationRepository>(
-    () => LocationRepository(client: getIt(), prefs: getIt(), notifications: getIt()),
+    () => LocationRepository(client: getIt(), prefs: getIt(), notifications: getIt(), cipher: getIt()),
+  );
+  getIt.registerLazySingleton<LegacyContentSealer>(
+    () => LegacyContentSealer(
+      client: getIt(),
+      cipher: getIt(),
+      storage: getIt(),
+      prefs: getIt(),
+      whoAmI: () async {
+        final user = await getIt<IAuthRepository>().getCurrentUser();
+        final coupleId = user?.coupleId;
+        return user == null || coupleId == null ? null : (userId: user.id, coupleId: coupleId);
+      },
+    ),
   );
   getIt.registerLazySingleton<INotificationRepository>(
-    () => NotificationRepository(client: getIt()),
+    () => NotificationRepository(client: getIt(), cipher: getIt()),
   );
 
   // ── BLoCs (factory — new instance per registration request) ───
@@ -199,6 +258,9 @@ Future<void> setupLocator() async {
   getIt.registerFactory<MoodInsightsBloc>(
     () => MoodInsightsBloc(moodRepository: getIt(), coupleRepository: getIt(), authRepository: getIt()),
   );
+  getIt.registerFactory<SecurityBloc>(
+    () => SecurityBloc(encryptionRepository: getIt()),
+  );
   getIt.registerFactory<MoodBloc>(
     () => MoodBloc(moodRepository: getIt()),
   );
@@ -215,7 +277,7 @@ Future<void> setupLocator() async {
     ),
   );
   getIt.registerFactory<TimelineBloc>(
-    () => TimelineBloc(coupleRepository: getIt(), milestoneRepository: getIt()),
+    () => TimelineBloc(coupleRepository: getIt(), milestoneRepository: getIt(), reminders: getIt()),
   );
   getIt.registerFactory<WidgetsBloc>(
     () => WidgetsBloc(
@@ -223,4 +285,28 @@ Future<void> setupLocator() async {
       coupleRepository: getIt(),
     ),
   );
+}
+
+Future<(Box<dynamic>, Box<dynamic>)> _openLocalBoxes() async {
+  try {
+    final cipher = HiveAesCipher(await getIt<DeviceKey>().bytes());
+    LocalMemoryImages.configure(getIt<DeviceKey>());
+    return (
+      await openProtectedBox('session_cache_enc', cipher, legacyName: SessionCache.boxName),
+      await openProtectedBox('outbox_enc', cipher, legacyName: 'outbox'),
+    );
+  } catch (e) {
+    // The Keystore / Keychain is not usable: nothing readable is ever kept instead. For this run the
+    // boxes are encrypted with a key that exists only in memory, so the app still starts (offline caching
+    // and queued changes just do not survive a restart).
+    debugPrint('Local key unavailable (${e.runtimeType}); using volatile local storage');
+    for (final name in ['session_cache_tmp', 'outbox_tmp']) {
+      await Hive.deleteBoxFromDisk(name);
+    }
+    final cipher = HiveAesCipher(CryptoService().randomBytes(CryptoService.keyLength));
+    return (
+      await Hive.openBox<dynamic>('session_cache_tmp', encryptionCipher: cipher),
+      await Hive.openBox<dynamic>('outbox_tmp', encryptionCipher: cipher),
+    );
+  }
 }

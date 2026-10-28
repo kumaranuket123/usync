@@ -6,6 +6,7 @@ import 'package:latlong2/latlong.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide User;
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../../../core/crypto/content_cipher.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../domain/entities/shared_location.dart';
@@ -363,6 +364,7 @@ class _Panel extends StatelessWidget {
         LocationAccess.denied          => 'Location permission is needed to share.',
         LocationAccess.deniedForever   => 'Location permission is blocked. Enable it in settings.',
         LocationAccess.serviceDisabled => 'Turn on location services to share.',
+        LocationAccess.notSecured      => const EncryptionNotReady().message,
         LocationAccess.backgroundDenied =>
           'In the settings page that opened, tap Location and choose "Allow all the time" so $partnerName can locate you when the app is closed.',
       };

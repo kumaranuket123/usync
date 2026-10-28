@@ -1,6 +1,7 @@
 import '../entities/shared_location.dart';
 
-enum LocationAccess { granted, denied, deniedForever, serviceDisabled, backgroundDenied }
+/// [notSecured]: this phone has no couple key yet, so a location cannot be shared (it is always sealed).
+enum LocationAccess { granted, denied, deniedForever, serviceDisabled, backgroundDenied, notSecured }
 
 abstract interface class ILocationRepository {
   /// Whether the user opted in to refreshing their location whenever the app opens.

@@ -1,13 +1,14 @@
-import 'dart:io';
+import 'dart:typed_data';
 
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
+import '../../../core/di/injection.dart';
 import '../../../domain/entities/memory.dart';
+import '../../../domain/repositories/i_memory_repository.dart';
 
 /// A memory's picture: the saved image when there is one, otherwise (or while
 /// it loads, or if it fails to load) its emoji.
-class MemoryArt extends StatelessWidget {
+class MemoryArt extends StatefulWidget {
   const MemoryArt({
     super.key,
     required this.memory,
@@ -21,32 +22,48 @@ class MemoryArt extends StatelessWidget {
   final bool   fill;
 
   @override
-  Widget build(BuildContext context) {
-    final emoji = Center(child: Text(memory.thumbnailEmoji, style: TextStyle(fontSize: emojiSize)));
-    final url   = memory.thumbnailUrl;
-    // A picture saved on this phone (older memories) is a file path, not a link.
-    if (url != null && url.startsWith('/')) {
-      return Image.file(
-        File(url),
-        fit:    fill ? BoxFit.cover : BoxFit.contain,
-        width:  fill ? double.infinity : null,
-        height: fill ? double.infinity : null,
-        errorBuilder: (_, __, ___) => emoji,
-      );
-    }
-    // The repository swaps the stored path for a signed URL; anything else
-    // means signing failed, so show the emoji.
-    if (url == null || !url.startsWith('http')) return emoji;
+  State<MemoryArt> createState() => _MemoryArtState();
+}
 
-    return CachedNetworkImage(
-      imageUrl:    url,
-      // Signed URLs change on every refresh; the picture itself never does.
-      cacheKey:    memory.id,
-      fit:         fill ? BoxFit.cover : BoxFit.contain,
-      width:       fill ? double.infinity : null,
-      height:      fill ? double.infinity : null,
-      placeholder: (_, __) => emoji,
-      errorWidget: (_, __, ___) => emoji,
+class _MemoryArtState extends State<MemoryArt> {
+  Future<Uint8List?>? _image;
+
+  /// Pictures are stored encrypted, on the server and on the phone, so they are opened on this phone
+  /// (downloaded, or read from the saved copy) rather than loaded from a link or a path.
+  Future<Uint8List?>? _load() {
+    final url = widget.memory.thumbnailUrl;
+    if (url == null || url.isEmpty) return null;
+    return getIt<IMemoryRepository>().loadImage(widget.memory);
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _image = _load();
+  }
+
+  @override
+  void didUpdateWidget(MemoryArt old) {
+    super.didUpdateWidget(old);
+    // The picture itself never changes for a memory; only a different memory or a new place for it reloads.
+    if (old.memory.id != widget.memory.id || old.memory.thumbnailUrl != widget.memory.thumbnailUrl) _image = _load();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final emoji = Center(child: Text(widget.memory.thumbnailEmoji, style: TextStyle(fontSize: widget.emojiSize)));
+    final fit   = widget.fill ? BoxFit.cover : BoxFit.contain;
+    final width = widget.fill ? double.infinity : null;
+    final height = widget.fill ? double.infinity : null;
+
+    if (_image == null) return emoji;
+    return FutureBuilder<Uint8List?>(
+      future: _image,
+      builder: (_, snapshot) {
+        final bytes = snapshot.data;
+        if (bytes == null) return emoji;
+        return Image.memory(bytes, fit: fit, width: width, height: height, gaplessPlayback: true, errorBuilder: (_, __, ___) => emoji);
+      },
     );
   }
 }

@@ -1,5 +1,6 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../../core/crypto/content_cipher.dart';
 import '../../../../domain/entities/couple.dart';
 import '../../../../domain/entities/daily_question.dart';
 import '../../../../domain/repositories/i_couple_repository.dart';
@@ -20,8 +21,10 @@ class QuestionBloc extends Bloc<QuestionEvent, QuestionBlocState> {
   final IQuestionRepository questionRepository;
   final ICoupleRepository   coupleRepository;
   final DateTime Function()  _clock;
-  String _coupleId = '';
-  String _userId   = '';
+  String _coupleId  = '';
+  String _userId    = '';
+  /// Whose answer is the partner's: each answer is encrypted bound to its author.
+  String _partnerId = '';
 
   Future<void> _onOpened(QuestionOpened e, Emitter<QuestionBlocState> emit) async {
     _coupleId = e.coupleId;
@@ -34,11 +37,16 @@ class QuestionBloc extends Bloc<QuestionEvent, QuestionBlocState> {
     } catch (_) {
       // Unreadable (offline, nothing saved): the default bank still works.
     }
+    try {
+      _partnerId = (await coupleRepository.getCouple(_coupleId)).partnerIdFor(_userId);
+    } catch (_) {
+      // Offline with no saved copy: the partner's answer cannot be opened until we are back online.
+    }
     final question = DailyQuestion.forDay(_clock(), mode: mode);
     try {
       emit(QuestionReady(
         question: question,
-        answers:  await questionRepository.getState(_coupleId, question),
+        answers:  await questionRepository.getState(_coupleId, question, userId: _userId, partnerId: _partnerId),
       ));
     } catch (_) {
       emit(const QuestionLoadFailed('Could not load today\'s question. Check your connection.'));
@@ -49,7 +57,7 @@ class QuestionBloc extends Bloc<QuestionEvent, QuestionBlocState> {
     final current = state;
     if (current is! QuestionReady || current.isSending) return;
     try {
-      final answers = await questionRepository.getState(_coupleId, current.question);
+      final answers = await questionRepository.getState(_coupleId, current.question, userId: _userId, partnerId: _partnerId);
       if (answers != current.answers) emit(QuestionReady(question: current.question, answers: answers));
     } catch (_) {
       // Keep what is on screen; the next refresh tries again.
@@ -69,8 +77,10 @@ class QuestionBloc extends Bloc<QuestionEvent, QuestionBlocState> {
       await questionRepository.answer(_coupleId, _userId, current.question, text);
       emit(QuestionReady(
         question: current.question,
-        answers:  await questionRepository.getState(_coupleId, current.question),
+        answers:  await questionRepository.getState(_coupleId, current.question, userId: _userId, partnerId: _partnerId),
       ));
+    } on EncryptionNotReady catch (e) {
+      emit(QuestionReady(question: current.question, answers: current.answers, error: e.message));
     } catch (_) {
       emit(QuestionReady(
         question: current.question,
