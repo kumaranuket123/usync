@@ -179,7 +179,7 @@ Future<void> setupLocator() async {
     ),
   );
   getIt.registerLazySingleton<IMemoryRepository>(
-    () => MemoryRepository(client: getIt(), storage: getIt(), notifications: getIt(), outbox: getIt(), prefs: getIt()),
+    () => MemoryRepository(client: getIt(), storage: getIt(), notifications: getIt(), outbox: getIt(), prefs: getIt(), cipher: getIt()),
   );
   getIt.registerLazySingleton<ICanvasRepository>(
     () => CanvasRepository(client: getIt(), channelSource: getIt(), storage: getIt(), outbox: getIt()),

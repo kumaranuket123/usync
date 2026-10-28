@@ -1,4 +1,3 @@
-import 'dart:typed_data';
 import 'dart:ui';
 
 import '../entities/canvas_stroke.dart';
@@ -22,7 +21,6 @@ abstract interface class ICanvasRepository {
 
   /// Emits the current `clearedAt` timestamp (0 if never cleared), then every change.
   Stream<int>           watchCanvasCleared(String coupleId);
-  Future<String>        saveCanvasBitmap(String coupleId, Uint8List bytes);
 
   /// Announces us on Presence as being on the canvas.
   Future<void>          enterCanvas(String coupleId, String userId);

@@ -28,7 +28,7 @@ Bottom-nav tab (🫧 Memories). Scrollable list of memory cards.
 ### MemoryCard (widget)
 
 Glass rounded card with:
-- **Thumbnail area** (160 px tall): gradient background per memory type + centred emoji (72 px). If `thumbnailUrl` is available (canvas saves), shows `CachedNetworkImage` with a fade-in + glass overlay.
+- **Thumbnail area** (160 px tall): gradient background per memory type + centred emoji (72 px). If the memory has a picture, `MemoryArt` loads it through `IMemoryRepository.loadImage` (downloaded and decrypted on the phone; see "Encryption" below).
 - **Footer row**: left side (title 14 px bold, date 12 px muted) + right side (`MemoryTag` chip)
 - Tap → navigates to `MemoryDetailScreen` with the `Memory` entity passed via GoRouter `extra`
 
@@ -297,3 +297,12 @@ Only a couple's newest 10 memory pictures stay on the server; older ones are kep
 4. A picture present on the phone is shown from disk, including archived ones. Optional backup of archived pictures to the gallery is controlled by `galleryBackupEnabled` in settings.
 
 Migration: `supabase/migrations/archive_old_memory_images.sql`.
+
+## Encryption (phase E3a)
+
+- A new memory's title and emoji are sealed into `memories.enc` (bound to couple, table `memories` and the memory id); the readable columns hold a `🔒` placeholder. Readers accept older readable rows; a sealed row this phone cannot open shows as "Locked until your key arrives".
+- The picture is encrypted on the phone and uploaded as an opaque object `<couple id>/<memory id>.enc` (field `image`, content type `application/octet-stream`). Older pictures (`.png`) are still read as stored. There are no signed URLs any more: `loadImage` downloads the object, opens it if it is `.enc`, and keeps the newest pictures in memory only.
+- `saveDoodle` is the only way to create a memory. Without the couple key it throws `EncryptionNotReady` and sends nothing; queued saves wait in the outbox.
+- Sharing opens the picture and writes a temporary file for the share sheet. Archiving older pictures to the phone opens them first (the copy on the phone is still readable until phase E4 encrypts local files).
+- Migration: `supabase/migrations/e2ee_memories.sql`.
+

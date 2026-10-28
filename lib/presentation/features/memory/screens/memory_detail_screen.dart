@@ -1,7 +1,9 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
-import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:gal/gal.dart';
 import 'package:go_router/go_router.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../../../../core/di/injection.dart';
@@ -19,14 +21,16 @@ class MemoryDetailScreen extends StatelessWidget {
   final String  memoryId;
   final Memory? memory;
 
-  /// The memory's picture as a local file (from the image cache, else downloaded),
-  /// or null when it only has an emoji.
+  /// The memory's picture as a file to hand to the share sheet, or null when it only has an emoji. A sealed
+  /// picture is opened first; the temporary copy is what the person chooses to share.
   Future<String?> _imagePath(Memory m) async {
     final url = m.thumbnailUrl;
     if (url != null && url.startsWith('/')) return url; // already a file on this phone
-    if (url == null || !url.startsWith('http')) return null;
-    // Same key MemoryArt caches under, so an image already on screen isn't fetched again.
-    return (await DefaultCacheManager().getSingleFile(url, key: m.id)).path;
+    final bytes = await getIt<IMemoryRepository>().loadImage(m);
+    if (bytes == null) return null;
+    final file = File('${(await getTemporaryDirectory()).path}/share_${m.id}.png');
+    await file.writeAsBytes(bytes, flush: true);
+    return file.path;
   }
 
   Future<void> _share(BuildContext context, Memory m) async {

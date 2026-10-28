@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:typed_data';
 import 'dart:ui';
 
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -413,10 +412,6 @@ class CanvasRepository implements ICanvasRepository {
     yield here();
     yield* channel.onlineUsers.stream.map((_) => here()).distinct();
   }
-
-  @override
-  Future<String> saveCanvasBitmap(String coupleId, Uint8List bytes) =>
-      storage.uploadPng(coupleId, bytes);
 
   static CanvasStroke strokeFromRow(Map<String, dynamic> row) {
     final flat   = row['points'] as List;

@@ -9,7 +9,7 @@ Goal: nobody but the two partners can read their content, **including the develo
 | E0 | Crypto foundation: `CryptoService`, `KeyService`, key storage, recovery phrase, security code | **Built, not used by any feature yet** |
 | E1 | Identity keys published, pairing handshake, security-code verification, recovery and partner approval | **Built** (database migration `e2ee_keys.sql` must be applied) |
 | E2 | Text content encrypted: moods, bucket list, answers, next meet, notification details (memories wait for E3 with their pictures, timeline dates for E4 with local reminders) | **Built** (migration `e2ee_content_text.sql` must be applied, then `min_supported_build` raised) |
-| E3 | Memory images, strokes (stored and live), locations | Planned |
+| E3 | Binary and live data. **E3a** memories (titles, emoji, pictures): **built** (migration `e2ee_memories.sql` must be applied). E3b drawing strokes (stored and live), E3c locations, widget and background locate: planned | In progress |
 | E4 | Local caches encrypted at rest, local date reminders | Planned |
 | E5 | Re-encrypt existing data, then require encryption on new rows | Planned |
 

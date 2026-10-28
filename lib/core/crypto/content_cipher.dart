@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:cryptography/cryptography.dart';
 
 import 'crypto_service.dart';
@@ -55,4 +57,11 @@ class ContentCipher {
 
   Future<String> openText(String envelope, {required String coupleId, required String table, required String rowId, String field = 'enc'}) async =>
       crypto.open(envelope, key: await _key(coupleId), aad: CryptoService.fieldAad(coupleId: coupleId, table: table, rowId: rowId, field: field));
+
+  /// Seals raw bytes (a picture) for one field of one row; the result is the binary envelope, not text.
+  Future<Uint8List> sealBytes(List<int> bytes, {required String coupleId, required String table, required String rowId, String field = 'enc'}) async =>
+      crypto.sealBytes(bytes, key: await _key(coupleId), aad: CryptoService.fieldAad(coupleId: coupleId, table: table, rowId: rowId, field: field));
+
+  Future<Uint8List> openBytes(List<int> envelope, {required String coupleId, required String table, required String rowId, String field = 'enc'}) async =>
+      crypto.openBytes(envelope, key: await _key(coupleId), aad: CryptoService.fieldAad(coupleId: coupleId, table: table, rowId: rowId, field: field));
 }
