@@ -29,6 +29,7 @@ class CanvasBloc extends Bloc<CanvasEvent, CanvasState> {
     on<StrokesFlushRequested>((_, __) => _guard(canvasRepository.flushStrokes()));
     on<PartnerHereChanged>((e, emit) => emit(state.copyWith(partnerHere: e.isHere)));
     on<RemoteStrokeReceived>(_onRemote);
+    on<StrokesUnreadableDetected>((_, emit) => emit(state.copyWith(hasUnreadable: true)));
     on<RemoteCanvasCleared>(
       (_, emit) => emit(state.copyWith(strokes: [], remoteStrokes: [], clearActive: true)),
     );
@@ -68,7 +69,10 @@ class CanvasBloc extends Bloc<CanvasEvent, CanvasState> {
 
     _remoteSub = canvasRepository.watchRemoteStrokes(_coupleId, _userId).listen(
       (stroke) { if (!isClosed) add(RemoteStrokeReceived(stroke)); },
-      onError: (Object err) => debugPrint('Canvas stroke stream error: $err'),
+      onError: (Object err) {
+        debugPrint('Canvas stroke stream error: $err');
+        if (err is StrokesUnreadable && !isClosed) add(StrokesUnreadableDetected());
+      },
     );
 
     // The first value is the existing clearedAt (or 0), which is only a baseline —

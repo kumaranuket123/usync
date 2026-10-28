@@ -16,6 +16,7 @@ class CanvasState {
     this.partnerHere   = false,
     this.isReady       = false,
     this.needsSecuring = false,
+    this.hasUnreadable = false,
   });
 
   final List<CanvasStroke> strokes;
@@ -41,6 +42,9 @@ class CanvasState {
   /// This phone has no couple key yet, so nothing can be drawn: the connection is not secured.
   final bool               needsSecuring;
 
+  /// Strokes were saved that this phone cannot read (it probably does not hold the same couple key).
+  final bool               hasUnreadable;
+
   static List<CanvasStroke> _merge(List<CanvasStroke> a, List<CanvasStroke> b) =>
       [...a, ...b]..sort((x, y) {
         final c = x.timestamp.compareTo(y.timestamp);
@@ -60,6 +64,7 @@ class CanvasState {
     bool?               partnerHere,
     bool?               isReady,
     bool?               needsSecuring,
+    bool?               hasUnreadable,
   }) {
     final newStrokes = strokes       ?? this.strokes;
     final newRemote  = remoteStrokes ?? this.remoteStrokes;
@@ -77,6 +82,7 @@ class CanvasState {
       partnerHere:   partnerHere ?? this.partnerHere,
       isReady:       isReady     ?? this.isReady,
       needsSecuring: needsSecuring ?? this.needsSecuring,
+      hasUnreadable: hasUnreadable ?? this.hasUnreadable,
     );
   }
 }

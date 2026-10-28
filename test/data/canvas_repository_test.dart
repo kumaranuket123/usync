@@ -5,6 +5,7 @@ import 'package:usync/data/datasources/remote/couple_channel_source.dart';
 import 'package:usync/data/models/canvas_stroke_codec.dart';
 import 'package:usync/data/repositories/canvas_repository.dart';
 import 'package:usync/domain/entities/canvas_stroke.dart';
+import 'package:usync/domain/repositories/i_canvas_repository.dart';
 
 import '../support/test_cipher.dart';
 import 'repository_harness.dart';
@@ -16,11 +17,12 @@ void main() {
   late ContentCipher cipher;
   late CanvasRepository repo;
 
-  CanvasRepository build(ContentCipher c) => CanvasRepository(
+  CanvasRepository build(ContentCipher c, {Duration catchUpEvery = const Duration(seconds: 4)}) => CanvasRepository(
         client: backend.client,
         channelSource: channels,
         outbox: local.outbox,
         cipher: c,
+        catchUpEvery: catchUpEvery,
       );
 
   final stroke = CanvasStroke(
@@ -126,5 +128,76 @@ void main() {
   test('isReady follows the couple key', () async {
     expect(await repo.isReady('c1'), isTrue);
     expect(await build(notReadyCipher()).isReady('c1'), isFalse);
+  });
+
+  group('strokes the partner saves after the canvas was opened', () {
+    Future<Map<String, dynamic>> savedRow(String id, String userId, {ContentCipher? by}) async => {
+          'id': id,
+          'couple_id': 'c1',
+          'user_id': userId,
+          'color': null,
+          'width': null,
+          'points': null,
+          'is_eraser': false,
+          'created_at': '2026-03-01T10:00:00Z',
+          'enc': await CanvasStrokeCodec(by ?? cipher).sealStroke('c1', id, color: 0xFF112233, width: 3, isEraser: false, points: [1, 2, 3, 4]),
+        };
+
+    /// Serves the saved strokes from [rows] (which a test can add to while the canvas is open), by the three
+    /// kinds of read the repository makes.
+    void serve(List<Map<String, dynamic>> rows) => backend.respond((r) {
+          if (!r.path.endsWith('/canvas_strokes') || r.method != 'GET') return FakeBackend.ok([], status: 200);
+          if (r.query['select'] == 'id') return FakeBackend.ok([for (final row in rows) {'id': row['id']}]);
+          final inFilter = r.query['id'];
+          if (inFilter != null) return FakeBackend.ok([for (final row in rows) if (inFilter.contains(row['id'] as String)) row]);
+          return FakeBackend.ok(rows);
+        });
+
+    test('a stroke saved while the canvas is open is shown without reopening it', () async {
+      final rows = <Map<String, dynamic>>[];
+      serve(rows);
+      repo = build(cipher, catchUpEvery: const Duration(milliseconds: 300));
+
+      final shown = <CanvasStroke>[];
+      final sub = repo.watchRemoteStrokes('c1', 'u1').listen(shown.add);
+      addTearDown(sub.cancel);
+      await Future<void>.delayed(const Duration(seconds: 7)); // the canvas opened with nothing saved yet
+      expect(shown, isEmpty);
+
+      rows.add(await savedRow('s-partner', 'u2')); // the partner's batch reaches the server a moment later
+      await Future<void>.delayed(const Duration(seconds: 1));
+
+      expect(shown.map((s) => s.id), ['s-partner']);
+      expect(shown.single.userId, 'u2');
+      expect(shown.single.points, const [Offset(1, 2), Offset(3, 4)]);
+    }, timeout: const Timeout(Duration(seconds: 60)));
+
+    test('a stroke is shown once, however many times the server is asked', () async {
+      final rows = [await savedRow('s1', 'u2')];
+      serve(rows);
+      repo = build(cipher, catchUpEvery: const Duration(milliseconds: 300));
+
+      final shown = <CanvasStroke>[];
+      final sub = repo.watchRemoteStrokes('c1', 'u1').listen(shown.add);
+      addTearDown(sub.cancel);
+      await Future<void>.delayed(const Duration(seconds: 8));
+
+      expect(shown.map((s) => s.id), ['s1']);
+    }, timeout: const Timeout(Duration(seconds: 60)));
+
+    test('strokes this phone cannot read are reported once, not silently dropped', () async {
+      final rows = [await savedRow('s1', 'u2', by: await readyCipher()), await savedRow('s2', 'u2', by: await readyCipher())];
+      serve(rows);
+      repo = build(cipher, catchUpEvery: const Duration(milliseconds: 300));
+
+      final shown = <CanvasStroke>[];
+      final errors = <Object>[];
+      final sub = repo.watchRemoteStrokes('c1', 'u1').listen(shown.add, onError: errors.add);
+      addTearDown(sub.cancel);
+      await Future<void>.delayed(const Duration(seconds: 8));
+
+      expect(shown, isEmpty);
+      expect(errors.whereType<StrokesUnreadable>(), hasLength(1));
+    }, timeout: const Timeout(Duration(seconds: 60)));
   });
 }

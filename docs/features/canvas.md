@@ -264,3 +264,7 @@ CanvasState {
 
 Strokes are sealed on the phone before they are saved or sent live; the server and Realtime only carry ciphertext (see "E3b" in [security.md](../security.md)). Without the couple key the canvas tells the person to finish securing the connection (Profile → Security) and nothing is drawn. Migration: `supabase/migrations/e2ee_strokes.sql`.
 
+## Catching up with the partner's strokes
+
+A partner's finished strokes are saved a few seconds after they draw, so a canvas opened in that window loads its history before they exist and has missed the live strokes. While the canvas is open the app therefore looks again every four seconds (a cheap list of stroke ids, then only the ones it has not shown) and opens whatever is new. A stroke that was saved but cannot be decrypted on this phone (usually a different couple key on the two phones) is no longer skipped silently: the canvas says "Some of your partner's drawing cannot be read on this phone. Check Profile → Security on both phones."
+

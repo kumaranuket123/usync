@@ -19,6 +19,7 @@ class CanvasRepository implements ICanvasRepository {
     required this.channelSource,
     required this.outbox,
     required this.cipher,
+    this.catchUpEvery = const Duration(seconds: 4),
   }) : codec = CanvasStrokeCodec(cipher) {
     outbox.register(_strokeType, _deliverStroke);
     outbox.register(_strokesType, _deliverStrokes);
@@ -45,6 +46,8 @@ class CanvasRepository implements ICanvasRepository {
   final OutboxService       outbox;
   final ContentCipher       cipher;
   final CanvasStrokeCodec   codec;
+  /// While the canvas is open, how often to look for strokes the partner saved after it was opened.
+  final Duration            catchUpEvery;
 
   final _finished = <Map<String, dynamic>>[];
   Timer? _batchTimer;
@@ -216,6 +219,10 @@ class CanvasRepository implements ICanvasRepository {
     final shown     = <String, int>{};
     final attempts  = <String, int>{};
     Timer? reconcileTimer;
+    Timer? catchUpTimer;
+    // Saved strokes already shown (or being drawn live), and whether the unreadable warning went out.
+    final known = <String>{};
+    var warned = false;
 
     void emit(CanvasStroke stroke) {
       shown[stroke.id] = stroke.points.length;
@@ -264,6 +271,38 @@ class CanvasRepository implements ICanvasRepository {
       opening = opening.then((_) => handle()).catchError((Object _) {});
     }
 
+    /// Shows saved strokes. One this phone cannot open is not silently dropped: the caller is told, once.
+    Future<void> showSaved(List<Map<String, dynamic>> rows) async {
+      for (final row in rows) {
+        final id = row['id'] as String;
+        known.add(id);
+        if (live.containsKey(id)) continue; // already arriving live
+        final stroke = await codec.openRow(row);
+        if (stroke == null) {
+          if (!warned && !out.isClosed) {
+            warned = true;
+            out.addError(const StrokesUnreadable());
+          }
+          continue;
+        }
+        emit(stroke);
+      }
+    }
+
+    /// The partner's finished strokes are saved a few seconds after they draw, usually after this canvas was
+    /// opened (and their live strokes were missed). Look again for ones not shown yet.
+    Future<void> catchUp() async {
+      if (out.isClosed) return;
+      try {
+        final ids = [for (final r in await client.from('canvas_strokes').select('id').eq('couple_id', coupleId)) r['id'] as String];
+        final missing = ids.where((id) => !known.contains(id) && !live.containsKey(id)).toList();
+        if (missing.isEmpty) return;
+        await showSaved(await client.from('canvas_strokes').select().inFilter('id', missing).order('created_at'));
+      } catch (_) {
+        // Offline: the next look tries again.
+      }
+    }
+
     out.onListen = () async {
       // Live events first, so nothing is missed while the history loads.
       subs.add(channel.on(CoupleChannel.strokeStart).listen((m) => inOrder(() async {
@@ -287,6 +326,7 @@ class CanvasRepository implements ICanvasRepository {
           timestamp: DateTime.fromMillisecondsSinceEpoch((m['timestamp'] as num).toInt()),
         );
         final pending = live[id] = _PendingStroke(stroke);
+        known.add(id);
         early.remove(id)?.forEach((seq, pts) => pending.chunks[seq] = pts);
         emit(pending.snapshot());
       })));
@@ -353,17 +393,15 @@ class CanvasRepository implements ICanvasRepository {
             .select()
             .eq('couple_id', coupleId)
             .order('created_at');
-        for (final row in rows) {
-          if (live.containsKey(row['id'])) continue; // already arriving live
-          final stroke = await codec.openRow(row);
-          if (stroke != null) emit(stroke);
-        }
+        await showSaved(rows);
+        catchUpTimer = Timer.periodic(catchUpEvery, (_) => inOrder(catchUp));
       } catch (err, st) {
         if (!out.isClosed) out.addError(err, st);
       }
     };
     out.onCancel = () {
       reconcileTimer?.cancel();
+      catchUpTimer?.cancel();
       for (final t in waiting.values) {
         t.cancel();
       }

@@ -2,6 +2,15 @@ import 'dart:ui';
 
 import '../entities/canvas_stroke.dart';
 
+/// Reported (once) on [ICanvasRepository.watchRemoteStrokes] when strokes were saved but this phone cannot
+/// read them, usually because it does not hold the same couple key as the partner's phone.
+class StrokesUnreadable implements Exception {
+  const StrokesUnreadable();
+
+  @override
+  String toString() => 'Some of the drawing cannot be read on this phone';
+}
+
 abstract interface class ICanvasRepository {
   /// Creates the stroke node (metadata only, `isComplete: false`).
   Future<void>          pushStroke(CanvasStroke stroke);
