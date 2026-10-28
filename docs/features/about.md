@@ -13,7 +13,7 @@ An in-app page that explains what Usync is and lists everything it can do, in pl
   - **CREATE AND REMEMBER**: shared canvas, memories, timeline, bucket list, streaks.
   - **NEAR OR FAR**: relationship type, long-distance card, location.
   - **ALWAYS WITH YOU**: notifications, home-screen widget, offline support, themes.
-  - **PRIVATE BY DESIGN**: app lock, only the two of you, deleting your data.
+  - **PRIVATE BY DESIGN**: app lock, only the two of you, end-to-end encryption, deleting your data.
 - Footer row **Read our Privacy Policy**, which opens the hosted policy in the browser (`openPrivacyPolicy`, shared with the Settings row).
 
 The page is one scrollable column, so it works at any size and text scale (covered by `test/presentation/about_screen_test.dart`, which also checks every feature is listed).
