@@ -259,3 +259,8 @@ CanvasState {
 | `LoadingDots` | Toolbar save button loading state |
 | `UsyncBottomNav` | Persistent footer |
 | `CanvasStrokePainter` | Core drawing — custom painter (canvas/painters/) |
+
+## Encryption (phase E3b)
+
+Strokes are sealed on the phone before they are saved or sent live; the server and Realtime only carry ciphertext (see "E3b" in [security.md](../security.md)). Without the couple key the canvas tells the person to finish securing the connection (Profile → Security) and nothing is drawn. Migration: `supabase/migrations/e2ee_strokes.sql`.
+

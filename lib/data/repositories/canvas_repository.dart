@@ -3,11 +3,12 @@ import 'dart:ui';
 
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../core/crypto/content_cipher.dart';
 import '../../core/services/outbox_service.dart';
 import '../../domain/entities/canvas_stroke.dart';
 import '../../domain/repositories/i_canvas_repository.dart';
 import '../datasources/remote/couple_channel_source.dart';
-import '../datasources/remote/storage_source.dart';
+import '../models/canvas_stroke_codec.dart';
 
 /// Live strokes travel as Broadcast events on the couple channel; a finished
 /// stroke is persisted to `canvas_strokes` so a partner who joins later (or
@@ -16,9 +17,9 @@ class CanvasRepository implements ICanvasRepository {
   CanvasRepository({
     required this.client,
     required this.channelSource,
-    required this.storage,
     required this.outbox,
-  }) {
+    required this.cipher,
+  }) : codec = CanvasStrokeCodec(cipher) {
     outbox.register(_strokeType, _deliverStroke);
     outbox.register(_strokesType, _deliverStrokes);
     outbox.register(_clearType, _deliverClear);
@@ -40,9 +41,10 @@ class CanvasRepository implements ICanvasRepository {
   static const _lateAfter = Duration(seconds: 10);
 
   final SupabaseClient      client;
-  final StorageSource       storage;
   final CoupleChannelSource channelSource;
   final OutboxService       outbox;
+  final ContentCipher       cipher;
+  final CanvasStrokeCodec   codec;
 
   final _finished = <Map<String, dynamic>>[];
   Timer? _batchTimer;
@@ -51,8 +53,9 @@ class CanvasRepository implements ICanvasRepository {
   /// without this a stroke's end (or last chunk) can overtake its start and be
   /// dropped by the partner.
   Future<void> _sendQueue = Future.value();
-  Future<void> _sendInOrder(String coupleId, String event, Map<String, dynamic> payload) {
-    final next = _sendQueue.then((_) => channelSource.open(coupleId).send(event, payload));
+  Future<void> _sendInOrder(String coupleId, String event, Future<Map<String, dynamic>> Function() payload) {
+    // The payload is sealed inside the queue, so the order of events survives the time sealing takes.
+    final next = _sendQueue.then((_) async => channelSource.open(coupleId).send(event, await payload()));
     _sendQueue = next.catchError((_) {});
     return next;
   }
@@ -63,13 +66,11 @@ class CanvasRepository implements ICanvasRepository {
   @override
   Future<void> pushStroke(CanvasStroke stroke) {
     _own[stroke.id] = _PendingStroke(stroke);
-    return _sendInOrder(stroke.coupleId, CoupleChannel.strokeStart, {
+    return _sendInOrder(stroke.coupleId, CoupleChannel.strokeStart, () async => {
       'id':        stroke.id,
       'user_id':   stroke.userId,
-      'color':     stroke.color.toARGB32(),
-      'width':     stroke.width,
-      'is_eraser': stroke.isEraser,
       'timestamp': stroke.timestamp.millisecondsSinceEpoch,
+      'enc':       await codec.sealLiveStart(stroke.coupleId, stroke.id, color: stroke.color.toARGB32(), width: stroke.width, isEraser: stroke.isEraser),
     });
   }
 
@@ -78,10 +79,10 @@ class CanvasRepository implements ICanvasRepository {
     // Flat [x0, y0, x1, y1, …] — one small message per batch.
     final flat = <double>[for (final p in points) ...[p.dx, p.dy]];
     _own[strokeId]?.chunks[seq] = flat;
-    return _sendInOrder(coupleId, CoupleChannel.strokeChunk, {
+    return _sendInOrder(coupleId, CoupleChannel.strokeChunk, () async => {
       'id':  strokeId,
       'seq': seq,
-      'pts': flat,
+      'enc': await codec.sealLiveChunk(coupleId, strokeId, seq, flat),
     });
   }
 
@@ -90,7 +91,7 @@ class CanvasRepository implements ICanvasRepository {
     final pending = _own.remove(strokeId);
     // Tells a partner who is watching live; nothing waits on it.
     // The chunk count lets the partner tell whether anything is still missing.
-    _sendInOrder(coupleId, CoupleChannel.strokeEnd, {
+    _sendInOrder(coupleId, CoupleChannel.strokeEnd, () async => {
       'id':     strokeId,
       'chunks': pending?.chunks.length,
     }).ignore();
@@ -98,15 +99,15 @@ class CanvasRepository implements ICanvasRepository {
 
     // Strokes are saved in batches: drawing makes many, and a request each is
     // far more traffic than the partner (who already saw them live) needs.
+    // Sealed here, so only ciphertext is ever kept waiting (in memory, then in the outbox). Without the
+    // couple key this throws and the stroke is not saved.
     final s = pending.stroke;
+    final sealed = await codec.sealStroke(coupleId, s.id, color: s.color.toARGB32(), width: s.width, isEraser: s.isEraser, points: pending.flatPoints());
     _finished.add({
       'id':        s.id,
       'coupleId':  coupleId,
       'userId':    s.userId,
-      'color':     s.color.toARGB32(),
-      'width':     s.width,
-      'isEraser':  s.isEraser,
-      'points':    pending.flatPoints(),
+      'enc':       sealed,
       'timestamp': s.timestamp.millisecondsSinceEpoch,
     });
     if (_finished.length >= _batchSize) {
@@ -127,8 +128,20 @@ class CanvasRepository implements ICanvasRepository {
     await outbox.submit(_strokesType, {'items': items});
   }
 
+  /// Items normally carry their sealed content (`enc`). One queued by an earlier version of the app still
+  /// carries readable colour/width/points: it is sealed here, so nothing readable is ever sent.
+  Future<Map<String, dynamic>> _sealedItem(Map<String, dynamic> i) async {
+    if (i['enc'] is String) return i;
+    final points = [for (final v in (i['points'] as List)) (v as num).toDouble()];
+    final sealed = await codec.sealStroke(i['coupleId'] as String, i['id'] as String,
+        color: (i['color'] as num).toInt(), width: (i['width'] as num).toDouble(), isEraser: i['isEraser'] as bool? ?? false, points: points);
+    return {
+      'id': i['id'], 'coupleId': i['coupleId'], 'userId': i['userId'], 'timestamp': i['timestamp'], 'enc': sealed,
+    };
+  }
+
   Future<void> _deliverStrokes(Map<String, dynamic> p) async {
-    final items = [for (final i in (p['items'] as List)) Map<String, dynamic>.from(i as Map)];
+    final items = [for (final i in (p['items'] as List)) await _sealedItem(Map<String, dynamic>.from(i as Map))];
     if (items.isEmpty) return;
     // Insert the batch in one request; a stroke an earlier attempt already saved is skipped.
     await client.from('canvas_strokes').upsert(
@@ -138,10 +151,7 @@ class CanvasRepository implements ICanvasRepository {
             'id':         i['id'],
             'couple_id':  i['coupleId'],
             'user_id':    i['userId'],
-            'color':      i['color'],
-            'width':      i['width'],
-            'is_eraser':  i['isEraser'],
-            'points':     i['points'],
+            'enc':        i['enc'],
             'created_at': DateTime.fromMillisecondsSinceEpoch((i['timestamp'] as num).toInt(), isUtc: true)
                 .toIso8601String(),
           },
@@ -157,50 +167,36 @@ class CanvasRepository implements ICanvasRepository {
     }
   }
 
-  Future<void> _deliverStroke(Map<String, dynamic> p) async {
-    final coupleId  = p['coupleId'] as String;
-    final timestamp = (p['timestamp'] as num).toInt();
-    try {
-      await client.from('canvas_strokes').insert({
-        'id':         p['id'],
-        'couple_id':  coupleId,
-        'user_id':    p['userId'],
-        'color':      p['color'],
-        'width':      p['width'],
-        'is_eraser':  p['isEraser'],
-        'points':     p['points'],
-        'created_at': DateTime.fromMillisecondsSinceEpoch(timestamp, isUtc: true).toIso8601String(),
-      });
-    } on PostgrestException catch (e) {
-      if (e.code == '23505') return; // an earlier attempt already got through
-      rethrow;
-    }
-
-    final age = DateTime.now().millisecondsSinceEpoch - timestamp;
-    if (age > _lateAfter.inMilliseconds) {
-      await _replayLive(coupleId, p);
-    }
-  }
+  /// One stroke per change: no longer created, but changes queued by an earlier version of the app may
+  /// still carry it. It is delivered like a batch of one.
+  Future<void> _deliverStroke(Map<String, dynamic> p) => _deliverStrokes({'items': [p]});
 
   /// Shows the partner a stroke they missed. The database already has it, so
-  /// this is best effort: if they are not watching, they load it next time.
-  Future<void> _replayLive(String coupleId, Map<String, dynamic> p) async {
+  /// this is best effort: if they are not watching, they load it next time. The sealed content is opened
+  /// and sealed again for the live channel.
+  Future<void> _replayLive(String coupleId, Map<String, dynamic> item) async {
     try {
+      final id = item['id'] as String;
+      final content = await cipher.openJson(item['enc'] as String, coupleId: coupleId, table: 'canvas_strokes', rowId: id);
+      final start = await codec.sealLiveStart(coupleId, id,
+          color: (content['color'] as num).toInt(), width: (content['width'] as num).toDouble(), isEraser: content['is_eraser'] as bool? ?? false);
+      final chunk = await codec.sealLiveChunk(coupleId, id, 0, content['points'] as List);
       final channel = channelSource.open(coupleId);
       await Future<void>(() async {
         await channel.send(CoupleChannel.strokeStart, {
-          'id':        p['id'],
-          'user_id':   p['userId'],
-          'color':     p['color'],
-          'width':     p['width'],
-          'is_eraser': p['isEraser'],
-          'timestamp': p['timestamp'],
+          'id':        id,
+          'user_id':   item['userId'],
+          'timestamp': item['timestamp'],
+          'enc':       start,
         });
-        await channel.send(CoupleChannel.strokeChunk, {'id': p['id'], 'seq': 0, 'pts': p['points']});
-        await channel.send(CoupleChannel.strokeEnd, {'id': p['id']});
+        await channel.send(CoupleChannel.strokeChunk, {'id': id, 'seq': 0, 'enc': chunk});
+        await channel.send(CoupleChannel.strokeEnd, {'id': id});
       }).timeout(const Duration(seconds: 5));
     } catch (_) {}
   }
+
+  @override
+  Future<bool> isReady(String coupleId) => cipher.isReady(coupleId);
 
   @override
   Stream<CanvasStroke> watchRemoteStrokes(String coupleId, String excludeUserId) {
@@ -234,8 +230,8 @@ class CanvasRepository implements ICanvasRepository {
         for (final row in rows) {
           final id = row['id'] as String;
           attempts.remove(id);
-          final saved = (row['points'] as List).length ~/ 2;
-          if (saved > (shown[id] ?? -1)) emit(strokeFromRow(row));
+          final saved = await codec.openRow(row);
+          if (saved != null && saved.points.length > (shown[id] ?? -1)) emit(saved);
         }
       } catch (_) {}
       // Not saved yet (the sender batches, or is offline): look again a few times.
@@ -262,31 +258,50 @@ class CanvasRepository implements ICanvasRepository {
       reconcileTimer = Timer(const Duration(seconds: 5), reconcile);
     }
 
+    // Live events are opened one after another, so a stroke's end can never be handled before its start.
+    var opening = Future<void>.value();
+    void inOrder(Future<void> Function() handle) {
+      opening = opening.then((_) => handle()).catchError((Object _) {});
+    }
+
     out.onListen = () async {
       // Live events first, so nothing is missed while the history loads.
-      subs.add(channel.on(CoupleChannel.strokeStart).listen((m) {
+      subs.add(channel.on(CoupleChannel.strokeStart).listen((m) => inOrder(() async {
         final userId = m['user_id'] as String?;
         final id     = m['id']      as String?;
-        if (userId == null || id == null || userId == excludeUserId) return;
+        final sealed = m['enc']     as String?;
+        if (userId == null || id == null || sealed == null || userId == excludeUserId) return;
+        final Map<String, dynamic> c;
+        try {
+          c = await codec.openLiveStart(coupleId, id, sealed);
+        } catch (_) {
+          return; // not made for this stroke, or cannot be opened: ignored
+        }
         final stroke = CanvasStroke(
           id:        id,
           coupleId:  coupleId,
           userId:    userId,
-          color:     Color((m['color'] as num).toInt()),
-          width:     (m['width'] as num).toDouble(),
-          isEraser:  m['is_eraser'] as bool? ?? false,
+          color:     Color((c['color'] as num).toInt()),
+          width:     (c['width'] as num).toDouble(),
+          isEraser:  c['is_eraser'] as bool? ?? false,
           timestamp: DateTime.fromMillisecondsSinceEpoch((m['timestamp'] as num).toInt()),
         );
         final pending = live[id] = _PendingStroke(stroke);
         early.remove(id)?.forEach((seq, pts) => pending.chunks[seq] = pts);
         emit(pending.snapshot());
-      }));
+      })));
 
-      subs.add(channel.on(CoupleChannel.strokeChunk).listen((m) {
-        final id  = m['id'];
-        final pts = m['pts'];
-        if (id is! String || pts is! List) return;
-        final seq     = (m['seq'] as num).toInt();
+      subs.add(channel.on(CoupleChannel.strokeChunk).listen((m) => inOrder(() async {
+        final id     = m['id'];
+        final sealed = m['enc'];
+        if (id is! String || sealed is! String) return;
+        final seq = (m['seq'] as num).toInt();
+        final List<dynamic> pts;
+        try {
+          pts = await codec.openLiveChunk(coupleId, id, seq, sealed);
+        } catch (_) {
+          return;
+        }
         final pending = live[id];
         if (pending == null) {
           // Overtook its start: keep it until the start shows up.
@@ -297,9 +312,9 @@ class CanvasRepository implements ICanvasRepository {
         emit(pending.snapshot());
         final want = expected[id];
         if (want != null && pending.chunks.length >= want) finish(id);
-      }));
+      })));
 
-      subs.add(channel.on(CoupleChannel.strokeEnd).listen((m) {
+      subs.add(channel.on(CoupleChannel.strokeEnd).listen((m) => inOrder(() async {
         final id = m['id'];
         if (id is! String) return;
         final pending = live[id];
@@ -313,7 +328,7 @@ class CanvasRepository implements ICanvasRepository {
           expected[id] = want;
           waiting[id]  = Timer(const Duration(seconds: 3), () => finish(id));
         }
-      }));
+      })));
 
       subs.add(channel.on(CoupleChannel.canvasClear).listen((_) {
         live.clear();
@@ -340,7 +355,8 @@ class CanvasRepository implements ICanvasRepository {
             .order('created_at');
         for (final row in rows) {
           if (live.containsKey(row['id'])) continue; // already arriving live
-          emit(strokeFromRow(row));
+          final stroke = await codec.openRow(row);
+          if (stroke != null) emit(stroke);
         }
       } catch (err, st) {
         if (!out.isClosed) out.addError(err, st);
@@ -411,25 +427,6 @@ class CanvasRepository implements ICanvasRepository {
     bool here() => channel.presenceScreens[partnerUserId] == 'canvas';
     yield here();
     yield* channel.onlineUsers.stream.map((_) => here()).distinct();
-  }
-
-  static CanvasStroke strokeFromRow(Map<String, dynamic> row) {
-    final flat   = row['points'] as List;
-    final points = <Offset>[
-      for (var i = 0; i + 1 < flat.length; i += 2)
-        Offset((flat[i] as num).toDouble(), (flat[i + 1] as num).toDouble()),
-    ];
-    return CanvasStroke(
-      id:         row['id']        as String,
-      coupleId:   row['couple_id'] as String,
-      userId:     row['user_id']   as String,
-      color:      Color((row['color'] as num).toInt()),
-      width:      (row['width'] as num).toDouble(),
-      timestamp:  DateTime.parse(row['created_at'] as String),
-      points:     points,
-      isEraser:   row['is_eraser'] as bool? ?? false,
-      isComplete: true,
-    );
   }
 }
 

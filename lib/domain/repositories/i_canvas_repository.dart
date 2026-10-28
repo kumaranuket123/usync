@@ -16,6 +16,9 @@ abstract interface class ICanvasRepository {
   Future<void>          flushStrokes();
   Stream<CanvasStroke>  watchRemoteStrokes(String coupleId, String excludeUserId);
 
+  /// Whether this phone has the couple key, so the drawing can be sealed. Without it nothing is drawn.
+  Future<bool>          isReady(String coupleId);
+
   /// Removes all strokes and returns the clear timestamp written for the partner.
   Future<int>           clearCanvas(String coupleId);
 

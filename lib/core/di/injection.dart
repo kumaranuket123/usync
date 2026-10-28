@@ -182,7 +182,7 @@ Future<void> setupLocator() async {
     () => MemoryRepository(client: getIt(), storage: getIt(), notifications: getIt(), outbox: getIt(), prefs: getIt(), cipher: getIt()),
   );
   getIt.registerLazySingleton<ICanvasRepository>(
-    () => CanvasRepository(client: getIt(), channelSource: getIt(), storage: getIt(), outbox: getIt()),
+    () => CanvasRepository(client: getIt(), channelSource: getIt(), outbox: getIt(), cipher: getIt()),
   );
   getIt.registerLazySingleton<ITouchRepository>(
     () => TouchRepository(channelSource: getIt(), notifications: getIt()),

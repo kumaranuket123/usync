@@ -9,7 +9,7 @@ Goal: nobody but the two partners can read their content, **including the develo
 | E0 | Crypto foundation: `CryptoService`, `KeyService`, key storage, recovery phrase, security code | **Built, not used by any feature yet** |
 | E1 | Identity keys published, pairing handshake, security-code verification, recovery and partner approval | **Built** (database migration `e2ee_keys.sql` must be applied) |
 | E2 | Text content encrypted: moods, bucket list, answers, next meet, notification details (memories wait for E3 with their pictures, timeline dates for E4 with local reminders) | **Built** (migration `e2ee_content_text.sql` must be applied, then `min_supported_build` raised) |
-| E3 | Binary and live data. **E3a** memories (titles, emoji, pictures): **built** (migration `e2ee_memories.sql` must be applied). E3b drawing strokes (stored and live), E3c locations, widget and background locate: planned | In progress |
+| E3 | Binary and live data. **E3a** memories (titles, emoji, pictures): **built** (migration `e2ee_memories.sql` must be applied). **E3b** the shared drawing (saved and live strokes, widget): **built** (migration `e2ee_strokes.sql` must be applied). E3c locations and the background locate: planned | In progress |
 | E4 | Local caches encrypted at rest, local date reminders | Planned |
 | E5 | Re-encrypt existing data, then require encryption on new rows | Planned |
 
@@ -46,6 +46,15 @@ Not stored: the recovery phrase is never saved on the phone, so it cannot be sho
 - Notifications: `body_text` is a fixed sentence (the push shows only that); the typed words go in `detail_enc` and are shown in the app after decrypting.
 - Older builds show placeholders and cannot decrypt, so release E2 together with raising `app_config.min_supported_build`. The old `set_next_meet` RPC clears the sealed date so the two never disagree.
 - Not yet: direct writes of readable text by a modified client are not blocked by the server (enforced in E5).
+
+## E3b: the shared drawing (`CanvasStrokeCodec`)
+
+- A finished stroke is one sealed value, `canvas_strokes.enc` (colour, width, eraser flag, points), bound to couple, table and stroke id. Who drew it, the stroke id and when stay readable (streaks count on them). Older readable strokes are still read.
+- Live strokes over Realtime: `stroke_start` and each `stroke_chunk` carry an `enc` value bound to the stroke id and its part (`start`, `chunk:<seq>`), so a message cannot be moved to another stroke or part. `stroke_end` (stroke id and chunk count) and `canvas_clear` stay readable.
+- Receivers open live events one after another, so an end is never handled before its start; a message that does not open is ignored.
+- Strokes are sealed when a stroke finishes, so only ciphertext waits in memory and in the outbox. A change queued by an older version of the app is sealed before it is sent. Without the couple key the canvas shows "Finish securing your connection first" and nothing is drawn or sent.
+- The home-screen widget (also in the background push isolate) builds its own cipher from secure storage and opens the strokes itself; if it cannot read them yet it keeps the last picture. The rendered widget PNG stays readable in the app-private folder, because the launcher has to draw it.
+- **Nonce budget:** every message uses a fresh random 96-bit nonce under the one couple key. That stays safe far beyond any realistic use (the risk only becomes meaningful after billions of messages under the same key); the practical limit for a couple is far below it. Key rotation (see below) would reset it.
 
 ## What it protects, and what it cannot
 

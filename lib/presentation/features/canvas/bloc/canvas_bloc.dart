@@ -6,6 +6,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
 import 'package:uuid/uuid.dart';
 
+import '../../../../core/crypto/content_cipher.dart';
 import '../../../../core/services/home_widget_service.dart';
 import '../../../../domain/entities/canvas_stroke.dart';
 import '../../../../domain/repositories/i_canvas_repository.dart';
@@ -81,7 +82,9 @@ class CanvasBloc extends Bloc<CanvasEvent, CanvasState> {
       onError: (Object err) => debugPrint('Canvas clear stream error: $err'),
     );
 
-    emit(state.copyWith(isReady: true));
+    // The drawing is sealed on this phone; without the couple key nothing is drawn (or sent) readable.
+    final secured = await canvasRepository.isReady(_coupleId);
+    emit(state.copyWith(isReady: secured, needsSecuring: !secured));
   }
 
   void _onStart(StrokeStarted e, Emitter<CanvasState> emit) {
@@ -158,7 +161,7 @@ class CanvasBloc extends Bloc<CanvasEvent, CanvasState> {
       emit(state.copyWith(isSaving: false, saveQueued: !sentNow));
     } catch (err) {
       debugPrint('Canvas save failed: $err');
-      emit(state.copyWith(isSaving: false, saveFailed: true));
+      emit(state.copyWith(isSaving: false, saveFailed: true, needsSecuring: err is EncryptionNotReady ? true : null));
     }
   }
 

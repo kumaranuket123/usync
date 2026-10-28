@@ -6,6 +6,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get_it/get_it.dart';
 
+import '../../../../core/crypto/content_cipher.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../domain/repositories/i_auth_repository.dart';
@@ -127,10 +128,16 @@ class _CanvasBodyState extends State<_CanvasBody> with WidgetsBindingObserver {
     return Scaffold(
       backgroundColor: AppColors.bg1,
       body: BlocListener<CanvasBloc, CanvasState>(
+        // Nothing can be drawn until this phone has the couple key: say why, once.
+        listenWhen: (a, b) => !a.needsSecuring && b.needsSecuring && !a.isSaving,
+        listener: (context, state) => ScaffoldMessenger.of(context).showSnackBar(appSnackBar(
+          content: Text(const EncryptionNotReady().message),
+        )),
+        child: BlocListener<CanvasBloc, CanvasState>(
         listenWhen: (a, b) => a.isSaving && !b.isSaving,
         listener: (context, state) => ScaffoldMessenger.of(context).showSnackBar(appSnackBar(
           content: Text(state.saveFailed
-              ? 'Could not save the doodle'
+              ? (state.needsSecuring ? const EncryptionNotReady().message : 'Could not save the doodle')
               : state.saveQueued
                   ? 'Saved on this device. It will go to Memories and $_partnerName when you are back online.'
                   : 'Saved to Memories — $_partnerName was notified ✏️'),
@@ -271,6 +278,7 @@ class _CanvasBodyState extends State<_CanvasBody> with WidgetsBindingObserver {
             ],
           );
         },
+        ),
         ),
       ),
     );
