@@ -1,5 +1,8 @@
 import 'package:equatable/equatable.dart';
 
+/// Moods that feel alike. Two partners are "in sync" when their moods share a group.
+enum MoodGroup { warm, calm, busy }
+
 enum MoodType {
   happy,
   thinkingAboutYou,
@@ -30,6 +33,14 @@ enum MoodType {
     MoodType.custom           => '✨',
   };
 
+  /// Null for custom moods: they have no group and only match on the same text.
+  MoodGroup? get group => switch (this) {
+    MoodType.happy || MoodType.thinkingAboutYou || MoodType.missingYou => MoodGroup.warm,
+    MoodType.sleeping || MoodType.relaxing                              => MoodGroup.calm,
+    MoodType.busy                                                       => MoodGroup.busy,
+    MoodType.custom                                                     => null,
+  };
+
   static MoodType fromString(String value) =>
       MoodType.values.firstWhere((e) => e.name == value, orElse: () => MoodType.happy);
 }
@@ -52,6 +63,17 @@ class Mood extends Equatable {
 
   String get label => type == MoodType.custom ? (customLabel ?? type.label) : type.label;
   String get emoji => type == MoodType.custom ? (customEmoji ?? type.emoji) : type.emoji;
+
+  /// Whether [other] feels like this mood: the same group, or (for custom moods)
+  /// the same text, ignoring case.
+  bool feelsLike(Mood other) {
+    final g = type.group;
+    if (g != null) return g == other.type.group;
+    return other.type == MoodType.custom && label.trim().toLowerCase() == other.label.trim().toLowerCase();
+  }
+
+  /// Identifies "the same mood" for counting: the type, or the text of a custom mood.
+  String get countKey => type == MoodType.custom ? 'custom:${label.trim().toLowerCase()}' : type.name;
 
   @override
   List<Object?> get props => [type, userId, sentAt, customLabel, customEmoji];

@@ -23,6 +23,7 @@ Bottom-nav tab (🦋 Profile). Scrollable — hero section is fixed-height, ever
    - Section label: "YOUR CONNECTION"
    - Row: **Relationship type** (Together / Long-distance, shared with the partner; see [relationship-mode](relationship-mode.md))
    - Row: **Subscription** (only once the paywall is switched on; see [subscription-groundwork](subscription-groundwork.md))
+   - Row: **Mood insights** (see [mood-insights](mood-insights.md))
    - Row: **Bucket list** (see [bucket-list](bucket-list.md))
    - Navigation rows: Timeline, Memory Space, Widgets
    - Section label: "PREFERENCES"

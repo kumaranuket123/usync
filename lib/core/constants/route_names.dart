@@ -17,6 +17,7 @@ abstract final class RouteNames {
   // Pushed on top of shell
   static const String touchSync    = '/touch-sync';
   static const String mood         = '/mood';
+  static const String moodInsights = '/mood-insights';
   static const String location     = '/location';
   static const String question     = '/question';
   static const String bucketList   = '/bucket-list';

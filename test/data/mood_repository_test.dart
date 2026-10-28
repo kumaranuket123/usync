@@ -142,4 +142,31 @@ void main() {
       expect(MoodType.fromString('somethingNew'), MoodType.happy);
     });
   });
+
+  group('getMoodsSince', () {
+    test('asks for the couple\'s moods since a time, oldest first', () async {
+      backend.respond((_) => FakeBackend.ok([
+            {'id': 'm1', 'couple_id': 'c1', 'user_id': 'u1', 'type': 'happy', 'sent_at': '2026-06-09T08:00:00+00:00'},
+            {'id': 'm2', 'couple_id': 'c1', 'user_id': 'u2', 'type': 'custom', 'sent_at': '2026-06-09T09:00:00+00:00',
+             'custom_label': 'Cozy', 'custom_emoji': '🧸'},
+          ]));
+
+      final moods = await repo.getMoodsSince('c1', DateTime.utc(2026, 6, 4));
+
+      final req = backend.requests.single;
+      expect(req.method, 'GET');
+      expect(req.path, endsWith('/moods'));
+      expect(req.query['couple_id'], 'eq.c1');
+      expect(req.query['sent_at'], startsWith('gte.2026-06-04T00:00:00'));
+      expect(req.query['order'], startsWith('sent_at.asc'));
+      expect(req.query['limit'], isNotNull);
+      expect(moods.map((m) => m.type), [MoodType.happy, MoodType.custom]);
+      expect(moods.last.label, 'Cozy');
+    });
+
+    test('an offline error reaches the caller', () async {
+      backend.respond((_) => FakeBackend.error('500', 'down', status: 500));
+      await expectLater(repo.getMoodsSince('c1', DateTime.utc(2026, 6, 4)), throwsA(anything));
+    });
+  });
 }

@@ -9,6 +9,7 @@ import '../../presentation/features/location/screens/location_screen.dart';
 import '../../presentation/features/memory/screens/memory_detail_screen.dart';
 import '../../presentation/features/memory/screens/memory_space_screen.dart';
 import '../../presentation/features/mood/screens/mood_screen.dart';
+import '../../presentation/features/mood_insights/screens/mood_insights_screen.dart';
 import '../../presentation/features/bucket/screens/bucket_list_screen.dart';
 import '../../presentation/features/question/screens/question_screen.dart';
 import '../../presentation/features/notifications/screens/notifications_screen.dart';
@@ -120,6 +121,11 @@ abstract final class AppRouter {
         path: RouteNames.question,
         parentNavigatorKey: _rootKey,
         builder: (_, __) => const QuestionScreen(),
+      ),
+      GoRoute(
+        path: RouteNames.moodInsights,
+        parentNavigatorKey: _rootKey,
+        builder: (_, __) => const MoodInsightsScreen(),
       ),
       GoRoute(
         path: RouteNames.mood,

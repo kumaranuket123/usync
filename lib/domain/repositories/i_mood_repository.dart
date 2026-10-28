@@ -10,6 +10,9 @@ abstract interface class IMoodRepository {
   /// serves both "recent moods" and "the partner's current mood".
   Stream<List<Mood>> watchRecentMoods(String coupleId);
   Future<Mood?>   getLastSentMood(String userId);
+  /// Every mood the couple (both partners) shared since [since], oldest first.
+  /// Needs a connection; throws when offline.
+  Future<List<Mood>> getMoodsSince(String coupleId, DateTime since);
   /// The user's own custom moods, most recent first, without repeats.
   Future<List<CustomMood>> getMyCustomMoods(String userId, {int limit = 6});
 }

@@ -41,6 +41,7 @@ import '../../presentation/features/canvas/bloc/canvas_bloc.dart';
 import '../../presentation/features/home/bloc/home_bloc.dart';
 import '../../presentation/features/memory/bloc/memory_bloc.dart';
 import '../../presentation/features/mood/bloc/mood_bloc.dart';
+import '../../presentation/features/mood_insights/bloc/mood_insights_bloc.dart';
 import '../../presentation/features/long_distance/bloc/long_distance_bloc.dart';
 import '../../presentation/features/bucket/bloc/bucket_bloc.dart';
 import '../../presentation/features/question/bloc/question_bloc.dart';
@@ -194,6 +195,9 @@ Future<void> setupLocator() async {
   );
   getIt.registerFactory<QuestionBloc>(
     () => QuestionBloc(questionRepository: getIt(), coupleRepository: getIt()),
+  );
+  getIt.registerFactory<MoodInsightsBloc>(
+    () => MoodInsightsBloc(moodRepository: getIt(), coupleRepository: getIt(), authRepository: getIt()),
   );
   getIt.registerFactory<MoodBloc>(
     () => MoodBloc(moodRepository: getIt()),

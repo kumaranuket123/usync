@@ -99,6 +99,21 @@ class MoodRepository implements IMoodRepository {
     return row == null ? null : MoodModel.fromRow(row);
   }
 
+  /// The most moods one query returns: far more than a couple shares in a week.
+  static const _sinceLimit = 500;
+
+  @override
+  Future<List<Mood>> getMoodsSince(String coupleId, DateTime since) async {
+    final rows = await client
+        .from('moods')
+        .select()
+        .eq('couple_id', coupleId)
+        .gte('sent_at', since.toUtc().toIso8601String())
+        .order('sent_at', ascending: true)
+        .limit(_sinceLimit);
+    return rows.map(MoodModel.fromRow).toList();
+  }
+
   @override
   Future<List<CustomMood>> getMyCustomMoods(String userId, {int limit = 6}) async {
     final rows = await client

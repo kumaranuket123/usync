@@ -12,6 +12,7 @@ Realtime emotional connection for couples. Two partners pair with an invite code
 | Shared canvas | Live stroke sync between partners; finished strokes persisted | [canvas](docs/features/canvas.md) |
 | Touch sync | Both partners touching at once, via Presence + Broadcast | [touch_sync](docs/features/touch_sync.md) |
 | Mood | Preset and custom moods, partner's latest mood on home | [mood](docs/features/mood.md) |
+| Mood insights | How in sync you've been this week: matching-mood days and each person's most shared mood | [mood-insights](docs/features/mood-insights.md) |
 | Memories | Saved doodles/images in a private bucket, signed URLs | [memories](docs/features/memories.md) |
 | Timeline & streaks | Milestones, custom dates, streak tracking | [timeline](docs/features/timeline.md) |
 | Long-distance card | Distance between partners and a shared "next time we meet" countdown on Home (long-distance couples only) | [long-distance](docs/features/long-distance.md) |

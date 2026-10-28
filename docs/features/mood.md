@@ -2,6 +2,8 @@
 
 Allows a user to express their current emotional state with a single tap. The selected mood is transmitted to the partner in real time, appearing on their Home screen and in the notification feed. Moods are also stored in history for the MoodStrip on HomeScreen.
 
+Related: [mood-insights](mood-insights.md) turns the moods you share into a weekly "in sync" view.
+
 ---
 
 ## Screens

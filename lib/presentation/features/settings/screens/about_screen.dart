@@ -193,6 +193,8 @@ const _sections = <_Section>[
         'Press and hold to send your touch: your partner\'s phone vibrates in real time, wherever they are. Hold at the same time and you both see it.'),
     _Feature('💭', _purple, 'Moods',
         'Share how you feel with a preset or your own custom mood. Your partner\'s latest mood shows on their Home screen, with a short history below.'),
+    _Feature('💞', _pink, 'Mood insights',
+        'See how in sync you have been over the last 7 days: the days you shared a similar mood, and the mood each of you shared most.'),
     _Feature('💬', _cyan, 'Question of the day',
         'One question a day for both of you. Your partner\'s answer stays hidden until you have answered too. The questions suit couples who live together or apart.'),
   ]),

@@ -9,7 +9,7 @@ An in-app page that explains what Usync is and lists everything it can do, in pl
 - Header: back button and "About Usync".
 - Hero card: 💞, "Usync", the installed version (`package_info_plus`, same source as Settings) and a short description.
 - Five sections of feature cards (emoji, title, one or two sentences):
-  - **CONNECT**: pairing, touch sync, moods, question of the day.
+  - **CONNECT**: pairing, touch sync, moods, mood insights, question of the day.
   - **CREATE AND REMEMBER**: shared canvas, memories, timeline, bucket list, streaks.
   - **NEAR OR FAR**: relationship type, long-distance card, location.
   - **ALWAYS WITH YOU**: notifications, home-screen widget, offline support, themes.

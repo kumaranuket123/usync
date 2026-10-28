@@ -35,6 +35,9 @@ class _FakeMoodRepository implements IMoodRepository {
 
   @override
   Stream<List<Mood>> watchRecentMoods(String coupleId) => const Stream.empty();
+
+  @override
+  Future<List<Mood>> getMoodsSince(String coupleId, DateTime since) async => const [];
 }
 
 void main() {
