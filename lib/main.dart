@@ -17,6 +17,7 @@ import 'domain/repositories/i_memory_repository.dart';
 import 'domain/repositories/i_milestone_repository.dart';
 import 'domain/repositories/i_mood_repository.dart';
 import 'core/services/home_widget_service.dart';
+import 'core/services/reminder_service.dart';
 import 'core/services/location_sync_service.dart';
 import 'core/services/push_notification_service.dart';
 import 'firebase_options.dart';
@@ -49,6 +50,7 @@ void main() async {
   await PushNotificationService.init();
   LocationSyncService.init();
   HomeWidgetService.init();
+  ReminderSync.init(getIt<ReminderService>());
 
   SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
   SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(

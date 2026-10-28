@@ -26,6 +26,8 @@ android {
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
+        // Needed by flutter_local_notifications (scheduled reminders) on older Android versions.
+        isCoreLibraryDesugaringEnabled = true
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
@@ -72,4 +74,5 @@ flutter {
 dependencies {
     // The launch themes extend Theme.AppCompat, which local_auth's biometric prompt needs.
     implementation("androidx.appcompat:appcompat:1.7.0")
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
 }

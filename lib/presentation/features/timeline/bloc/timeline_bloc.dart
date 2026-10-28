@@ -1,7 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../../core/crypto/content_cipher.dart';
+import '../../../../core/services/reminder_service.dart';
 import '../../../../domain/entities/milestone.dart';
 import '../../../../domain/repositories/i_couple_repository.dart';
 import '../../../../domain/repositories/i_milestone_repository.dart';
@@ -10,7 +14,7 @@ part 'timeline_event.dart';
 part 'timeline_state.dart';
 
 class TimelineBloc extends Bloc<TimelineEvent, TimelineState> {
-  TimelineBloc({required this.coupleRepository, required this.milestoneRepository})
+  TimelineBloc({required this.coupleRepository, required this.milestoneRepository, required this.reminders})
       : super(TimelineLoading()) {
     on<TimelineLoaded>(_onLoaded);
     on<DateAdded>(_onAdded);
@@ -19,6 +23,7 @@ class TimelineBloc extends Bloc<TimelineEvent, TimelineState> {
 
   final ICoupleRepository    coupleRepository;
   final IMilestoneRepository milestoneRepository;
+  final ReminderService      reminders;
 
   String _coupleId = '';
   final _auth = Supabase.instance.client.auth;
@@ -39,6 +44,10 @@ class TimelineBloc extends Bloc<TimelineEvent, TimelineState> {
 
       final milestones = await milestoneRepository.getMilestones(_coupleId);
       milestones.addAll(pending.where((p) => !milestones.any((m) => m.id == p.id)));
+
+      // Reminders for the dates are scheduled on this phone (they are end-to-end encrypted, so the server
+      // cannot send them). Best effort: the timeline does not wait for it.
+      unawaited(reminders.schedule(milestones).catchError((Object e) => debugPrint('Could not schedule reminders: $e')));
 
       // Insert the synthetic "today" item in date order: later dates are upcoming.
       milestones.add(Milestone(
@@ -77,8 +86,8 @@ class TimelineBloc extends Bloc<TimelineEvent, TimelineState> {
         pending: result.sentNow ? const [] : [result.milestone],
         notice:  result.sentNow ? null : 'Saved on this device. It will be sent when you are back online.',
       );
-    } catch (_) {
-      await _load(emit, notice: 'Could not save this date');
+    } catch (err) {
+      await _load(emit, notice: err is EncryptionNotReady ? err.message : 'Could not save this date');
     }
   }
 

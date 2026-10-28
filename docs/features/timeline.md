@@ -224,3 +224,8 @@ No stream subscription — timeline is loaded once and displayed statically. Pul
 | `MeshGradientPainter` | Background |
 | `GradientText` | Not used directly (plain white for event titles) |
 | `LoadingDots` | `TimelineLoading` state placeholder |
+
+## Encryption and reminders (phase E4a)
+
+Custom dates are sealed on the phone (title, note, emoji, day, yearly flag); the server holds only a placeholder. Reminders for them are local notifications at 9:00 scheduled by each phone, not pushes from the server. See "E4a" in [security.md](../security.md). Migration: `supabase/migrations/e2ee_timeline.sql`; `remove_milestone_reminders.sql` is applied later, at release.
+

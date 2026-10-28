@@ -10,7 +10,7 @@ Goal: nobody but the two partners can read their content, **including the develo
 | E1 | Identity keys published, pairing handshake, security-code verification, recovery and partner approval | **Built** (database migration `e2ee_keys.sql` must be applied) |
 | E2 | Text content encrypted: moods, bucket list, answers, next meet, notification details (memories wait for E3 with their pictures, timeline dates for E4 with local reminders) | **Built** (migration `e2ee_content_text.sql` must be applied, then `min_supported_build` raised) |
 | E3 | Binary and live data: memories and pictures (`e2ee_memories.sql`), the shared drawing, saved and live, and the widget (`e2ee_strokes.sql`), locations and the background locate (`e2ee_locations.sql`) | **Built** (E3c migration must be applied) |
-| E4 | Local caches encrypted at rest, local date reminders | Planned |
+| E4 | **E4a** timeline dates sealed + reminders scheduled on the phone: **built** (migration `e2ee_timeline.sql` must be applied; `remove_milestone_reminders.sql` only at release). **E4b** local caches encrypted at rest (Hive, archived pictures): planned | In progress |
 | E5 | Re-encrypt existing data, then require encryption on new rows | Planned |
 
 Until E2 is released, **content is still stored readable on the server.** From E2, new moods, bucket items, answers, next-meet dates and notification details are stored only as ciphertext; memories, timeline, drawings and locations stay readable until E3/E4, and older rows are re-encrypted in E5.
@@ -62,6 +62,14 @@ Not stored: the recovery phrase is never saved on the phone, so it cannot be sho
 - The time shown comes from inside the sealed value, so a stale value replayed by the server shows its real age. A row this phone cannot open shows as no location.
 - Without the couple key `syncOwnLocation` returns `LocationAccess.notSecured` before touching the GPS, and the screen says to finish securing the connection. The background locate answer builds its own cipher from secure storage and simply does not answer without a key.
 - The server still sees that a location was updated and when, and the person's opt-in to background requests.
+
+## E4a: timeline dates and local reminders
+
+- A custom date's title, note, emoji, day and "every year" flag are sealed into `milestones.enc` (bound to the row); the readable columns hold a placeholder (`🔒`, and a fixed 1970 day so the server cannot see when it is). Milestones the server writes itself (streaks, first connect) and older readable dates stay readable and are still shown.
+- The server-side reminder job (`send_milestone_reminders`) needs readable dates, so it now skips sealed ones, and `remove_milestone_reminders.sql` removes the job and the function. **Apply that second migration only when the build with local reminders is the minimum supported build**, otherwise existing users lose their reminders.
+- Reminders are local notifications scheduled by each phone (`ReminderService`, `flutter_local_notifications`): 9:00 local time, one-off dates on their day, yearly dates for the next three anniversaries (each with its own count; 29 February falls on the 28th in other years). Everything is rescheduled when the timeline loads or changes, when the app starts or returns to the foreground (`ReminderSync`, so a partner who never opens the timeline still gets them), and cleared on sign-out, disconnect and account deletion. The reminder text is built on the phone and never leaves it.
+- Android: inexact alarms (no exact-alarm permission), re-created after a restart by the plugin's boot receiver. iOS: permission is the one asked for push; the iOS side is not verified in this environment.
+- Without the couple key adding a date is refused with the usual "finish securing your connection" message.
 
 ## What it protects, and what it cannot
 

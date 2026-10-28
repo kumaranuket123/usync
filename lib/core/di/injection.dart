@@ -33,6 +33,7 @@ import '../../data/repositories/location_repository.dart';
 import '../../data/repositories/milestone_repository.dart';
 import '../../domain/repositories/i_milestone_repository.dart';
 import '../services/outbox_service.dart';
+import '../services/reminder_service.dart';
 import '../services/app_lock_service.dart';
 import '../../data/repositories/touch_repository.dart';
 import '../../domain/repositories/i_auth_repository.dart';
@@ -102,6 +103,7 @@ Future<void> setupLocator() async {
   getIt.registerLazySingleton<EncryptionBackend>(() => SupabaseEncryptionBackend(client: getIt()));
 
   getIt.registerLazySingleton<AppLockService>(() => AppLockService(prefs: getIt()));
+  getIt.registerLazySingleton<ReminderService>(() => ReminderService(scheduler: PluginReminderScheduler()));
 
   // ── Offline support ───────────────────────────────────────────
   // Changes made without a connection wait in the outbox; the session cache
@@ -126,6 +128,7 @@ Future<void> setupLocator() async {
       channels: getIt(),
       storage: getIt(),
       wipeKeys: (userId) => getIt<KeyServiceFor>()(userId).clearAll(),
+      cancelReminders: () => getIt<ReminderService>().cancelAll(),
     ),
   );
   getIt.registerLazySingleton<ICoupleRepository>(
@@ -137,6 +140,7 @@ Future<void> setupLocator() async {
       sessionCache: getIt(),
       identity: getIt(),
       cipher: getIt(),
+      cancelReminders: () => getIt<ReminderService>().cancelAll(),
     ),
   );
   getIt.registerLazySingleton<IMoodRepository>(
@@ -176,6 +180,7 @@ Future<void> setupLocator() async {
       notifications: getIt(),
       outbox: getIt(),
       sessionCache: getIt(),
+      cipher: getIt(),
     ),
   );
   getIt.registerLazySingleton<IMemoryRepository>(
@@ -254,7 +259,7 @@ Future<void> setupLocator() async {
     ),
   );
   getIt.registerFactory<TimelineBloc>(
-    () => TimelineBloc(coupleRepository: getIt(), milestoneRepository: getIt()),
+    () => TimelineBloc(coupleRepository: getIt(), milestoneRepository: getIt(), reminders: getIt()),
   );
   getIt.registerFactory<WidgetsBloc>(
     () => WidgetsBloc(

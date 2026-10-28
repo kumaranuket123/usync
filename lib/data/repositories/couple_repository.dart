@@ -26,6 +26,7 @@ class CoupleRepository implements ICoupleRepository {
     required this.sessionCache,
     required this.identity,
     required this.cipher,
+    this.cancelReminders,
   });
 
   final SupabaseClient          client;
@@ -35,6 +36,8 @@ class CoupleRepository implements ICoupleRepository {
   final SessionCache            sessionCache;
   final IdentityCache           identity;
   final ContentCipher   cipher;
+  /// Removes the date reminders scheduled on this phone (the couple's dates are gone).
+  final Future<void> Function()? cancelReminders;
 
   @override
   Future<String> generateInviteCode(String userId) async {
@@ -196,6 +199,9 @@ class CoupleRepository implements ICoupleRepository {
     // Nothing of the couple may stay behind on this phone either.
     await sessionCache.clear();
     identity.clear(); // the couple ends and both profiles lose their couple_id
+    try {
+      await cancelReminders?.call();
+    } catch (_) {}
   }
 
   // ── Presence (Realtime Presence on the shared couple channel) ──────────────
