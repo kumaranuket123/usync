@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:get_it/get_it.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -11,6 +12,9 @@ import '../../data/repositories/encryption_repository.dart';
 import '../../domain/repositories/i_encryption_repository.dart';
 import '../../presentation/features/security/bloc/security_bloc.dart';
 import '../crypto/key_service.dart';
+import '../crypto/device_key.dart';
+import '../../data/datasources/local/protected_boxes.dart';
+import '../../data/datasources/local/local_memory_images.dart';
 import '../crypto/secure_key_store.dart';
 import '../../data/datasources/local/hive_source.dart';
 import '../../data/datasources/local/prefs_source.dart';
@@ -93,6 +97,7 @@ Future<void> setupLocator() async {
   getIt.registerLazySingleton<KeyServiceFor>(
     () => (userId) => KeyService(store: getIt(), crypto: getIt(), namespace: userId),
   );
+  getIt.registerLazySingleton<DeviceKey>(() => DeviceKey(store: getIt()));
   getIt.registerLazySingleton<ContentCipher>(
     () => ContentCipher(
       keysFor: getIt(),
@@ -108,13 +113,12 @@ Future<void> setupLocator() async {
   // ── Offline support ───────────────────────────────────────────
   // Changes made without a connection wait in the outbox; the session cache
   // keeps who you are, your couple and recent data so the app can start offline.
-  getIt.registerSingleton<SessionCache>(
-    SessionCache(box: await Hive.openBox<dynamic>(SessionCache.boxName)),
-  );
+  // Both boxes (and the pictures kept on the phone) are encrypted with a key that only lives in the
+  // Keystore / Keychain. The old unencrypted boxes are copied over once and deleted.
+  final (sessionBox, outboxBox) = await _openLocalBoxes();
+  getIt.registerSingleton<SessionCache>(SessionCache(box: sessionBox));
   getIt.registerSingleton<IdentityCache>(IdentityCache());
-  getIt.registerSingleton<OutboxService>(
-    OutboxService(box: await Hive.openBox<dynamic>('outbox')),
-  );
+  getIt.registerSingleton<OutboxService>(OutboxService(box: outboxBox));
 
   // ── Repositories ──────────────────────────────────────────────
   getIt.registerLazySingleton<IAuthRepository>(
@@ -267,4 +271,28 @@ Future<void> setupLocator() async {
       coupleRepository: getIt(),
     ),
   );
+}
+
+Future<(Box<dynamic>, Box<dynamic>)> _openLocalBoxes() async {
+  try {
+    final cipher = HiveAesCipher(await getIt<DeviceKey>().bytes());
+    LocalMemoryImages.configure(getIt<DeviceKey>());
+    return (
+      await openProtectedBox('session_cache_enc', cipher, legacyName: SessionCache.boxName),
+      await openProtectedBox('outbox_enc', cipher, legacyName: 'outbox'),
+    );
+  } catch (e) {
+    // The Keystore / Keychain is not usable: nothing readable is ever kept instead. For this run the
+    // boxes are encrypted with a key that exists only in memory, so the app still starts (offline caching
+    // and queued changes just do not survive a restart).
+    debugPrint('Local key unavailable (${e.runtimeType}); using volatile local storage');
+    for (final name in ['session_cache_tmp', 'outbox_tmp']) {
+      await Hive.deleteBoxFromDisk(name);
+    }
+    final cipher = HiveAesCipher(CryptoService().randomBytes(CryptoService.keyLength));
+    return (
+      await Hive.openBox<dynamic>('session_cache_tmp', encryptionCipher: cipher),
+      await Hive.openBox<dynamic>('outbox_tmp', encryptionCipher: cipher),
+    );
+  }
 }

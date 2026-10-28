@@ -10,7 +10,7 @@ Goal: nobody but the two partners can read their content, **including the develo
 | E1 | Identity keys published, pairing handshake, security-code verification, recovery and partner approval | **Built** (database migration `e2ee_keys.sql` must be applied) |
 | E2 | Text content encrypted: moods, bucket list, answers, next meet, notification details (memories wait for E3 with their pictures, timeline dates for E4 with local reminders) | **Built** (migration `e2ee_content_text.sql` must be applied, then `min_supported_build` raised) |
 | E3 | Binary and live data: memories and pictures (`e2ee_memories.sql`), the shared drawing, saved and live, and the widget (`e2ee_strokes.sql`), locations and the background locate (`e2ee_locations.sql`) | **Built** (E3c migration must be applied) |
-| E4 | **E4a** timeline dates sealed + reminders scheduled on the phone: **built** (migration `e2ee_timeline.sql` must be applied; `remove_milestone_reminders.sql` only at release). **E4b** local caches encrypted at rest (Hive, archived pictures): planned | In progress |
+| E4 | **E4a** timeline dates sealed + reminders scheduled on the phone (migration `e2ee_timeline.sql`, applied; `remove_milestone_reminders.sql` only at release). **E4b** local storage encrypted at rest: the cached answers, the offline queue and pictures kept on the phone | **Built** |
 | E5 | Re-encrypt existing data, then require encryption on new rows | Planned |
 
 Until E2 is released, **content is still stored readable on the server.** From E2, new moods, bucket items, answers, next-meet dates and notification details are stored only as ciphertext; memories, timeline, drawings and locations stay readable until E3/E4, and older rows are re-encrypted in E5.
@@ -70,6 +70,15 @@ Not stored: the recovery phrase is never saved on the phone, so it cannot be sho
 - Reminders are local notifications scheduled by each phone (`ReminderService`, `flutter_local_notifications`): 9:00 local time, one-off dates on their day, yearly dates for the next three anniversaries (each with its own count; 29 February falls on the 28th in other years). Everything is rescheduled when the timeline loads or changes, when the app starts or returns to the foreground (`ReminderSync`, so a partner who never opens the timeline still gets them), and cleared on sign-out, disconnect and account deletion. The reminder text is built on the phone and never leaves it.
 - Android: inexact alarms (no exact-alarm permission), re-created after a restart by the plugin's boot receiver. iOS: permission is the one asked for push; the iOS side is not verified in this environment.
 - Without the couple key adding a date is refused with the usual "finish securing your connection" message.
+
+## E4b: local storage at rest (`DeviceKey`)
+
+- One random 256-bit **device key** per phone, created on first use and kept only in the Android Keystore / iOS Keychain (`usync.local.v1`, outside the account's `e2ee.` namespace so signing out or deleting an account never touches it). It is not the couple key and is never sent anywhere. A restore of the app's folder onto another phone cannot be read, because the key does not move.
+- The Hive boxes `session_cache` (cached server answers, which are themselves still sealed content) and `outbox` (queued changes, including drawings waiting to be sent) are now `session_cache_enc` and `outbox_enc`, encrypted with Hive's AES cipher under the device key. The first start copies the old unencrypted boxes over (only into an empty box, so an interrupted copy never repeats a queued change) and deletes them. Hive encrypts values, not key names: the names are ids like `moods:<couple id>`, which is metadata, not content.
+- Pictures kept on the phone (`usync/memories/<user>/<id>.png`) are sealed files (AES-GCM, bound to the memory id). Nothing opens a path directly: `LocalMemoryImages.read` returns bytes, and the share sheet and gallery get a short-lived readable copy that is deleted afterwards (shares are removed after two minutes and swept on the next share). Pictures from earlier versions are sealed on first use and by a sweep at start-up. Earlier versions also cached readable copies in the image cache: that is emptied once.
+- If the Keystore/Keychain cannot be used, the app still starts: for that run the boxes use a key that exists only in memory, so offline caching and queued changes do not survive a restart, and no picture is saved. Nothing readable is ever kept instead.
+- A box that the key cannot open (key lost) holds only cache and queued changes; it is discarded and started empty.
+- Still readable on the phone, by necessity or choice: the home-screen widget picture (the launcher draws it), copies the person chooses to save to the gallery, and settings (theme, switches). Deleting a file is not a secure erase on flash storage.
 
 ## What it protects, and what it cannot
 

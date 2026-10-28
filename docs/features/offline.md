@@ -37,3 +37,8 @@ Handlers must be idempotent: ids are generated when the change is made, so a sen
 ## Tests
 
 `test/core/outbox_service_test.dart`, `ttl_cache_test.dart`, `signed_url_cache_test.dart`, `session_cache_test.dart`, `network_errors_test.dart`.
+
+## Encryption at rest (phase E4b)
+
+The cached answers and the queue of changes waiting to be sent are stored in encrypted Hive boxes, and pictures kept on the phone are sealed files, all under a per-phone key held in the Keystore/Keychain. Older unencrypted data is migrated on the first start. See "E4b" in [security.md](../security.md).
+

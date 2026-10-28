@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -29,11 +28,11 @@ class MemoryArt extends StatefulWidget {
 class _MemoryArtState extends State<MemoryArt> {
   Future<Uint8List?>? _image;
 
-  /// Pictures are stored encrypted, so they are downloaded and opened on this phone rather than loaded
-  /// from a link. A picture already saved on the phone is a file path and is shown from there.
+  /// Pictures are stored encrypted, on the server and on the phone, so they are opened on this phone
+  /// (downloaded, or read from the saved copy) rather than loaded from a link or a path.
   Future<Uint8List?>? _load() {
     final url = widget.memory.thumbnailUrl;
-    if (url == null || url.isEmpty || url.startsWith('/')) return null;
+    if (url == null || url.isEmpty) return null;
     return getIt<IMemoryRepository>().loadImage(widget.memory);
   }
 
@@ -53,14 +52,10 @@ class _MemoryArtState extends State<MemoryArt> {
   @override
   Widget build(BuildContext context) {
     final emoji = Center(child: Text(widget.memory.thumbnailEmoji, style: TextStyle(fontSize: widget.emojiSize)));
-    final url   = widget.memory.thumbnailUrl;
     final fit   = widget.fill ? BoxFit.cover : BoxFit.contain;
     final width = widget.fill ? double.infinity : null;
     final height = widget.fill ? double.infinity : null;
 
-    if (url != null && url.startsWith('/')) {
-      return Image.file(File(url), fit: fit, width: width, height: height, errorBuilder: (_, __, ___) => emoji);
-    }
     if (_image == null) return emoji;
     return FutureBuilder<Uint8List?>(
       future: _image,

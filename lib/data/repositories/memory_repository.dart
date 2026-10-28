@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:gal/gal.dart';
@@ -226,7 +225,12 @@ class MemoryRepository implements IMemoryRepository {
   /// The picture's real bytes: a path on this phone is read as it is, a Storage path is downloaded and, when
   /// sealed (`.enc`), opened. Older pictures (`.png`) were stored readable.
   Future<Uint8List> _imageBytes(String id, String coupleId, String path) async {
-    if (path.startsWith('/')) return File(path).readAsBytes();
+    // A picture kept on this phone is encrypted with the phone's key; open it through LocalMemoryImages.
+    if (path.startsWith('/')) {
+      final local = await LocalMemoryImages.read(id);
+      if (local == null) throw StateError('The saved picture cannot be read');
+      return local;
+    }
     final bytes = await storage.download(path);
     if (!path.endsWith('.enc')) return bytes;
     return cipher.openBytes(bytes, coupleId: coupleId, table: 'memories', rowId: id, field: 'image');
@@ -295,9 +299,12 @@ class MemoryRepository implements IMemoryRepository {
       final saved = prefs.gallerySavedIds;
       for (final id in await LocalMemoryImages.ids()) {
         if (saved.contains(id)) continue;
-        final path = await LocalMemoryImages.pathIfExists(id);
-        if (path == null) continue;
-        await Gal.putImage(path, album: 'Usync');
+        // The picture is encrypted here: the gallery gets a short-lived readable copy.
+        final wrote = await LocalMemoryImages.withPlainCopy(id, (path) async {
+          await Gal.putImage(path, album: 'Usync');
+          return true;
+        });
+        if (wrote != true) continue;
         saved.add(id);
         copied++;
         // Remembered one by one, so an interruption never makes the next run save it again.
