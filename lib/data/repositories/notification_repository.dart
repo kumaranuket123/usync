@@ -1,13 +1,18 @@
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:uuid/uuid.dart';
 
+import '../../core/crypto/content_cipher.dart';
 import '../../domain/entities/notification_item.dart';
 import '../../domain/repositories/i_notification_repository.dart';
 import '../models/notification_model.dart';
 
 class NotificationRepository implements INotificationRepository {
-  NotificationRepository({required this.client});
+  NotificationRepository({required this.client, required this.cipher});
   final SupabaseClient client;
+  final ContentCipher  cipher;
+  final _uuid = const Uuid();
 
   final _senderNames = <String, String>{};
 
@@ -57,7 +62,24 @@ class NotificationRepository implements INotificationRepository {
         .neq('from_user_id', _me ?? '')
         .order('created_at', ascending: false)
         .limit(50);
-    return _collapseRepeats(rows).map(NotificationModel.fromRow).toList();
+    return _toItems(_collapseRepeats(rows));
+  }
+
+  /// Rows to items, replacing the fixed sentence with the decrypted detail where there is one.
+  /// A detail this phone cannot open (no key yet) simply shows the fixed sentence.
+  Future<List<NotificationItem>> _toItems(List<Map<String, dynamic>> rows) async => [
+        for (final row in rows) NotificationModel.fromRow(row, detail: await _detail(row)),
+      ];
+
+  Future<String?> _detail(Map<String, dynamic> row) async {
+    final sealed = row['detail_enc'] as String?;
+    if (!ContentCipher.isEncrypted(sealed)) return null;
+    try {
+      return await cipher.openText(sealed!, coupleId: row['couple_id'] as String, table: 'notifications', rowId: row['id'] as String, field: 'detail');
+    } catch (e) {
+      debugPrint('Could not read a notification detail: ${e.runtimeType}');
+      return null;
+    }
   }
 
   @override
@@ -68,9 +90,7 @@ class NotificationRepository implements INotificationRepository {
         .eq('couple_id', coupleId)
         .order('created_at', ascending: false)
         .limit(50)
-        .map((rows) => _collapseRepeats(rows.where((r) => r['from_user_id'] != _me).toList())
-            .map(NotificationModel.fromRow)
-            .toList())
+        .asyncMap((rows) => _toItems(_collapseRepeats(rows.where((r) => r['from_user_id'] != _me).toList())))
         .handleError((Object _) {}); // dropped Realtime connection: keep the screen alive
   }
 
@@ -104,15 +124,27 @@ class NotificationRepository implements INotificationRepository {
     required String fromUserId,
     required NotifType type,
     required String Function(String senderName) body,
+    String Function(String senderName)? detail,
   }) async {
     try {
       final name = await _senderName(fromUserId);
+      final id = _uuid.v4(); // chosen here: the encrypted detail is bound to this row
+      String? sealed;
+      if (detail != null) {
+        try {
+          sealed = await cipher.sealText(detail(name), coupleId: coupleId, table: 'notifications', rowId: id, field: 'detail');
+        } catch (_) {
+          // No couple key yet: the partner gets the fixed sentence only, never the detail in the clear.
+        }
+      }
       // The recipient is the sender's partner; the push (phase 5) is sent by an Edge Function.
       await client.from('notifications').insert({
+        'id':           id,
         'couple_id':    coupleId,
         'from_user_id': fromUserId,
         'type':         type.name,
         'body_text':    body(name),
+        if (sealed != null) 'detail_enc': sealed,
       });
     } catch (_) {}
   }

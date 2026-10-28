@@ -71,7 +71,7 @@ class FakeConnectivity implements Connectivity {
 
 /// Notification repository that records what would have been sent.
 class RecordingNotifications implements INotificationRepository {
-  final sent = <({String coupleId, String fromUserId, NotifType type, String body})>[];
+  final sent = <({String coupleId, String fromUserId, NotifType type, String body, String? detail})>[];
 
   @override
   Future<void> notifyPartner({
@@ -79,8 +79,9 @@ class RecordingNotifications implements INotificationRepository {
     required String fromUserId,
     required NotifType type,
     required String Function(String senderName) body,
+    String Function(String senderName)? detail,
   }) async =>
-      sent.add((coupleId: coupleId, fromUserId: fromUserId, type: type, body: body('Alex')));
+      sent.add((coupleId: coupleId, fromUserId: fromUserId, type: type, body: body('Alex'), detail: detail?.call('Alex')));
 
   @override
   dynamic noSuchMethod(Invocation invocation) => throw UnimplementedError();

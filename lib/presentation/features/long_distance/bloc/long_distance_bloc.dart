@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../../core/crypto/content_cipher.dart';
 import '../../../../core/utils/geo_util.dart';
 import '../../../../domain/entities/couple.dart';
 import '../../../../domain/entities/shared_location.dart';
@@ -82,6 +83,8 @@ class LongDistanceBloc extends Bloc<LongDistanceEvent, LongDistanceState> {
     try {
       await coupleRepository.setNextMeet(_coupleId, _userId, e.day);
       emit(_stateFor((await coupleRepository.getCouple(_coupleId))));
+    } on EncryptionNotReady catch (err) {
+      emit(_stateFor(couple, error: err.message));
     } catch (_) {
       emit(_stateFor(couple, error: 'Could not save the date. Check your connection.'));
     }

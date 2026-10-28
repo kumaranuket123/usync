@@ -1,3 +1,4 @@
+import '../crypto/content_cipher.dart';
 import 'dart:async';
 
 import 'package:connectivity_plus/connectivity_plus.dart';
@@ -130,7 +131,8 @@ class OutboxService extends ChangeNotifier {
             await _box.delete(key);
             sentSomething = true;
           } catch (e) {
-            if (isNetworkError(e)) return;
+            // No connection, or no couple key yet: keep it and try again later, without counting an attempt.
+            if (isNetworkError(e) || e is EncryptionNotReady) return;
             final attempts = ((entry['attempts'] as int?) ?? 0) + 1;
             if (attempts >= maxAttempts) {
               debugPrint('Outbox: dropping ${entry['type']} after $attempts failed attempts: $e');

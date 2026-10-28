@@ -8,12 +8,12 @@ Goal: nobody but the two partners can read their content, **including the develo
 |---|---|---|
 | E0 | Crypto foundation: `CryptoService`, `KeyService`, key storage, recovery phrase, security code | **Built, not used by any feature yet** |
 | E1 | Identity keys published, pairing handshake, security-code verification, recovery and partner approval | **Built** (database migration `e2ee_keys.sql` must be applied) |
-| E2 | Text content encrypted (moods, bucket list, timeline, answers, memory titles, next meet, notification details) | Planned |
+| E2 | Text content encrypted: moods, bucket list, answers, next meet, notification details (memories wait for E3 with their pictures, timeline dates for E4 with local reminders) | **Built** (migration `e2ee_content_text.sql` must be applied, then `min_supported_build` raised) |
 | E3 | Memory images, strokes (stored and live), locations | Planned |
 | E4 | Local caches encrypted at rest, local date reminders | Planned |
 | E5 | Re-encrypt existing data, then require encryption on new rows | Planned |
 
-Until E2 ships, **content is still stored readable on the server.** E1 only sets up the keys.
+Until E2 is released, **content is still stored readable on the server.** From E2, new moods, bucket items, answers, next-meet dates and notification details are stored only as ciphertext; memories, timeline, drawings and locations stay readable until E3/E4, and older rows are re-encrypted in E5.
 
 ## E1: how the keys are shared (`EncryptionRepository`, `EncryptionBackend`)
 
@@ -37,6 +37,15 @@ The protocol, run on every phone by `EncryptionRepository.sync()` (idempotent, n
 Screens: Profile -> **Security** (`SecurityScreen`): status, security code (verify / approve), recovery phrase, restore, reset. The pairing success screen shows "Securing your connection" while the keys are set up. `EncryptionSyncGate` (in the app shell) runs `sync()` when the main screens open and when the app returns to the foreground.
 
 Not stored: the recovery phrase is never saved on the phone, so it cannot be shown again; a **new** phrase can be made at any time (it replaces the backup).
+
+## E2: text content (`ContentCipher`)
+
+- Every sealed value is `u1:` AES-GCM bound to couple, table, row and field, so the server cannot move it elsewhere. Nothing is ever written readable: without the couple key a write throws `EncryptionNotReady` ("Finish securing your connection first: Profile → Security") and the outbox keeps queued changes until the key arrives.
+- Readers accept both sealed and older readable rows. A sealed row this phone cannot open shows as locked, never disappears.
+- Moods, bucket items: readable columns hold a `🔒`/`custom` placeholder, content is in `enc`. Answers: `answer` is the ciphertext (reveal gate in `get_question_state` unchanged). Next meet: `set_next_meet_enc` RPC, `next_meet_enc`.
+- Notifications: `body_text` is a fixed sentence (the push shows only that); the typed words go in `detail_enc` and are shown in the app after decrypting.
+- Older builds show placeholders and cannot decrypt, so release E2 together with raising `app_config.min_supported_build`. The old `set_next_meet` RPC clears the sealed date so the two never disagree.
+- Not yet: direct writes of readable text by a modified client are not blocked by the server (enforced in E5).
 
 ## What it protects, and what it cannot
 

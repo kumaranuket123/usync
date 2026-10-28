@@ -105,7 +105,8 @@ class MilestoneRepository implements IMilestoneRepository {
       coupleId:   p['coupleId'] as String,
       fromUserId: p['userId'] as String,
       type:       NotifType.milestone,
-      body:       (name) => '$name added "${p['title']}" to your timeline ${p['emoji']}',
+      body:       (name) => '$name added a date to your timeline 🕰️',
+      detail:     (name) => '$name added "${p['title']}" to your timeline ${p['emoji']}',
     );
   }
 

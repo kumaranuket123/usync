@@ -7,6 +7,9 @@ import 'package:cryptography/cryptography.dart';
 import 'crypto_service.dart';
 import 'secure_key_store.dart';
 
+/// A [KeyService] for one account.
+typedef KeyServiceFor = KeyService Function(String userId);
+
 /// Our keys: the identity key pair, one key per couple, and the recovery phrase.
 ///
 /// Everything is stored under a per-account [namespace] (the user id), so two accounts on one

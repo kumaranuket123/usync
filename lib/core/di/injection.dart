@@ -3,6 +3,7 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../crypto/content_cipher.dart';
 import '../crypto/crypto_service.dart';
 import '../../data/datasources/remote/encryption_backend.dart';
 import '../../data/repositories/encryption_context.dart';
@@ -91,6 +92,13 @@ Future<void> setupLocator() async {
   getIt.registerLazySingleton<KeyServiceFor>(
     () => (userId) => KeyService(store: getIt(), crypto: getIt(), namespace: userId),
   );
+  getIt.registerLazySingleton<ContentCipher>(
+    () => ContentCipher(
+      keysFor: getIt(),
+      currentUserId: () => getIt<SupabaseClient>().auth.currentUser?.id,
+      crypto: getIt(),
+    ),
+  );
   getIt.registerLazySingleton<EncryptionBackend>(() => SupabaseEncryptionBackend(client: getIt()));
 
   getIt.registerLazySingleton<AppLockService>(() => AppLockService(prefs: getIt()));
@@ -128,6 +136,7 @@ Future<void> setupLocator() async {
       storage: getIt(),
       sessionCache: getIt(),
       identity: getIt(),
+      cipher: getIt(),
     ),
   );
   getIt.registerLazySingleton<IMoodRepository>(
@@ -136,6 +145,7 @@ Future<void> setupLocator() async {
       notifications: getIt(),
       outbox: getIt(),
       sessionCache: getIt(),
+      cipher: getIt(),
     ),
   );
   getIt.registerLazySingleton<IAccessRepository>(
@@ -154,10 +164,11 @@ Future<void> setupLocator() async {
       notifications: getIt(),
       outbox: getIt(),
       sessionCache: getIt(),
+      cipher: getIt(),
     ),
   );
   getIt.registerLazySingleton<IQuestionRepository>(
-    () => QuestionRepository(client: getIt(), notifications: getIt()),
+    () => QuestionRepository(client: getIt(), notifications: getIt(), cipher: getIt()),
   );
   getIt.registerLazySingleton<IMilestoneRepository>(
     () => MilestoneRepository(
@@ -180,7 +191,7 @@ Future<void> setupLocator() async {
     () => LocationRepository(client: getIt(), prefs: getIt(), notifications: getIt()),
   );
   getIt.registerLazySingleton<INotificationRepository>(
-    () => NotificationRepository(client: getIt()),
+    () => NotificationRepository(client: getIt(), cipher: getIt()),
   );
 
   // ── BLoCs (factory — new instance per registration request) ───

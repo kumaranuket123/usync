@@ -3,12 +3,15 @@ import 'package:get_it/get_it.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../data/datasources/local/flutter_secure_key_store.dart';
 import '../../data/datasources/local/prefs_source.dart';
 import '../../data/repositories/location_repository.dart';
 import '../../data/repositories/notification_repository.dart';
 import '../../domain/repositories/i_auth_repository.dart';
 import '../../domain/repositories/i_location_repository.dart';
 import '../constants/supabase_config.dart';
+import '../crypto/content_cipher.dart';
+import '../crypto/key_service.dart';
 
 /// Refreshes the user's saved location each time the app opens or returns to
 /// the foreground, if they turned sharing on. Never prompts for permission.
@@ -74,7 +77,14 @@ class LocationSyncService with WidgetsBindingObserver {
       await LocationRepository(
         client:        client,
         prefs:         prefs,
-        notifications: NotificationRepository(client: client),
+        notifications: NotificationRepository(
+          client: client,
+          // In this background task there is no service registry: read the keys straight from secure storage.
+          cipher: ContentCipher(
+            keysFor: (userId) => KeyService(store: const FlutterSecureKeyStore(), namespace: userId),
+            currentUserId: () => client.auth.currentUser?.id,
+          ),
+        ),
       ).syncOwnLocation(coupleId, uid, prompt: false);
     } catch (_) {
       // Best effort: the requester simply keeps seeing the older location.

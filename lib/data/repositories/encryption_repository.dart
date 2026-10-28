@@ -11,9 +11,6 @@ import '../../domain/repositories/i_encryption_repository.dart';
 import '../datasources/remote/encryption_backend.dart';
 import 'encryption_context.dart';
 
-/// A [KeyService] for one account.
-typedef KeyServiceFor = KeyService Function(String userId);
-
 /// Runs the key protocol: publish our public key, share the couple's key with the partner, notice
 /// a partner whose keys changed, and recover keys on a new phone.
 ///
