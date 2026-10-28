@@ -33,6 +33,7 @@ import '../../data/repositories/question_repository.dart';
 import '../../data/repositories/notification_repository.dart';
 import '../../data/datasources/local/identity_cache.dart';
 import '../../data/datasources/local/session_cache.dart';
+import '../../data/repositories/legacy_content_sealer.dart';
 import '../../data/repositories/location_repository.dart';
 import '../../data/repositories/milestone_repository.dart';
 import '../../domain/repositories/i_milestone_repository.dart';
@@ -198,6 +199,19 @@ Future<void> setupLocator() async {
   );
   getIt.registerLazySingleton<ILocationRepository>(
     () => LocationRepository(client: getIt(), prefs: getIt(), notifications: getIt(), cipher: getIt()),
+  );
+  getIt.registerLazySingleton<LegacyContentSealer>(
+    () => LegacyContentSealer(
+      client: getIt(),
+      cipher: getIt(),
+      storage: getIt(),
+      prefs: getIt(),
+      whoAmI: () async {
+        final user = await getIt<IAuthRepository>().getCurrentUser();
+        final coupleId = user?.coupleId;
+        return user == null || coupleId == null ? null : (userId: user.id, coupleId: coupleId);
+      },
+    ),
   );
   getIt.registerLazySingleton<INotificationRepository>(
     () => NotificationRepository(client: getIt(), cipher: getIt()),

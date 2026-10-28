@@ -11,7 +11,7 @@ Goal: nobody but the two partners can read their content, **including the develo
 | E2 | Text content encrypted: moods, bucket list, answers, next meet, notification details (memories wait for E3 with their pictures, timeline dates for E4 with local reminders) | **Built** (migration `e2ee_content_text.sql` must be applied, then `min_supported_build` raised) |
 | E3 | Binary and live data: memories and pictures (`e2ee_memories.sql`), the shared drawing, saved and live, and the widget (`e2ee_strokes.sql`), locations and the background locate (`e2ee_locations.sql`) | **Built** (E3c migration must be applied) |
 | E4 | **E4a** timeline dates sealed + reminders scheduled on the phone (migration `e2ee_timeline.sql`, applied; `remove_milestone_reminders.sql` only at release). **E4b** local storage encrypted at rest: the cached answers, the offline queue and pictures kept on the phone | **Built** |
-| E5 | Re-encrypt existing data, then require encryption on new rows | Planned |
+| E5 | **E5a** each phone seals the older readable content it wrote (`seal_row`, `seal_answer`; migration `e2ee_seal_rows.sql`). **E5b** lock-down: the server refuses unsealed new content (`e2ee_lockdown.sql`, **applied only at release**, with the minimum build raised) | **Built** (nothing in E5 applied yet) |
 
 Until E2 is released, **content is still stored readable on the server.** From E2, new moods, bucket items, answers, next-meet dates and notification details are stored only as ciphertext; memories, timeline, drawings and locations stay readable until E3/E4, and older rows are re-encrypted in E5.
 
@@ -80,6 +80,13 @@ Not stored: the recovery phrase is never saved on the phone, so it cannot be sho
 - A box that the key cannot open (key lost) holds only cache and queued changes; it is discarded and started empty.
 - Still readable on the phone, by necessity or choice: the home-screen widget picture (the launcher draws it), copies the person chooses to save to the gallery, and settings (theme, switches). Deleting a file is not a secure erase on flash storage.
 
+## E5: sealing older content and locking down
+
+- **E5a, sealing (`LegacyContentSealer`, `seal_row`, `seal_answer`).** Content written before encryption is still readable on the server. Once a phone has the couple key (checked after each key sync, at most every 15 minutes), it seals the rows **it wrote itself** — moods, bucket items, answers, memories (text and picture), custom timeline dates, drawing strokes — and the shared next-meeting date. The functions only accept the caller's own row, only while it is still readable, and replace the readable content with the same placeholders new rows use. A row is sealed whole or not at all, so it is safe to stop at any point; the content shapes match what each repository reads (tested for every kind). A memory's readable picture is downloaded, sealed, uploaded as `<couple>/<id>.enc`, and the old object removed only after the row points at the new one. An older readable location is replaced by the next refresh, or removed if sharing is off. Rows written by someone who never opens the updated app stay readable until they do.
+- **E5b, lock-down (`e2ee_lockdown.sql`).** **Apply only at release**, when `app_config.min_supported_build` is the build that seals everything: older builds write readable content and would be refused. It adds triggers that refuse any new row that is not sealed (with the exact placeholders the app writes), removes the clients' right to rewrite the readable columns of existing rows, drops the old `set_next_meet` function (which wrote the date readably), and replaces the text of old notifications that quoted typed words. It does not touch existing readable rows; those only go through `seal_row`.
+- After the lock-down the server can no longer be sent readable content by a modified client either (before it, that was the known gap). What remains readable is the metadata listed above.
+- To finish for good: once every person has opened the updated app, the readable leftovers can be counted (`count(*) where enc is null`) and, if some author never returns, deleted or left as they are.
+
 ## What it protects, and what it cannot
 
 **Protected (once E2 to E5 ship):** content in the database and Storage, backups, a database leak, Supabase staff, and the developer reading rows. The server will hold only ciphertext.
@@ -117,6 +124,7 @@ Not stored: the recovery phrase is never saved on the phone, so it cannot be sho
 
 ## Known limits and later work
 
+- **Older readable content from absent authors** stays readable until they open the updated app (see E5).
 - **Key rotation:** there is one couple key per couple (version 1) and it is not rotated when the partner's keys change (the partner approves the new keys and keeps reading the same history). A lost or stolen old phone could still hold the key. Rotation (key version 2, re-encrypting content) should be added with the content phases.
 - **Nonce budget:** values are encrypted with random 96-bit nonces under one key. That is safe up to roughly 2^32 messages per key; before live drawing chunks are encrypted (E3), add rotation or a counter so the budget cannot be exhausted.
 - **Screenshots and the clipboard:** the recovery phrase screen does not block screenshots or screen recording, and Dart cannot erase secrets from memory.
