@@ -6,7 +6,7 @@ A shared list of things the couple wants to do together (goals, trips, small dre
 
 ## Screen: BucketListScreen (`/bucket-list`)
 
-Not a bottom-nav tab. Opened from Profile -> YOUR CONNECTION -> **Bucket list**.
+Not a bottom-nav tab itself. Opened from the **Activity** tab -> **Bucket list**.
 
 - Header: back button, "Bucket list" and a progress line ("3 of 12 done"; "Things we want to do together" while empty).
 - Empty state: 🎯 "Nothing here yet" with a short hint.

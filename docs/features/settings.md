@@ -1,6 +1,6 @@
 # Feature: Settings
 
-App configuration hub: notifications, privacy and security, appearance, storage, and the account actions (disconnect, delete, sign out). Also contains the Theme Selection and Alert Sounds screens. Changes take effect immediately, with no save/cancel step.
+App configuration hub: notifications, privacy and security, appearance, storage, and the account actions (disconnect, delete); sign out is on the Profile screen. Also contains the Theme Selection and Alert Sounds screens. Changes take effect immediately, with no save/cancel step.
 
 ---
 
@@ -24,7 +24,6 @@ Pushed from ProfileScreen; not a bottom-nav destination. Header (`NeonBackButton
 | | Privacy Policy | Row | Opens the public policy in the browser (`openPrivacyPolicy`, `AppConstants.privacyPolicyUrl`, the page `docs/privacy-policy.html` served by GitHub Pages from `main`); a snackbar says so if it cannot open |
 | DANGER ZONE | Disconnect Couple | Row (only when `ProfileReady`) | Confirmation dialog, then `ProfileBloc.DisconnectCouple` |
 | | Delete Account | Row | Type-DELETE dialog, then `AuthBloc.DeleteAccountRequested` |
-| | Sign Out | Outline button | Confirmation dialog, then `AuthBloc.SignOutRequested` |
 
 On `ProfileDisconnected` the screen refreshes the app-wide user (`AuthStateChecked`, which clears `coupleId`) and goes to `/pair-invite`.
 
@@ -109,6 +108,7 @@ Dialog: "Type DELETE to confirm" (button enabled only when the text matches, cas
 Required by Google Play. Also reachable without pairing, from the `AccountLinks` row on the invite screen (`confirmAndDeleteAccount`, `settings/widgets/delete_account_dialog.dart`). Deletes the user's data in every couple they were in, then the auth user; the partner is left disconnected. Locally saved memory pictures are removed too (`LocalMemoryImages.deleteAll`). Migrations: `delete_account.sql`, `question_of_the_day.sql` (also removes question answers).
 
 ### Sign out
+The button is at the bottom of the Profile screen, not here (see [profile](profile.md)).
 ```
 Confirm -> AuthBloc.SignOutRequested -> SigningOut -> authRepository.signOut() -> Unauthenticated
   -> app.dart / RouteGuards send the user to login
@@ -212,6 +212,5 @@ ThemeState {
 |---|---|
 | `NeonBackButton` | Back navigation |
 | `GlassCard` | ThemeCard base |
-| `UsyncOutlineButton` | Sign Out |
 | `ToggleSwitch` | Toggle rows (`shared/widgets/toggle_switch.dart`) |
 | `MeshGradientPainter` | Background |

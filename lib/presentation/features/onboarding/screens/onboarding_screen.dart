@@ -4,6 +4,7 @@ import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/route_names.dart';
+import '../../../../core/constants/trust_copy.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../data/datasources/local/prefs_source.dart';
@@ -51,6 +52,9 @@ class _OnboardingBodyState extends State<_OnboardingBody> {
     _Slide('Stay connected\neverywhere.',
         'Widgets, ambient presence, and gentle notifications keep your connection alive all day.',
         _SlideVisual.presence),
+    _Slide('Private\nby design.',
+        '${TrustCopy.summary} ${TrustCopy.promise}',
+        _SlideVisual.privacy),
   ];
 
   @override
@@ -91,7 +95,7 @@ class _OnboardingBodyState extends State<_OnboardingBody> {
                       const Spacer(),
                       // Dots
                       Row(
-                        children: List.generate(4, (i) {
+                        children: List.generate(_slides.length, (i) {
                           final active = i == state.currentPage;
                           return AnimatedContainer(
                             duration: const Duration(milliseconds: 350),
@@ -159,7 +163,7 @@ class _Slide {
   final _SlideVisual visual;
 }
 
-enum _SlideVisual { connectedOrbs, emotionWave, doodle, presence }
+enum _SlideVisual { connectedOrbs, emotionWave, doodle, presence, privacy }
 
 class _SlideWidget extends StatelessWidget {
   const _SlideWidget({required this.slide});
@@ -201,6 +205,7 @@ class _SlideWidget extends StatelessWidget {
       _SlideVisual.emotionWave   => const _EmotionWaveVisual(),
       _SlideVisual.doodle        => const _DoodleVisual(),
       _SlideVisual.presence      => const _PresenceVisual(),
+      _SlideVisual.privacy       => const _PrivacyVisual(),
     };
   }
 }
@@ -397,6 +402,34 @@ class _PresenceVisualState extends State<_PresenceVisual> with TickerProviderSta
                 ),
               );
             }),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// A lock held in soft rings: the "only the two of you" promise.
+class _PrivacyVisual extends StatelessWidget {
+  const _PrivacyVisual();
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 300, height: 300,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          PulseRings(color: AppColors.cyan, count: 3, size: 240),
+          BreatheAnimation(
+            child: Container(
+              width: 120, height: 120,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(colors: [AppColors.purple.withValues(alpha: 0.35), AppColors.bg1]),
+                border: Border.all(color: AppColors.cyan.withValues(alpha: 0.5)),
+              ),
+              child: const Center(child: Text('🔒', style: TextStyle(fontSize: 52))),
+            ),
           ),
         ],
       ),

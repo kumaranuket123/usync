@@ -42,6 +42,9 @@ BoxShadow(color: purple.withOpacity(0.2), blurRadius: 100, spreadRadius: 0)
 
 ---
 
+### EncryptionBadge
+A small pill under the header that shows the live end-to-end encryption state and opens the trust sheet or Profile → Security. See [trust.md](trust.md).
+
 ### HeartbeatVisualizer
 
 `CustomPainter` drawing a fixed EKG polyline across the full width (270 px wide, 48 px tall). The polyline is static (not data-driven in v1). A scan line — a vertical gradient line — travels left to right on a looping `AnimationController` (2 s). The portion of the polyline to the left of the scan line is brighter; the rest is dimmed.

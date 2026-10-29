@@ -9,6 +9,7 @@ import '../../long_distance/widgets/long_distance_card.dart';
 import '../../../shared/animations/float_animation.dart';
 import '../../../shared/widgets/heartbeat_visualizer.dart';
 import '../../../shared/widgets/loading_dots.dart';
+import '../../../shared/widgets/encryption_badge.dart';
 import '../../../shared/widgets/mood_chip.dart';
 import '../../../shared/widgets/partner_orb.dart';
 import '../../../../core/di/injection.dart';
@@ -134,6 +135,12 @@ class _HomeBody extends StatelessWidget {
 
                     const SizedBox(height: 10),
 
+                    // Live encryption status; hidden until the phone has checked.
+                    const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 26),
+                      child: Align(alignment: Alignment.centerLeft, child: EncryptionBadge()),
+                    ),
+
                     // Partner orb section
                     PartnerOrb(avatarEmoji: partnerEmoji, isOnline: isOnline),
                     Text(partnerName, style: AppTextStyles.partnerName),
@@ -167,6 +174,8 @@ class _HomeBody extends StatelessWidget {
                             _ActionPill('💭', 'Mood',   () => context.push(RouteNames.mood)),
                             const SizedBox(width: 8),
                             _ActionPill('💬', 'Question', () => context.push(RouteNames.question)),
+                            const SizedBox(width: 8),
+                            _ActionPill('🎮', 'Games', () => context.push(RouteNames.games)),
                           ],
                         ),
                       ),

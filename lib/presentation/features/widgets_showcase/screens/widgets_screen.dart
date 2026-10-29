@@ -15,6 +15,7 @@ import '../../../shared/widgets/glass_card.dart';
 import '../../../shared/widgets/gradient_text.dart';
 import '../../../shared/widgets/heartbeat_visualizer.dart';
 import '../../../shared/widgets/live_indicator.dart';
+import '../../../shared/widgets/neon_back_button.dart';
 import '../bloc/widgets_bloc.dart';
 import '../../../../core/utils/app_snack_bar.dart';
 
@@ -45,17 +46,25 @@ class _WidgetsBody extends StatelessWidget {
           children: [
             Padding(
               padding: const EdgeInsets.fromLTRB(28, 16, 28, 14),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              child: Row(
                 children: [
-                  Text('Widgets', style: AppTextStyles.h2),
-                  Text('Add to your home screen', style: AppTextStyles.label),
+                  const NeonBackButton(),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Widgets', style: AppTextStyles.h2),
+                        Text('Add to your home screen', style: AppTextStyles.label),
+                      ],
+                    ),
+                  ),
                 ],
               ),
             ),
             Expanded(
               child: ListView(
-                padding: const EdgeInsets.fromLTRB(18, 0, 18, 100),
+                padding: const EdgeInsets.fromLTRB(18, 0, 18, 24),
                 children: [
                   const _DoodleWidgetCard(),
                   const SizedBox(height: 13),

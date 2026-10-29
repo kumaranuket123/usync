@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../core/constants/route_names.dart';
 import '../../../../core/extensions/datetime_ext.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_gradients.dart';
@@ -14,7 +15,6 @@ import '../../../shared/animations/breathe_animation.dart';
 import '../../../shared/widgets/glow_button.dart';
 import '../../../shared/widgets/loading_dots.dart';
 import '../../../shared/widgets/memory_tag.dart';
-import '../../../shared/widgets/outline_button.dart';
 import '../../../../core/di/injection.dart';
 import '../../../features/auth/bloc/auth_bloc.dart';
 import '../bloc/memory_bloc.dart';
@@ -95,7 +95,7 @@ class _MemorySpaceBodyState extends State<_MemorySpaceBody> {
                     return const Center(child: LoadingDots());
                   }
                   if (state is MemoryEmpty) {
-                    return const _EmptyState();
+                    return const MemoryEmptyState();
                   }
                   if (state is MemoryLoaded) {
                     return ListView.builder(
@@ -182,8 +182,9 @@ class _MemoryCard extends StatelessWidget {
   }
 }
 
-class _EmptyState extends StatelessWidget {
-  const _EmptyState();
+/// Shown before the couple has saved anything.
+class MemoryEmptyState extends StatelessWidget {
+  const MemoryEmptyState({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -213,9 +214,8 @@ class _EmptyState extends StatelessWidget {
               style: AppTextStyles.bodyMuted,
             ),
             const SizedBox(height: 36),
-            GlowButton(label: 'Create your first moment ✦', onTap: () {}),
-            const SizedBox(height: 12),
-            UsyncOutlineButton(label: 'Maybe later', onTap: () {}),
+            // Memories come from doodles saved on the canvas, so that is where to start.
+            GlowButton(label: 'Create your first moment ✦', onTap: () => context.go(RouteNames.canvas)),
           ],
         ),
       ),

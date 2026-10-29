@@ -16,7 +16,7 @@ class OnboardingBloc extends Bloc<OnboardingEvent, OnboardingState> {
   final PrefsSource prefsSource;
 
   void _onAdvanced(PageAdvanced _, Emitter<OnboardingState> emit) {
-    if (state.currentPage < 3) {
+    if (!state.isLastPage) {
       emit(OnboardingState(currentPage: state.currentPage + 1));
     } else {
       add(OnboardingCompleted());

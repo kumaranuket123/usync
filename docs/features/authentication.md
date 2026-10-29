@@ -87,7 +87,7 @@ SplashScreen
 
 ### Sign Out
 ```
-SettingsScreen → "Sign Out" tapped
+ProfileScreen → "Sign Out" tapped
   → confirmation dialog
   → AuthBloc.SignOutRequested
   → Firebase Auth signOut

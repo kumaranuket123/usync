@@ -9,7 +9,8 @@ enum NotifType {
   milestone,
   location,
   locate,
-  question;
+  question,
+  game;
 
   String get emoji => switch (this) {
     NotifType.touch      => '👆',
@@ -20,6 +21,7 @@ enum NotifType {
     NotifType.location   => '📍',
     NotifType.locate     => '📍',
     NotifType.question   => '💬',
+    NotifType.game       => '🎮',
   };
 
   Color get iconBackground => switch (this) {
@@ -31,6 +33,7 @@ enum NotifType {
     NotifType.location   => const Color(0x1F00E676),
     NotifType.locate     => const Color(0x1F00E676),
     NotifType.question   => const Color(0x1F00D4FF),
+    NotifType.game       => const Color(0x1FFFD700),
   };
 
   /// Settings group: 'locate' (a requested fix) is controlled together with 'location'.
