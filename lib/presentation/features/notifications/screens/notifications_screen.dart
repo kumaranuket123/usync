@@ -97,6 +97,8 @@ class _NotifItem extends StatelessWidget {
         context.push(RouteNames.location);
       case NotifType.question:
         context.push(RouteNames.question);
+      case NotifType.game:
+        context.push(RouteNames.games);
     }
   }
 
