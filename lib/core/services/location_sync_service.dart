@@ -58,7 +58,7 @@ class LocationSyncService with WidgetsBindingObserver {
   static Future<void> answerLocateRequest() async {
     try {
       try {
-        Supabase.instance;
+        Supabase.instance.client;
       } catch (_) {
         await Supabase.initialize(url: SupabaseConfig.url, publishableKey: SupabaseConfig.publishableKey);
       }

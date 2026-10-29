@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:supabase_flutter/supabase_flutter.dart' hide User;
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
@@ -19,6 +21,8 @@ final GlobalKey<ScaffoldMessengerState> rootMessengerKey = GlobalKey<ScaffoldMes
 /// data-only message is the partner's "locate" request.
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  // This isolate starts without plugins; the widget sync needs storage, path_provider and home_widget.
+  DartPluginRegistrant.ensureInitialized();
   switch (message.data['action']) {
     case 'locate':       await LocationSyncService.answerLocateRequest();
     case 'canvas_widget': await HomeWidgetService.syncFromServer();
