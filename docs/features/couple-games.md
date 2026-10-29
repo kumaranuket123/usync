@@ -3,7 +3,7 @@
 Games the partners play together, live or at their own pace. All four games are playable: Tic-Tac-Toe, Would you rather, How well do you know me? and Conversation cards, built on one session model.
 
 ## Screen: Games hub (/games)
-Opened from the Home "Games" pill and Profile → Couple games. Lists every game with its status: start a game, your turn, or waiting for your partner. 
+Opened from the Home "Games" pill and the Activity tab → Couple games. Lists every game with its status: start a game, your turn, or waiting for your partner. 
 
 ## Screen: Tic-Tac-Toe (/games/tic-tac-toe)
 Start a game, tap a cell on your turn. The starter is X. The board updates live on both phones; if the partner is away, the game waits for them and they get one "your turn" push. Either partner can end the game; a finished game shows its result and "Play again".

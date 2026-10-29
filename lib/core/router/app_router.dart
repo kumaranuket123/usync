@@ -10,6 +10,7 @@ import '../../presentation/features/memory/screens/memory_detail_screen.dart';
 import '../../presentation/features/memory/screens/memory_space_screen.dart';
 import '../../presentation/features/mood/screens/mood_screen.dart';
 import '../../presentation/features/mood_insights/screens/mood_insights_screen.dart';
+import '../../presentation/features/activity/screens/activity_screen.dart';
 import '../../presentation/features/bucket/screens/bucket_list_screen.dart';
 import '../../presentation/features/games/screens/cards_screen.dart';
 import '../../presentation/features/games/screens/games_hub_screen.dart';
@@ -97,8 +98,8 @@ abstract final class AppRouter {
             builder: (_, __) => const CanvasScreen(),
           ),
           GoRoute(
-            path: RouteNames.widgets,
-            builder: (_, __) => const WidgetsScreen(),
+            path: RouteNames.activity,
+            builder: (_, __) => const ActivityScreen(),
           ),
           GoRoute(
             path: RouteNames.profile,
@@ -117,6 +118,11 @@ abstract final class AppRouter {
         path: RouteNames.location,
         parentNavigatorKey: _rootKey,
         builder: (_, __) => const LocationScreen(),
+      ),
+      GoRoute(
+        path: RouteNames.widgets,
+        parentNavigatorKey: _rootKey,
+        builder: (_, __) => const WidgetsScreen(),
       ),
       GoRoute(
         path: RouteNames.bucketList,

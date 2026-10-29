@@ -25,10 +25,10 @@ Bottom-nav tab (🦋 Profile). Scrollable — hero section is fixed-height, ever
    - Row: **Subscription** (only once the paywall is switched on; see [subscription-groundwork](subscription-groundwork.md))
    - Row: **Security** (encryption keys, security code, recovery phrase; see [../security.md](../security.md))
    - Row: **Mood insights** (see [mood-insights](mood-insights.md))
-   - Row: **Bucket list** (see [bucket-list](bucket-list.md))
-   - Navigation rows: Timeline, Memory Space, Widgets
+   - Navigation row: Memory Space
+   - (Bucket list, Couple games and the Relationship timeline are on the **Activity** tab; see [activity](activity.md))
    - Section label: "PREFERENCES"
-   - Navigation rows: Themes, Settings
+   - Navigation rows: Themes, **Widgets** (home-screen widgets, pushed at `/widgets`), Settings
    - Section label: "DEV" (debug builds only)
    - Navigation row: Empty State Demo
 5. `UsyncBottomNav`

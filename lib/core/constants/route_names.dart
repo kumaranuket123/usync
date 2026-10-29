@@ -11,10 +11,11 @@ abstract final class RouteNames {
   static const String home         = '/home';
   static const String memories     = '/memories';
   static const String canvas       = '/canvas';
-  static const String widgets      = '/widgets';
+  static const String activity     = '/activity';
   static const String profile      = '/profile';
 
   // Pushed on top of shell
+  static const String widgets      = '/widgets';
   static const String touchSync    = '/touch-sync';
   static const String mood         = '/mood';
   static const String moodInsights = '/mood-insights';
