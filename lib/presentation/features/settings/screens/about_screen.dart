@@ -197,6 +197,10 @@ const _sections = <_Section>[
         'See how in sync you have been over the last 7 days: the days you shared a similar mood, and the mood each of you shared most.'),
     _Feature('💬', _cyan, 'Question of the day',
         'One question a day for both of you. Your partner\'s answer stays hidden until you have answered too. The questions suit couples who live together or apart.'),
+    _Feature('🎮', _gold, 'Couple games',
+        'Play together from Home or the Activity tab. Play Tic-Tac-Toe live, taking turns, Would you rather (ten questions, see how you matched), or How well do you know me? (answer about yourself, guess your partner and compare scores), all at your own pace, or Conversation cards: turn a shared deck of talk, truth and dare cards together. Your partner\'s answers stay hidden until you have answered each question too. Games wait for you, and your partner is told when a game starts or finishes, and in Tic-Tac-Toe when it is their turn and they are not looking at the board.'),
+    _Feature('🎟️', _cyan, 'Activity',
+        'The Activity tab in the bottom bar gathers things to do together in one place: Couple games, your Bucket list and your Relationship timeline.'),
   ]),
   _Section('CREATE AND REMEMBER', [
     _Feature('✏️', _cyan, 'Shared canvas',
@@ -208,7 +212,7 @@ const _sections = <_Section>[
     _Feature('🎯', _cyan, 'Bucket list',
         'A shared list of things you want to do together. Either of you can add items, tick them off and see the progress. Adding works offline.'),
     _Feature('🔥', _gold, 'Streaks',
-        'Every day you both do something in the app (a mood, a doodle, a memory, a question, a bucket-list item) keeps your day streak alive.'),
+        'Every day you both do something in the app (a mood, a doodle, a memory, a question, a game, a bucket-list item) keeps your day streak alive.'),
   ]),
   _Section('NEAR OR FAR', [
     _Feature('🏡', _purple, 'Relationship type',
@@ -222,7 +226,7 @@ const _sections = <_Section>[
     _Feature('🔔', _pink, 'Notifications',
         'Get a push when your partner does something. In Alert sounds you choose which alerts stay silent.'),
     _Feature('📱', _cyan, 'Home-screen widget',
-        'On Android, put the Live Doodle widget on your home screen to see your shared drawing without opening the app. Tap it to jump in.'),
+        'On Android, put the Live Doodle widget on your home screen to see your shared drawing without opening the app. Tap it to jump in. Find it under Profile → Widgets.'),
     _Feature('📶', _green, 'Works offline',
         'Moods, dates, doodles and bucket-list items you add without a connection are saved on your phone and sent when you are back online.'),
     _Feature('🎨', _purple, 'Themes',

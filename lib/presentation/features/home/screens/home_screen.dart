@@ -174,6 +174,8 @@ class _HomeBody extends StatelessWidget {
                             _ActionPill('💭', 'Mood',   () => context.push(RouteNames.mood)),
                             const SizedBox(width: 8),
                             _ActionPill('💬', 'Question', () => context.push(RouteNames.question)),
+                            const SizedBox(width: 8),
+                            _ActionPill('🎮', 'Games', () => context.push(RouteNames.games)),
                           ],
                         ),
                       ),

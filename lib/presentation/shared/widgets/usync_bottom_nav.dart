@@ -30,7 +30,7 @@ class _UsyncBottomNav extends StatelessWidget {
     _Tab(icon: Icons.home_outlined,          activeIcon: Icons.home_rounded,         label: 'Home',     route: RouteNames.home),
     _Tab(icon: Icons.photo_library_outlined, activeIcon: Icons.photo_library,        label: 'Memories', route: RouteNames.memories),
     _Tab(icon: Icons.brush_rounded,          activeIcon: Icons.brush_rounded,        label: 'Draw',     route: RouteNames.canvas, isCentre: true),
-    _Tab(icon: Icons.widgets_outlined,       activeIcon: Icons.widgets_rounded,      label: 'Widgets',  route: RouteNames.widgets),
+    _Tab(icon: Icons.local_activity_outlined, activeIcon: Icons.local_activity,      label: 'Activity', route: RouteNames.activity),
     _Tab(icon: Icons.person_outline_rounded, activeIcon: Icons.person_rounded,       label: 'Profile',  route: RouteNames.profile),
   ];
 
