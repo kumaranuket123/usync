@@ -39,7 +39,7 @@ void main() {
     await pump(tester);
 
     for (final feature in [
-      'Pairing', 'Touch sync', 'Moods', 'Mood insights', 'Question of the day', 'Shared canvas', 'Memories', 'Timeline',
+      'Pairing', 'Touch sync', 'Moods', 'Mood insights', 'Question of the day', 'Couple games', 'Shared canvas', 'Memories', 'Timeline',
       'Bucket list', 'Streaks', 'Relationship type', 'Long-distance card', 'Location', 'Notifications',
       'Home-screen widget', 'Works offline', 'Themes', 'App lock', 'Only the two of you', 'You are in control',
     ]) {

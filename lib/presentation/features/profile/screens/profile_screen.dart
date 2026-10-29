@@ -83,6 +83,7 @@ class _ProfileBody extends StatelessWidget {
                             state.couple.relationshipMode.label, () => _pickMode(context, state)),
                       if (state is ProfileReady) _SubscriptionRow(coupleId: state.couple.id),
                       _NavRow('🎯', const Color(0x1F00D4FF), 'Bucket list', 'Things we want to do together', () => context.push(RouteNames.bucketList)),
+                      _NavRow('🎮', const Color(0x1FFFD700), 'Couple games', 'Play something together', () => context.push(RouteNames.games)),
                       const _SecurityRow(),
                       _NavRow('💞', const Color(0x1F9D4EDD), 'Mood insights', 'How in sync you\'ve been this week', () => context.push(RouteNames.moodInsights)),
                       _NavRow('🕰️', const Color(0x1FFF2D78), 'Relationship Timeline', 'View your shared journey', () => context.push(RouteNames.timeline)),

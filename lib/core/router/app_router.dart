@@ -11,6 +11,11 @@ import '../../presentation/features/memory/screens/memory_space_screen.dart';
 import '../../presentation/features/mood/screens/mood_screen.dart';
 import '../../presentation/features/mood_insights/screens/mood_insights_screen.dart';
 import '../../presentation/features/bucket/screens/bucket_list_screen.dart';
+import '../../presentation/features/games/screens/cards_screen.dart';
+import '../../presentation/features/games/screens/games_hub_screen.dart';
+import '../../presentation/features/games/screens/quiz_screen.dart';
+import '../../presentation/features/games/screens/tic_tac_toe_screen.dart';
+import '../../presentation/features/games/screens/would_you_rather_screen.dart';
 import '../../presentation/features/question/screens/question_screen.dart';
 import '../../presentation/features/notifications/screens/notifications_screen.dart';
 import '../../presentation/features/onboarding/screens/onboarding_screen.dart';
@@ -117,6 +122,31 @@ abstract final class AppRouter {
         path: RouteNames.bucketList,
         parentNavigatorKey: _rootKey,
         builder: (_, __) => const BucketListScreen(),
+      ),
+      GoRoute(
+        path: RouteNames.games,
+        parentNavigatorKey: _rootKey,
+        builder: (_, __) => const GamesHubScreen(),
+      ),
+      GoRoute(
+        path: RouteNames.ticTacToe,
+        parentNavigatorKey: _rootKey,
+        builder: (_, __) => const TicTacToeScreen(),
+      ),
+      GoRoute(
+        path: RouteNames.cards,
+        parentNavigatorKey: _rootKey,
+        builder: (_, __) => const CardsScreen(),
+      ),
+      GoRoute(
+        path: RouteNames.quiz,
+        parentNavigatorKey: _rootKey,
+        builder: (_, __) => const QuizScreen(),
+      ),
+      GoRoute(
+        path: RouteNames.wouldYouRather,
+        parentNavigatorKey: _rootKey,
+        builder: (_, __) => const WouldYouRatherScreen(),
       ),
       GoRoute(
         path: RouteNames.question,
