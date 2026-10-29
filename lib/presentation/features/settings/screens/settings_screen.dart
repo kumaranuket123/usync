@@ -13,7 +13,6 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../domain/repositories/i_memory_repository.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../shared/widgets/neon_back_button.dart';
-import '../../../shared/widgets/outline_button.dart';
 import '../../../shared/widgets/toggle_switch.dart';
 import '../bloc/settings_bloc.dart';
 import '../widgets/delete_account_dialog.dart';
@@ -176,32 +175,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           'Permanently delete your account and all your data',
                           onTap: () => confirmAndDeleteAccount(context)),
 
-                      const SizedBox(height: 20),
-                      UsyncOutlineButton(
-                        label: 'Sign Out',
-                        textColor:   const Color(0xB3FF5050),
-                        borderColor: const Color(0x33FF5050),
-                        onTap: () {
-                          showDialog(
-                            context: context,
-                            builder: (_) => AlertDialog(
-                              backgroundColor: AppColors.bg2,
-                              title: const Text('Sign out?', style: TextStyle(color: Colors.white)),
-                              content: Text('You can sign back in any time.', style: AppTextStyles.bodyMuted),
-                              actions: [
-                                TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel', style: TextStyle(color: AppColors.textMuted))),
-                                TextButton(
-                                  onPressed: () {
-                                    Navigator.pop(context);
-                                    context.read<AuthBloc>().add(const SignOutRequested());
-                                  },
-                                  child: const Text('Sign Out', style: TextStyle(color: Color(0xFFFF5050))),
-                                ),
-                              ],
-                            ),
-                          );
-                        },
-                      ),
                     ],
                   );
                 },

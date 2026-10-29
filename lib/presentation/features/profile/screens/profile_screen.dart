@@ -27,6 +27,7 @@ import '../../access/screens/paywall_screen.dart';
 import '../../../../domain/repositories/i_auth_repository.dart';
 import '../../../features/auth/bloc/auth_bloc.dart';
 import '../bloc/profile_bloc.dart';
+import '../widgets/sign_out_button.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
@@ -87,6 +88,8 @@ class _ProfileBody extends StatelessWidget {
                       _SectionLabel('PREFERENCES'),
                       _NavRow('📱', const Color(0x1F00D4FF), 'Widgets', 'Add to your home screen', () => context.push(RouteNames.widgets)),
                       _NavRow('⚙️', const Color(0x0FFFFFFF), 'Settings', 'Themes, notifications, security, disconnect', () => context.push(RouteNames.settings)),
+                      const SizedBox(height: 20),
+                      SignOutButton(onConfirmed: () => context.read<AuthBloc>().add(const SignOutRequested())),
                     ],
                   ),
                 ),

@@ -29,6 +29,7 @@ Bottom-nav tab (🦋 Profile). Scrollable — hero section is fixed-height, ever
    - (Bucket list, Couple games and the Relationship timeline are on the **Activity** tab; see [activity](activity.md))
    - Section label: "PREFERENCES"
    - Navigation rows: Themes, **Widgets** (home-screen widgets, pushed at `/widgets`), Settings
+   - **Sign Out** button at the very bottom (`profile/widgets/sign_out_button.dart`): confirmation dialog, then `AuthBloc.SignOutRequested`
    - Section label: "DEV" (debug builds only)
    - Navigation row: Empty State Demo
 5. `UsyncBottomNav`
