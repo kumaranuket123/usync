@@ -4,6 +4,9 @@ abstract interface class IEncryptionRepository {
   /// The last state worked out on this phone (instant, no network).
   EncryptionState get current;
 
+  /// Every new state, so the UI can follow along (for example the encryption badge on Home).
+  Stream<EncryptionState> get changes;
+
   /// Brings this phone's keys in line with the server: creates and publishes our key the first
   /// time, shares the couple's key, notices a partner whose keys changed. Safe to call as often
   /// as you like. Never throws: if it cannot finish it returns [EncryptionPhase.unknown].

@@ -5,6 +5,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/route_names.dart';
+import '../../../../core/constants/trust_copy.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_gradients.dart';
 import '../../../../core/theme/app_text_styles.dart';
@@ -12,6 +13,7 @@ import '../../../shared/animations/breathe_animation.dart';
 import '../../../shared/widgets/gradient_text.dart';
 import '../../../shared/widgets/particle_field.dart';
 import '../../../shared/widgets/pulse_rings.dart';
+import '../../../shared/widgets/trust_sheet.dart';
 import '../bloc/auth_bloc.dart';
 import '../../../../core/utils/app_snack_bar.dart';
 import '../../../../core/utils/privacy_policy.dart';
@@ -58,13 +60,28 @@ class LoginScreen extends StatelessWidget {
                     const _GoogleButton(),
                     const SizedBox(height: 18),
                     Text(
-                      'Your account is only used to sign you in\nand to connect you with your partner.',
+                      '🔒 ${TrustCopy.summary}',
                       textAlign: TextAlign.center,
                       style: AppTextStyles.labelSmall.copyWith(height: 1.5),
                     ),
-                    TextButton(
-                      onPressed: () => openPrivacyPolicy(context),
-                      child: Text('Privacy Policy', style: AppTextStyles.labelSmall.copyWith(decoration: TextDecoration.underline)),
+                    const SizedBox(height: 4),
+                    Text(
+                      TrustCopy.promise,
+                      textAlign: TextAlign.center,
+                      style: AppTextStyles.labelSmall.copyWith(height: 1.5),
+                    ),
+                    Wrap(
+                      alignment: WrapAlignment.center,
+                      children: [
+                        TextButton(
+                          onPressed: () => showTrustSheet(context),
+                          child: Text('How we protect you', style: AppTextStyles.labelSmall.copyWith(decoration: TextDecoration.underline)),
+                        ),
+                        TextButton(
+                          onPressed: () => openPrivacyPolicy(context),
+                          child: Text('Privacy Policy', style: AppTextStyles.labelSmall.copyWith(decoration: TextDecoration.underline)),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 20),
                   ],

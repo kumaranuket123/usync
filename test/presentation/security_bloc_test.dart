@@ -15,6 +15,9 @@ class _FakeEncryption implements IEncryptionRepository {
   EncryptionState get current => state;
 
   @override
+  Stream<EncryptionState> get changes => const Stream.empty();
+
+  @override
   Future<EncryptionState> sync() async {
     calls.add('sync');
     return syncResult ?? state;

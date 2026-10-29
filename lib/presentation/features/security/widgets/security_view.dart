@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/constants/trust_copy.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../domain/entities/encryption_state.dart';
 import '../../../shared/widgets/glass_input.dart';
 import '../../../shared/widgets/glow_button.dart';
+import '../../../shared/widgets/trust_sheet.dart';
 
 /// The Security page content, without any loading or navigation so it is easy to test.
 class SecurityView extends StatefulWidget {
@@ -176,6 +178,21 @@ class _SecurityViewState extends State<SecurityView> {
               ),
             ),
           ],
+          const SizedBox(height: 14),
+          _Card(
+            title: 'What is protected',
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(TrustCopy.summary, style: AppTextStyles.bodyMuted),
+                const SizedBox(height: 8),
+                TextButton(
+                  onPressed: () => showTrustSheet(context),
+                  child: const Text('How we protect you'),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );

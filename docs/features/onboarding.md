@@ -1,6 +1,6 @@
 # Feature: Onboarding
 
-Covers the Splash screen and the four-slide onboarding carousel. These screens run only before a user is authenticated. After completion, the `onboardingSeen` flag is written to SharedPreferences so they are never shown again.
+Covers the Splash screen and the five-slide onboarding carousel. These screens run only before a user is authenticated. After completion, the `onboardingSeen` flag is written to SharedPreferences so they are never shown again.
 
 ---
 
@@ -25,12 +25,14 @@ App entry point. Shown for ~3 seconds on every launch regardless of auth state. 
 - Rings: staggered `ScaleTransition` + `FadeTransition`
 
 ### 2. OnboardingScreen (`/onboarding`)
-Four-slide `PageView` with a fixed footer overlay. Slides occupy the full screen; the footer (dots + skip + next button) sits above them at the bottom.
+Five-slide `PageView` with a fixed footer overlay. Slides occupy the full screen; the footer (dots + skip + next button) sits above them at the bottom.
 
 **Footer elements:**
 - `TextButton` "Skip" (left) → navigates directly to `/login`
 - Animated dots indicator (centre) — active dot expands width 7→26 px with pink glow
 - Circular `GlowButton` "›" / "✓" (right, 62 px)
+
+**Slide 5 — "Private\nby design."** Visual: `_PrivacyVisual` (a 🔒 in breathing rings). Text from `TrustCopy`, see [trust.md](trust.md).
 
 **Slide 1 — "Feel close, even from far away."**
 Visual: `ConnectedOrbsVisual`

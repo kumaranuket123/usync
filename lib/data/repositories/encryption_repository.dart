@@ -34,12 +34,24 @@ class EncryptionRepository implements IEncryptionRepository {
 
   static const _coupleKeyVersion = 1;
 
-  EncryptionState _last = const EncryptionState.unknown();
+  EncryptionState _value = const EncryptionState.unknown();
+  final _changes = StreamController<EncryptionState>.broadcast();
+
+  // Every assignment below also tells whoever is watching (the Home badge).
+  EncryptionState get _last => _value;
+  set _last(EncryptionState next) {
+    _value = next;
+    if (!_changes.isClosed) _changes.add(next);
+  }
+
   Future<EncryptionState>? _running;
   Future<void> _tail = Future<void>.value();
 
   @override
   EncryptionState get current => _last;
+
+  @override
+  Stream<EncryptionState> get changes => _changes.stream;
 
   /// Runs [action] after everything queued before it has finished.
   Future<T> _exclusive<T>(Future<T> Function() action) {
