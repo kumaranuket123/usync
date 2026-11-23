@@ -132,9 +132,10 @@ class CoupleChannel {
   static const strokeChunk = 'stroke_chunk';
   static const strokeEnd   = 'stroke_end';
   static const canvasClear = 'canvas_clear';
+  static const slap        = 'slap';
 
   final Map<String, StreamController<Map<String, dynamic>>> _events = {
-    for (final e in [touch, strokeStart, strokeChunk, strokeEnd, canvasClear])
+    for (final e in [touch, strokeStart, strokeChunk, strokeEnd, canvasClear, slap])
       e: StreamController<Map<String, dynamic>>.broadcast(),
   };
 

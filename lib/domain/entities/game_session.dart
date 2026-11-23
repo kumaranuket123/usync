@@ -4,7 +4,8 @@ enum GameType {
   ticTacToe('tic_tac_toe', 'Tic-Tac-Toe', '⭕'),
   quiz('quiz', 'How well do you know me?', '🧠'),
   wouldYouRather('would_you_rather', 'Would you rather', '🤔'),
-  cards('cards', 'Conversation cards', '🃏');
+  cards('cards', 'Conversation cards', '🃏'),
+  slap('slap', 'Slap fight', '🖐️');
 
   const GameType(this.key, this.title, this.emoji);
 

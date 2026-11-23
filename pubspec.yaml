@@ -37,6 +37,7 @@ dependencies:
 
   # ── Haptics ───────────────────────────────────────────────────
   vibration: ^2.0.0
+  audioplayers: ^6.1.0
 
   # ── Sharing / saving ──────────────────────────────────────────
   share_plus: ^10.0.2
@@ -85,3 +86,6 @@ flutter_launcher_icons:
 
 flutter:
   uses-material-design: true
+
+  assets:
+    - assets/sounds/
