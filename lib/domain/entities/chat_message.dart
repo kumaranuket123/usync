@@ -47,6 +47,7 @@ class ChatMessage extends Equatable {
     this.mediaPath,
     this.seenAt,
     this.locked = false,
+    this.ttlSeconds = 86400,
   });
 
   /// How long a message nobody has seen stays.
@@ -66,11 +67,27 @@ class ChatMessage extends Equatable {
   final DateTime? seenAt;
   /// This phone could not open the message (the couple key has not arrived yet).
   final bool      locked;
+  /// The sender's timer: how long the message lives once it has been seen.
+  final int       ttlSeconds;
 
   bool get isSeen => seenAt != null;
   bool isMine(String userId) => senderId == userId;
   bool isExpired(DateTime now) => !now.isBefore(expiresAt);
 
   @override
-  List<Object?> get props => [id, kind, text, durationMs, mediaPath, seenAt, expiresAt, locked];
+  List<Object?> get props => [id, kind, text, durationMs, mediaPath, seenAt, expiresAt, locked, ttlSeconds];
+}
+
+/// A line in the chat that says the timer was changed ("You set messages to vanish 1 minute after seen").
+/// It is shown where the change happened, after the latest message at that moment, and only on the
+/// phones that had the chat open then: it is not stored on the server.
+class ChatTimerNotice extends Equatable {
+  const ChatTimerNotice({required this.at, required this.timer, required this.byMe});
+
+  final DateTime  at;
+  final ChatTimer timer;
+  final bool      byMe;
+
+  @override
+  List<Object?> get props => [at, timer, byMe];
 }

@@ -269,6 +269,7 @@ Future<void> setupLocator() async {
       authRepository:   getIt(),
       coupleRepository: getIt(),
       moodRepository:   getIt(),
+      chatRepository:   getIt(),
     ),
   );
   getIt.registerFactory<CanvasBloc>(

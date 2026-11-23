@@ -6,6 +6,7 @@ import '../../../../domain/entities/couple.dart';
 import '../../../../domain/entities/mood.dart';
 import '../../../../domain/entities/user.dart';
 import '../../../../domain/repositories/i_auth_repository.dart';
+import '../../../../domain/repositories/i_chat_repository.dart';
 import '../../../../domain/repositories/i_couple_repository.dart';
 import '../../../../domain/repositories/i_mood_repository.dart';
 
@@ -17,18 +18,25 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
     required this.authRepository,
     required this.coupleRepository,
     required this.moodRepository,
+    required this.chatRepository,
   }) : super(HomeLoading()) {
     on<HomeStarted>(_onStarted);
     on<PartnerPresenceUpdated>(_onPresence);
     on<RecentMoodsRefreshed>(_onMoodsRefreshed);
+    on<UnreadChatChanged>((e, emit) {
+      final s = state;
+      if (s is HomeLoaded && s.unreadChat != e.count) emit(s.copyWith(unreadChat: e.count));
+    });
   }
 
   final IAuthRepository   authRepository;
   final ICoupleRepository coupleRepository;
   final IMoodRepository   moodRepository;
+  final IChatRepository   chatRepository;
 
   StreamSubscription<bool>?        _presenceSub;
   StreamSubscription<List<Mood>>?  _moodsSub;
+  StreamSubscription<int>?         _unreadSub;
   String _partnerId = '';
 
   static Mood? _latestFrom(List<Mood> moods, String userId) {
@@ -89,6 +97,13 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
           .watchPartnerPresence(coupleId, partnerId)
           .listen((isOnline) { if (!isClosed) add(PartnerPresenceUpdated(isOnline)); });
 
+      // The badge on the Chat button. Only decoration: without it Home is just as usable.
+      await _unreadSub?.cancel();
+      _unreadSub = chatRepository.watchUnreadCount(coupleId: coupleId, userId: user.id).listen(
+        (n) { if (!isClosed) add(UnreadChatChanged(n)); },
+        onError: (_) {},
+      );
+
       // 6. Keep presence updated
       await coupleRepository.updatePresence(coupleId, user.id, isOnline: true);
 
@@ -116,6 +131,7 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
   Future<void> close() {
     _presenceSub?.cancel();
     _moodsSub?.cancel();
+    _unreadSub?.cancel();
     return super.close();
   }
 }

@@ -4,3 +4,4 @@ sealed class HomeEvent { const HomeEvent(); }
 final class HomeStarted               extends HomeEvent {}
 final class PartnerPresenceUpdated    extends HomeEvent { PartnerPresenceUpdated(this.isOnline); final bool isOnline; }
 final class RecentMoodsRefreshed      extends HomeEvent { RecentMoodsRefreshed(this.moods); final List<Mood> moods; }
+final class UnreadChatChanged         extends HomeEvent { UnreadChatChanged(this.count); final int count; }
