@@ -1,6 +1,6 @@
 # Feature: Couple games
 
-Games the partners play together, live or at their own pace. All five games are playable: Tic-Tac-Toe, Would you rather, How well do you know me?, Conversation cards and Slap fight, built on one session model.
+Games the partners play together, live or at their own pace. All six games are playable: Tic-Tac-Toe, Would you rather, How well do you know me?, Conversation cards, Slap fight and Pen fight, built on one session model.
 
 ## Screen: Games hub (/games)
 Opened from the Home "Games" pill and the Activity tab → Couple games. Lists every game with its status: start a game, your turn, or waiting for your partner. 
@@ -20,6 +20,13 @@ A shared deck of 15 cards (talk, truth or dare, from `conversationCards`, append
 ## Screen: Slap fight (/games/slap)
 A playful live game. Either partner starts it; both open the screen and tap the big hand to slap the other. Each slap is a Broadcast `slap` event on the couple channel, so it lands at once on the partner's phone (if they are on the screen) with a shake, a red flash, a heavy haptic and a slap sound (`assets/sounds/slap.wav`, played by `SlapSound`). Both avatars are shown (the partner's on top, yours below): when you slap, your partner's avatar is knocked aside, turns 😵 and shows "Ouch!" with a 💥 on your screen; when they slap you, yours does the same, so each of you sees and hears that the slap landed. The screen shows "Given" and "Taken", counted on the phone since the game was opened (not stored; a new game starts at 0). Slaps are limited to one per 150 ms. No push per slap; the partner gets the usual "started a game" push. Either partner can end the game.
 
+## Screen: Pen fight (/games/pen-fight)
+A live, turn-taking desk game. Before starting, pick a difficulty (Easy, Normal or Hard); it is stored in the game session (`state.difficulty`) so both partners play the same level. Either partner starts it; both must have the screen open (each phone announces the screen on Presence, and also says `hello`/`here`/`bye` over the channel; flicks are disabled and "Waiting for <name>…" is shown until the partner is there). Each player has a pen on a shared desk (you at the bottom, your partner at the top on both screens). On your turn, press your pen, pull back like a slingshot (a dotted line shows direction and power) and let go. A pen whose centre leaves the desk has fallen: its owner loses the round, and they start the next one ("Next round"). If both pens fall it is a draw (no point). There is no match limit: rounds and the running score go on until either partner ends the game. The player who started the game goes first.
+
+Difficulty (`PenDifficulty`): Easy has one rubber (a fixed round obstacle that pens bounce off) in the middle and long flicks; Normal has two rubbers and shorter flicks; Hard has three rubbers, a slipperier desk and the shortest flicks. A flick travels a fraction of the desk, so a round takes several turns of setting up shots. Obstacle layouts are symmetric about the centre of the desk, so both players see the same desk.
+
+How it stays in step: the rules and physics are pure Dart (`lib/domain/games/pen_fight.dart`): a fixed 1/60 s step, friction, and an equal-mass collision. The flicker broadcasts a `pen` event with the flick (both pens, from its own side); the partner turns it around and plays the same simulation locally, so both see the motion. When the flicker's pen has stopped it sends `settled` with the final positions, which the partner snaps to (so small floating-point differences never decide a round). If `settled` does not arrive within 3 s the phone trusts its own result. A flick or `settled` that arrives twice is used once (`seq`). Hits play a tap (`assets/sounds/pen_tap.wav`, `PenSound`) and a haptic. Nothing is stored per flick; the session row only puts the game in the hub and sends the usual "started a game" push. Either partner can end the game.
+
 ## Behaviour
 - One running game per kind per couple. Both pressing "Start" lands in the same game (`start_game` returns the running one).
 - A move names the version it was made on; a stale or out-of-turn move is rejected and the screen shows the real state.
@@ -27,7 +34,7 @@ A playful live game. Either partner starts it; both open the screen and tap the 
 - Needs a connection to move; nothing is queued offline.
 
 ## Data
-- Migrations: `supabase/migrations/couple_games.sql` (apply after `e2ee_content_text.sql`), then `couple_games_hardening.sql`, then `couple_games_slap.sql` (adds `slap` to the allowed game types; no new table or RPC).
+- Migrations: `supabase/migrations/couple_games.sql` (apply after `e2ee_content_text.sql`), then `couple_games_hardening.sql`, then `couple_games_slap.sql` (adds `slap` to the allowed game types; no new table or RPC), then `couple_games_pen_fight.sql` (adds `pen_fight` the same way).
 - `game_sessions`: public state of a game, turn, version. Clients can only select (RLS `is_couple_member`); all writes go through `start_game`, `make_move`, `update_game_state` (a shared change with no turn), `finish_game`.
 - `game_answers`: sealed (`enc`) per-round answers for the later quiz games; own rows readable, the partner's only through `get_game_answers` once you answered that round. Written by `submit_game_answer`. Used by Would you rather and the quiz: each answer is sealed with the couple key, bound to game, author and round. Answering needs the couple key (Profile → Security).
 - The server enforces turn order and versions, not the game rules (the two partners trust each other).
@@ -42,4 +49,5 @@ A playful live game. Either partner starts it; both open the screen and tap the 
 - `lib/presentation/features/games/bloc/quiz_bloc.dart`, `screens/quiz_screen.dart`, `lib/domain/games/quiz_scoring.dart`
 - `lib/presentation/features/games/bloc/cards_bloc.dart`, `screens/cards_screen.dart`
 - `lib/presentation/features/games/bloc/slap_bloc.dart`, `screens/slap_screen.dart`, `ISlapRepository` / `SlapRepository` (Broadcast only), `lib/core/services/slap_sound.dart` (needs `audioplayers`)
-- Tests: `test/presentation/slap_bloc_test.dart`, `test/domain/tic_tac_toe_test.dart`, `test/presentation/tic_tac_toe_bloc_test.dart`, `test/presentation/would_you_rather_bloc_test.dart`, `test/presentation/quiz_bloc_test.dart`, `test/presentation/cards_bloc_test.dart`, `test/domain/quiz_scoring_test.dart`
+- `lib/domain/games/pen_fight.dart` (rules, physics, channel messages), `lib/presentation/features/games/bloc/pen_fight_bloc.dart`, `screens/pen_fight_screen.dart`, `IPenFightRepository` / `PenFightRepository` (Broadcast only), `lib/core/services/pen_sound.dart`
+- Tests: `test/domain/pen_fight_test.dart`, `test/presentation/pen_fight_bloc_test.dart`, `test/presentation/slap_bloc_test.dart`, `test/domain/tic_tac_toe_test.dart`, `test/presentation/tic_tac_toe_bloc_test.dart`, `test/presentation/would_you_rather_bloc_test.dart`, `test/presentation/quiz_bloc_test.dart`, `test/presentation/cards_bloc_test.dart`, `test/domain/quiz_scoring_test.dart`

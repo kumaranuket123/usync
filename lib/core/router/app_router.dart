@@ -16,6 +16,7 @@ import '../../presentation/features/chat/screens/chat_screen.dart';
 import '../../presentation/features/games/screens/cards_screen.dart';
 import '../../presentation/features/games/screens/games_hub_screen.dart';
 import '../../presentation/features/games/screens/quiz_screen.dart';
+import '../../presentation/features/games/screens/pen_fight_screen.dart';
 import '../../presentation/features/games/screens/slap_screen.dart';
 import '../../presentation/features/games/screens/tic_tac_toe_screen.dart';
 import '../../presentation/features/games/screens/would_you_rather_screen.dart';
@@ -155,6 +156,11 @@ abstract final class AppRouter {
         path: RouteNames.slap,
         parentNavigatorKey: _rootKey,
         builder: (_, __) => const SlapScreen(),
+      ),
+      GoRoute(
+        path: RouteNames.penFight,
+        parentNavigatorKey: _rootKey,
+        builder: (_, __) => const PenFightScreen(),
       ),
       GoRoute(
         path: RouteNames.quiz,
