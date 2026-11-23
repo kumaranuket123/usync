@@ -34,6 +34,7 @@ class _GamesBody extends StatelessWidget {
     GameType.quiz => RouteNames.quiz,
     GameType.cards => RouteNames.cards,
     GameType.slap => RouteNames.slap,
+    GameType.penFight => RouteNames.penFight,
   };
 
   @override

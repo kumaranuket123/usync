@@ -5,7 +5,8 @@ enum GameType {
   quiz('quiz', 'How well do you know me?', '🧠'),
   wouldYouRather('would_you_rather', 'Would you rather', '🤔'),
   cards('cards', 'Conversation cards', '🃏'),
-  slap('slap', 'Slap fight', '🖐️');
+  slap('slap', 'Slap fight', '🖐️'),
+  penFight('pen_fight', 'Pen fight', '🖊️');
 
   const GameType(this.key, this.title, this.emoji);
 
