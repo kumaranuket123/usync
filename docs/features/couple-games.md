@@ -1,6 +1,6 @@
 # Feature: Couple games
 
-Games the partners play together, live or at their own pace. All four games are playable: Tic-Tac-Toe, Would you rather, How well do you know me? and Conversation cards, built on one session model.
+Games the partners play together, live or at their own pace. All five games are playable: Tic-Tac-Toe, Would you rather, How well do you know me?, Conversation cards and Slap fight, built on one session model.
 
 ## Screen: Games hub (/games)
 Opened from the Home "Games" pill and the Activity tab → Couple games. Lists every game with its status: start a game, your turn, or waiting for your partner. 
@@ -17,6 +17,9 @@ Starting a game deals 8 topics (`quizQuestions`, append-only, 4 options each). P
 ## Screen: Conversation cards (/games/cards)
 A shared deck of 15 cards (talk, truth or dare, from `conversationCards`, append-only) dealt when the game starts. Both phones show the same card; either partner taps "Next card" (the last one says "Finish"). The position is stored in the session state and changed with `update_game_state`, which needs no turn but does name the version, so two taps at once cannot both win (the loser sees the real card and a short message). No answers are stored and there is no push per card; the partner is told once when the game starts.
 
+## Screen: Slap fight (/games/slap)
+A playful live game. Either partner starts it; both open the screen and tap the big hand to slap the other. Each slap is a Broadcast `slap` event on the couple channel, so it lands at once on the partner's phone (if they are on the screen) with a shake, a red flash, a heavy haptic and a slap sound (`assets/sounds/slap.wav`, played by `SlapSound`). Both avatars are shown (the partner's on top, yours below): when you slap, your partner's avatar is knocked aside, turns 😵 and shows "Ouch!" with a 💥 on your screen; when they slap you, yours does the same, so each of you sees and hears that the slap landed. The screen shows "Given" and "Taken", counted on the phone since the game was opened (not stored; a new game starts at 0). Slaps are limited to one per 150 ms. No push per slap; the partner gets the usual "started a game" push. Either partner can end the game.
+
 ## Behaviour
 - One running game per kind per couple. Both pressing "Start" lands in the same game (`start_game` returns the running one).
 - A move names the version it was made on; a stale or out-of-turn move is rejected and the screen shows the real state.
@@ -24,7 +27,7 @@ A shared deck of 15 cards (talk, truth or dare, from `conversationCards`, append
 - Needs a connection to move; nothing is queued offline.
 
 ## Data
-- Migrations: `supabase/migrations/couple_games.sql` (apply after `e2ee_content_text.sql`), then `couple_games_hardening.sql`.
+- Migrations: `supabase/migrations/couple_games.sql` (apply after `e2ee_content_text.sql`), then `couple_games_hardening.sql`, then `couple_games_slap.sql` (adds `slap` to the allowed game types; no new table or RPC).
 - `game_sessions`: public state of a game, turn, version. Clients can only select (RLS `is_couple_member`); all writes go through `start_game`, `make_move`, `update_game_state` (a shared change with no turn), `finish_game`.
 - `game_answers`: sealed (`enc`) per-round answers for the later quiz games; own rows readable, the partner's only through `get_game_answers` once you answered that round. Written by `submit_game_answer`. Used by Would you rather and the quiz: each answer is sealed with the couple key, bound to game, author and round. Answering needs the couple key (Profile → Security).
 - The server enforces turn order and versions, not the game rules (the two partners trust each other).
@@ -38,4 +41,5 @@ A shared deck of 15 cards (talk, truth or dare, from `conversationCards`, append
 - `lib/presentation/features/games/bloc/would_you_rather_bloc.dart`, `screens/would_you_rather_screen.dart`, `GameAnswer`, `GameRepository.submitAnswer/getAnswers`
 - `lib/presentation/features/games/bloc/quiz_bloc.dart`, `screens/quiz_screen.dart`, `lib/domain/games/quiz_scoring.dart`
 - `lib/presentation/features/games/bloc/cards_bloc.dart`, `screens/cards_screen.dart`
-- Tests: `test/domain/tic_tac_toe_test.dart`, `test/presentation/tic_tac_toe_bloc_test.dart`, `test/presentation/would_you_rather_bloc_test.dart`, `test/presentation/quiz_bloc_test.dart`, `test/presentation/cards_bloc_test.dart`, `test/domain/quiz_scoring_test.dart`
+- `lib/presentation/features/games/bloc/slap_bloc.dart`, `screens/slap_screen.dart`, `ISlapRepository` / `SlapRepository` (Broadcast only), `lib/core/services/slap_sound.dart` (needs `audioplayers`)
+- Tests: `test/presentation/slap_bloc_test.dart`, `test/domain/tic_tac_toe_test.dart`, `test/presentation/tic_tac_toe_bloc_test.dart`, `test/presentation/would_you_rather_bloc_test.dart`, `test/presentation/quiz_bloc_test.dart`, `test/presentation/cards_bloc_test.dart`, `test/domain/quiz_scoring_test.dart`

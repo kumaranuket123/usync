@@ -21,6 +21,13 @@ class ActivityScreen extends StatelessWidget {
             Text('Things to do together', style: AppTextStyles.label),
             const SizedBox(height: 20),
             _ActivityCard(
+              emoji: '💬',
+              color: const Color(0x1F00D4FF),
+              title: 'Private chat',
+              subtitle: 'Messages, photos and voice notes that vanish',
+              onTap: () => context.push(RouteNames.chat),
+            ),
+            _ActivityCard(
               emoji: '🎮',
               color: const Color(0x1FFFD700),
               title: 'Couple games',

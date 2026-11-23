@@ -4,6 +4,12 @@
 <dict>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>Usync saves your shared memories to your photo library.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Usync records voice notes you send to your partner in the private chat.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Usync lets you pick a photo to send to your partner in the private chat.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Usync lets you take a photo to send to your partner in the private chat.</string>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
