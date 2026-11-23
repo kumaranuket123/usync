@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:typed_data';
+import 'dart:ui' show ImageFilter;
 
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
@@ -85,14 +86,13 @@ class _BodyState extends State<_Body> with WidgetsBindingObserver {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text('Private chat', style: AppTextStyles.h2.copyWith(fontSize: 22)),
-                        BlocBuilder<ChatBloc, ChatState>(
-                          buildWhen: (a, b) => a.timer != b.timer,
-                          builder: (_, state) => Text('🔒 Encrypted · vanishes ${state.timer.label} after seen', style: AppTextStyles.label),
-                        ),
+                        Text('🔒 Encrypted', style: AppTextStyles.label),
                       ],
                     ),
                   ),
                   const _TimerButton(),
+                  const SizedBox(width: 8),
+                  const _MoreButton(),
                 ],
               ),
             ),
@@ -100,7 +100,7 @@ class _BodyState extends State<_Body> with WidgetsBindingObserver {
               child: BlocBuilder<ChatBloc, ChatState>(
                 builder: (context, state) {
                   if (state.loading) return const Center(child: LoadingDots());
-                  if (state.messages.isEmpty) {
+                  if (state.messages.isEmpty && state.notices.isEmpty) {
                     return Center(
                       child: Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 32),
@@ -112,12 +112,21 @@ class _BodyState extends State<_Body> with WidgetsBindingObserver {
                       ),
                     );
                   }
-                  final list = state.messages.reversed.toList();
+                  // Messages and "timer changed" lines in the order they happened; the newest is at the bottom.
+                  final items = <({DateTime at, Object item})>[
+                    for (final m in state.messages) (at: m.createdAt, item: m),
+                    for (final n in state.notices) (at: n.at, item: n),
+                  ]..sort((a, b) => b.at.compareTo(a.at));
                   return ListView.builder(
                     reverse: true, // newest at the bottom, and the list stays there
                     padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-                    itemCount: list.length,
-                    itemBuilder: (_, i) => _Bubble(key: ValueKey(list[i].id), message: list[i], state: state),
+                    itemCount: items.length,
+                    itemBuilder: (_, i) {
+                      final item = items[i].item;
+                      if (item is ChatTimerNotice) return _TimerNoticeLine(key: ValueKey(item), notice: item);
+                      final m = item as ChatMessage;
+                      return _Bubble(key: ValueKey(m.id), message: m, state: state);
+                    },
                   );
                 },
               ),
@@ -135,6 +144,32 @@ String _clock(Duration d) {
   return '${s ~/ 60}:${(s % 60).toString().padLeft(2, '0')}';
 }
 
+/// "You set messages to vanish 1 minute after seen": a quiet centred line where the timer was changed.
+class _TimerNoticeLine extends StatelessWidget {
+  const _TimerNoticeLine({super.key, required this.notice});
+  final ChatTimerNotice notice;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Center(
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: AppColors.glass,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: AppColors.glassBorder),
+            ),
+            child: Text(
+              '⏱ ${notice.byMe ? 'You set' : 'Your partner set'} messages to vanish ${notice.timer.label} after seen',
+              style: AppTextStyles.label,
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ),
+      );
+}
+
 class _Bubble extends StatelessWidget {
   const _Bubble({super.key, required this.message, required this.state});
   final ChatMessage message;
@@ -146,7 +181,10 @@ class _Bubble extends StatelessWidget {
     final color = mine ? AppColors.pink : AppColors.cyan;
     return Align(
       alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
-      child: Container(
+      child: GestureDetector(
+        // Hold a message to delete it.
+        onLongPress: () => _askDelete(context),
+        child: Container(
         margin: const EdgeInsets.symmetric(vertical: 4),
         constraints: BoxConstraints(maxWidth: MediaQuery.sizeOf(context).width * 0.78),
         padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
@@ -161,19 +199,66 @@ class _Bubble extends StatelessWidget {
           border: Border.all(color: color.withValues(alpha: 0.5)),
         ),
         child: Column(
+          // The bubble is only as wide as its widest child; the tick sits under the content, on the right.
           crossAxisAlignment: CrossAxisAlignment.end,
           mainAxisSize: MainAxisSize.min,
           children: [
-            Align(alignment: Alignment.centerLeft, child: _content(context)),
-            // Your own messages show a quiet tick: one when sent, two (in colour) once your partner has seen it.
-            if (mine) ...[
-              const SizedBox(height: 2),
-              Icon(message.isSeen ? Icons.done_all : Icons.done, size: 14, color: message.isSeen ? AppColors.cyan : AppColors.textDim),
-            ],
+            // No Align around the content: it would take all the width and every bubble would be full width.
+            _content(context),
+            const SizedBox(height: 2),
+            // When it was sent, and for your own messages a quiet tick: one when sent, two (in colour) once
+            // your partner has seen it.
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  MaterialLocalizations.of(context).formatTimeOfDay(TimeOfDay.fromDateTime(message.createdAt.toLocal())),
+                  style: const TextStyle(fontSize: 10, color: AppColors.textDim),
+                ),
+                if (mine) ...[
+                  const SizedBox(width: 4),
+                  Icon(message.isSeen ? Icons.done_all : Icons.done, size: 14, color: message.isSeen ? AppColors.cyan : AppColors.textDim),
+                ],
+              ],
+            ),
           ],
         ),
       ),
+      ),
     );
+  }
+
+  Future<void> _askDelete(BuildContext context) async {
+    HapticUtil.medium();
+    final bloc = context.read<ChatBloc>();
+    final sure = await showModalBottomSheet<bool>(
+      context: context,
+      backgroundColor: AppColors.bg2,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (sheet) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.delete_outline, color: AppColors.error),
+                title: const Text('Delete message', style: TextStyle(color: AppColors.error)),
+                subtitle: Text('Removed for both of you', style: AppTextStyles.bodyMuted),
+                onTap: () => Navigator.of(sheet).pop(true),
+              ),
+              ListTile(
+                leading: const Icon(Icons.close, color: AppColors.textMuted),
+                title: const Text('Cancel', style: TextStyle(color: AppColors.textMuted)),
+                onTap: () => Navigator.of(sheet).pop(false),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (sure == true) bloc.add(ChatMessageDeleted(message.id));
   }
 
   Widget _content(BuildContext context) {
@@ -182,15 +267,16 @@ class _Bubble extends StatelessWidget {
     }
     return switch (message.kind) {
       ChatKind.text  => Text(message.text ?? '', style: AppTextStyles.body),
-      ChatKind.image => _ImageContent(message: message),
-      ChatKind.voice => _VoiceContent(message: message),
+      ChatKind.image => _ImageContent(message: message, mine: message.isMine(state.userId)),
+      ChatKind.voice => _VoiceContent(message: message, mine: message.isMine(state.userId)),
     };
   }
 }
 
 class _ImageContent extends StatefulWidget {
-  const _ImageContent({required this.message});
+  const _ImageContent({required this.message, required this.mine});
   final ChatMessage message;
+  final bool mine;
 
   @override
   State<_ImageContent> createState() => _ImageContentState();
@@ -199,43 +285,79 @@ class _ImageContent extends StatefulWidget {
 class _ImageContentState extends State<_ImageContent> {
   late final Future<Uint8List?> _bytes = context.read<ChatBloc>().loadMedia(widget.message);
 
+  /// Every photo takes the same fixed box in the chat (cropped to fit), so a big picture does not fill the screen;
+  /// the whole picture is shown when it is tapped.
+  static const _size = 200.0;
+
+  /// The user tapped it: it is shown clearly from now on (the server's answer may take a moment).
+  bool _revealed = false;
+
+  void _reveal() {
+    _revealed = true;
+    // The timer of a photo starts now, not when it first appeared in the chat.
+    if (!widget.mine && !widget.message.isSeen) context.read<ChatBloc>().add(ChatMediaRevealed(widget.message.id));
+  }
+
   @override
-  Widget build(BuildContext context) => FutureBuilder<Uint8List?>(
-        future: _bytes,
-        builder: (context, snap) {
-          final bytes = snap.data;
-          if (snap.connectionState != ConnectionState.done) {
-            return const SizedBox(width: 200, height: 160, child: Center(child: LoadingDots()));
-          }
-          if (bytes == null) {
-            return Text('Photo could not be loaded', style: AppTextStyles.bodyMuted);
-          }
-          return GestureDetector(
-            onTap: () => showDialog<void>(
-              context: context,
-              barrierColor: Colors.black,
-              builder: (_) => Dialog.fullscreen(
-                backgroundColor: Colors.black,
-                child: Stack(
-                  children: [
-                    Center(child: InteractiveViewer(child: Image.memory(bytes))),
-                    Positioned(top: 16, left: 16, child: SafeArea(child: NeonBackButton(onTap: () => Navigator.of(context).pop()))),
-                  ],
-                ),
+  Widget build(BuildContext context) {
+    // Your partner's photo stays hidden (and its timer waits) until you tap it; your own is always clear.
+    final blurred = !widget.mine && !widget.message.isSeen && !_revealed;
+    return FutureBuilder<Uint8List?>(
+      future: _bytes,
+      builder: (context, snap) {
+        final bytes = snap.data;
+        if (snap.connectionState != ConnectionState.done) {
+          return const SizedBox(width: _size, height: _size, child: Center(child: LoadingDots()));
+        }
+        if (bytes == null) {
+          return SizedBox(width: _size, child: Text('Photo could not be loaded', style: AppTextStyles.bodyMuted));
+        }
+        Widget picture = Image.memory(bytes, width: _size, height: _size, fit: BoxFit.cover, gaplessPlayback: true);
+        if (blurred) {
+          picture = Stack(
+            alignment: Alignment.center,
+            children: [
+              ImageFiltered(imageFilter: ImageFilter.blur(sigmaX: 14, sigmaY: 14, tileMode: TileMode.clamp), child: picture),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(color: Colors.black.withValues(alpha: 0.45), borderRadius: BorderRadius.circular(20)),
+                child: const Row(mainAxisSize: MainAxisSize.min, children: [
+                  Icon(Icons.visibility_outlined, size: 16, color: Colors.white),
+                  SizedBox(width: 6),
+                  Text('Tap to reveal', style: TextStyle(color: Colors.white, fontSize: 12)),
+                ]),
+              ),
+            ],
+          );
+        }
+        return GestureDetector(
+          onTap: () {
+            setState(_reveal);
+            showDialog<void>(
+            context: context,
+            barrierColor: Colors.black,
+            builder: (_) => Dialog.fullscreen(
+              backgroundColor: Colors.black,
+              child: Stack(
+                children: [
+                  Center(child: InteractiveViewer(child: Image.memory(bytes))),
+                  Positioned(top: 16, left: 16, child: SafeArea(child: NeonBackButton(onTap: () => Navigator.of(context).pop()))),
+                ],
               ),
             ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(10),
-              child: Image.memory(bytes, width: 220, fit: BoxFit.cover, gaplessPlayback: true),
-            ),
           );
-        },
-      );
+          },
+          child: ClipRRect(borderRadius: BorderRadius.circular(10), child: SizedBox(width: _size, height: _size, child: picture)),
+        );
+      },
+    );
+  }
 }
 
 class _VoiceContent extends StatefulWidget {
-  const _VoiceContent({required this.message});
+  const _VoiceContent({required this.message, required this.mine});
   final ChatMessage message;
+  final bool mine;
 
   @override
   State<_VoiceContent> createState() => _VoiceContentState();
@@ -283,6 +405,8 @@ class _VoiceContentState extends State<_VoiceContent> {
       ScaffoldMessenger.of(context).showSnackBar(appSnackBar(content: const Text('Voice note could not be loaded')));
       return;
     }
+    // Playing it is revealing it: the timer of a partner's voice note starts now.
+    if (!widget.mine && !widget.message.isSeen) context.read<ChatBloc>().add(ChatMediaRevealed(widget.message.id));
     // Played straight from memory: the decrypted audio is never written to a file.
     await _player.play(BytesSource(bytes, mimeType: 'audio/mp4'));
   }
@@ -495,6 +619,49 @@ class _InputBarState extends State<_InputBar> {
   }
 }
 
+/// Header menu: clear the whole chat.
+class _MoreButton extends StatelessWidget {
+  const _MoreButton();
+
+  Future<void> _clear(BuildContext context) async {
+    final bloc = context.read<ChatBloc>();
+    final sure = await showDialog<bool>(
+      context: context,
+      builder: (dialog) => AlertDialog(
+        backgroundColor: AppColors.bg2,
+        title: Text('Clear chat?', style: AppTextStyles.h4),
+        content: Text(
+          'Every message, photo and voice note is deleted for both of you. This cannot be undone.',
+          style: AppTextStyles.bodyMuted,
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialog, false), child: const Text('Cancel', style: TextStyle(color: AppColors.textMuted))),
+          TextButton(onPressed: () => Navigator.pop(dialog, true), child: const Text('Clear', style: TextStyle(color: AppColors.error))),
+        ],
+      ),
+    );
+    if (sure == true) bloc.add(ChatCleared());
+  }
+
+  @override
+  Widget build(BuildContext context) => PopupMenuButton<String>(
+        tooltip: 'More',
+        color: AppColors.bg2,
+        icon: const Icon(Icons.more_vert, color: AppColors.textMuted),
+        onSelected: (_) => _clear(context),
+        itemBuilder: (_) => const [
+          PopupMenuItem(
+            value: 'clear',
+            child: Row(children: [
+              Icon(Icons.delete_sweep_outlined, color: AppColors.error, size: 20),
+              SizedBox(width: 10),
+              Text('Clear chat', style: TextStyle(color: AppColors.error)),
+            ]),
+          ),
+        ],
+      );
+}
+
 /// Header button: chooses how long the messages you send live after your partner has seen them.
 class _TimerButton extends StatelessWidget {
   const _TimerButton();
@@ -511,12 +678,12 @@ class _TimerButton extends StatelessWidget {
           children: [
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 16, 20, 4),
-              child: Text('Messages you send vanish after…', style: AppTextStyles.h4),
+              child: Text('Messages vanish after…', style: AppTextStyles.h4),
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
               child: Text(
-                'The time starts when your partner has seen the message. It applies to new messages you send; one nobody opens is deleted after 1 day.',
+                'The same for both of you: it applies to every new message, from either of you, and starts when the message has been seen. A message nobody opens is deleted after 1 day.',
                 style: AppTextStyles.bodyMuted,
               ),
             ),

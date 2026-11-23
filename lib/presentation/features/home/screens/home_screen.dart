@@ -58,6 +58,7 @@ class _HomeBody extends StatelessWidget {
         final moodText     = partnerMood == null ? '"Here with you…"' : '"${partnerMood.label}"';
         final isOnline     = s?.isOnline             ?? false;
         final recentMoods  = s?.recentMoods          ?? [];
+        final unreadChat   = s?.unreadChat           ?? 0;
 
         return Scaffold(
           backgroundColor: AppColors.bg1,
@@ -170,7 +171,7 @@ class _HomeBody extends StatelessWidget {
                           _ActionPill('📍', 'Location', () => context.push(RouteNames.location)),
                           _ActionPill('💭', 'Mood',   () => context.push(RouteNames.mood)),
                           _ActionPill('💬', 'Question', () => context.push(RouteNames.question)),
-                          _ActionPill('💌', 'Chat', () => context.push(RouteNames.chat)),
+                          _ActionPill('💌', 'Chat', () => context.push(RouteNames.chat), badge: unreadChat),
                           _ActionPill('🎮', 'Games', () => context.push(RouteNames.games)),
                         ],
                       ),
@@ -220,13 +221,15 @@ class _HomeBody extends StatelessWidget {
 }
 
 class _ActionPill extends StatelessWidget {
-  const _ActionPill(this.icon, this.label, this.onTap);
+  const _ActionPill(this.icon, this.label, this.onTap, {this.badge = 0});
   final String icon, label;
   final VoidCallback onTap;
+  /// A number shown just above the pill (unread messages); nothing when 0.
+  final int badge;
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
+    final pill = GestureDetector(
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
@@ -244,6 +247,34 @@ class _ActionPill extends StatelessWidget {
           ],
         ),
       ),
+    );
+    if (badge <= 0) return pill;
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        pill,
+        // Sits on the top edge of the pill, just above the label.
+        Positioned(
+          top: -8,
+          right: 6,
+          child: IgnorePointer(
+            child: Container(
+              constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
+              padding: const EdgeInsets.symmetric(horizontal: 5),
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: AppColors.pink,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: AppColors.bg1, width: 1.5),
+              ),
+              child: Text(
+                badge > 9 ? '9+' : '$badge',
+                style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Colors.white),
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

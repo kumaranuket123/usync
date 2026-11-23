@@ -87,16 +87,89 @@ class ChatRepository implements IChatRepository {
       text:       c?['t'] as String?,
       durationMs: c?['d'] as int?,
       locked:     c == null,
+      ttlSeconds: row['ttl_seconds'] as int? ?? ChatTimer.defaultTimer.seconds,
     );
+  }
+
+  /// The partner's messages in [rows] that have not been seen, still exist and were not deleted ([gone]).
+  @visibleForTesting
+  static int countUnread(List<Map<String, dynamic>> rows, {required String userId, required Set<String> gone, required DateTime now}) =>
+      rows.where((r) =>
+          r['sender_id'] != userId &&
+          r['seen_at'] == null &&
+          !gone.contains(r['id']) &&
+          DateTime.parse(r['expires_at'] as String).isAfter(now)).length;
+
+  @override
+  Stream<int> watchUnreadCount({required String coupleId, required String userId}) {
+    late final StreamController<int> out;
+    final subs = <StreamSubscription<Object?>>[];
+    var rows = const <Map<String, dynamic>>[];
+    // Deleted by the partner (the table stream does not report deletions).
+    final gone = <String>{};
+
+    void publish() {
+      if (out.isClosed) return;
+      out.add(countUnread(rows, userId: userId, gone: gone, now: DateTime.now()));
+    }
+
+    out = StreamController<int>(
+      onListen: () {
+        final channel = channelSource.open(coupleId);
+        subs.add(client.from(_table).stream(primaryKey: ['id']).eq('couple_id', coupleId).listen(
+          (r) { rows = r; publish(); },
+          onError: (_) {}, // dropped Realtime connection: keep the last count
+        ));
+        subs.add(channel.on(CoupleChannel.chatDelete).listen((m) {
+          final ids = m['ids'];
+          if (ids is List) gone.addAll(ids.whereType<String>());
+          publish();
+        }));
+        subs.add(channel.on(CoupleChannel.chatClear).listen((_) {
+          gone.addAll(rows.map((r) => r['id'] as String));
+          publish();
+        }));
+      },
+      onCancel: () async {
+        for (final s in subs) {
+          await s.cancel();
+        }
+      },
+    );
+    return out.stream;
   }
 
   // ── Sending ──────────────────────────────────────────────────────────────
 
-  @override
-  ChatTimer get timer => ChatTimer.fromSeconds(prefs.chatTimerSeconds);
+  /// The last timer this phone knew, so the chat can show one before the server has answered.
+  late ChatTimer _timer = ChatTimer.fromSeconds(prefs.chatTimerSeconds);
 
   @override
-  Future<void> setTimer(ChatTimer timer) => prefs.setChatTimerSeconds(timer.seconds);
+  ChatTimer get timer => _timer;
+
+  @override
+  Future<void> setTimer({required String coupleId, required ChatTimer timer}) async {
+    await client.rpc('set_chat_timer', params: {'p_couple': coupleId, 'p_seconds': timer.seconds});
+    _remember(timer);
+  }
+
+  void _remember(ChatTimer timer) {
+    _timer = timer;
+    prefs.setChatTimerSeconds(timer.seconds).ignore();
+  }
+
+  @override
+  Stream<ChatTimer> watchTimer(String coupleId) => client
+      .from('couples')
+      .stream(primaryKey: ['id'])
+      .eq('id', coupleId)
+      .where((rows) => rows.isNotEmpty)
+      .map((rows) => ChatTimer.fromSeconds(rows.first['chat_ttl_seconds'] as int?))
+      .map((t) {
+        _remember(t);
+        return t;
+      })
+      .handleError((Object _) {}); // dropped Realtime connection: keep the last known timer
 
   @override
   Future<bool> sendText({required String coupleId, required String userId, required String text}) =>
@@ -122,7 +195,7 @@ class ChatRepository implements IChatRepository {
       'text':       text,
       'bytes':      bytes,
       'durationMs': durationMs,
-      // Fixed now, so a message waiting for a connection keeps the timer it was written with.
+      // Only a hint: the server stamps the message with the couple's timer when it receives it.
       'ttl':        timer.seconds,
     });
   }
@@ -187,6 +260,55 @@ class ChatRepository implements IChatRepository {
   Future<void> markSeen(List<String> ids) async {
     if (ids.isEmpty) return;
     await client.rpc('mark_chat_seen', params: {'p_ids': ids});
+  }
+
+  @override
+  Future<void> deleteMessage({required String coupleId, required String userId, required String id}) async {
+    await client.rpc('delete_chat_message', params: {'p_id': id});
+    _forget(id);
+    // The table stream does not report deletions, so tell the partner's phone directly. A phone that
+    // misses this (offline) simply does not get the message when it next loads the chat.
+    try {
+      await channelSource.open(coupleId).send(CoupleChannel.chatDelete, {'ids': [id], 'from': userId});
+    } catch (_) {}
+  }
+
+  @override
+  Stream<String> watchDeleted(String coupleId) => channelSource
+      .open(coupleId)
+      .on(CoupleChannel.chatDelete)
+      .expand((m) {
+        final ids = m['ids'];
+        return ids is List ? ids.whereType<String>() : const <String>[];
+      })
+      .map((id) {
+        _forget(id);
+        return id;
+      });
+
+  @override
+  Future<void> clearChat({required String coupleId, required String userId}) async {
+    await client.rpc('clear_chat', params: {'p_couple': coupleId});
+    _forgetAll();
+    try {
+      await channelSource.open(coupleId).send(CoupleChannel.chatClear, {'from': userId});
+    } catch (_) {}
+  }
+
+  @override
+  Stream<void> watchCleared(String coupleId) => channelSource.open(coupleId).on(CoupleChannel.chatClear).map((_) {
+        _forgetAll();
+      });
+
+  void _forgetAll() {
+    _opened.clear();
+    _media.clear();
+  }
+
+  /// Drops what is kept in memory about a message that no longer exists.
+  void _forget(String id) {
+    _opened.remove(id);
+    _media.remove(id);
   }
 
   /// Decrypted media kept in memory only (never written to the phone). Small, so a photo or voice note

@@ -22,13 +22,44 @@ class _MessagesChanged extends ChatEvent {
 
 class _Tick extends ChatEvent {}
 
+/// The couple's timer, as the server has it (loaded, or changed by the partner).
+class _TimerFromServer extends ChatEvent {
+  _TimerFromServer(this.timer);
+  final ChatTimer timer;
+}
+
+/// The user deletes a message, for both partners.
+class ChatMessageDeleted extends ChatEvent {
+  ChatMessageDeleted(this.id);
+  final String id;
+}
+
+/// The user revealed a partner's photo or voice note (opened the photo, played the voice note): from now
+/// on the timer runs for it. Until then it stays.
+class ChatMediaRevealed extends ChatEvent {
+  ChatMediaRevealed(this.id);
+  final String id;
+}
+
+/// The user clears the whole chat, for both partners.
+class ChatCleared extends ChatEvent {}
+
+/// The partner cleared the chat.
+class _ClearedByPartner extends ChatEvent {}
+
+/// The partner deleted a message.
+class _DeletedByPartner extends ChatEvent {
+  _DeletedByPartner(this.id);
+  final String id;
+}
+
 /// The chat is in front of the user (or not): only then are incoming messages counted as seen.
 class ChatVisibilityChanged extends ChatEvent {
   ChatVisibilityChanged({required this.visible});
   final bool visible;
 }
 
-/// The user chose how long their messages live after they are seen.
+/// The user chose how long messages live after they are seen (for both partners, from now on).
 class ChatTimerChanged extends ChatEvent {
   ChatTimerChanged(this.timer);
   final ChatTimer timer;
@@ -58,6 +89,7 @@ class ChatState extends Equatable {
     this.userId = '',
     this.timer = ChatTimer.defaultTimer,
     this.notice,
+    this.notices = const [],
   });
 
   final bool              loading;
@@ -69,9 +101,11 @@ class ChatState extends Equatable {
   final ChatTimer         timer;
   /// A one-off message for the user (a failed send); cleared by the next state.
   final String?           notice;
+  /// "Timer changed" lines to show among the messages, oldest first.
+  final List<ChatTimerNotice> notices;
 
   @override
-  List<Object?> get props => [loading, messages, now, userId, timer, notice];
+  List<Object?> get props => [loading, messages, now, userId, timer, notice, notices];
 }
 
 class ChatBloc extends Bloc<ChatEvent, ChatState> {
@@ -82,9 +116,22 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
     on<_MessagesChanged>(_onMessages);
     on<_Tick>(_onTick);
     on<ChatVisibilityChanged>(_onVisibility);
-    on<ChatTimerChanged>((e, emit) async {
-      await chatRepository.setTimer(e.timer);
-      emit(ChatState(loading: state.loading, messages: state.messages, now: state.now, userId: _userId, timer: e.timer));
+    on<ChatMessageDeleted>(_onDelete);
+    on<ChatMediaRevealed>((e, _) => _markSeen([e.id]));
+    on<_DeletedByPartner>(_onDeletedByPartner);
+    on<ChatCleared>(_onClear);
+    on<_ClearedByPartner>((_, emit) {
+      _deleted.addAll(_all.map((m) => m.id));
+      _notices = const [];
+      _show(emit);
+    });
+    on<ChatTimerChanged>(_onTimerChanged);
+    on<_TimerFromServer>((e, emit) {
+      // The first value is just what the server has; a later different one is the partner's change.
+      if (_timerKnown && e.timer != _chatTimer) _addNotice(e.timer, byMe: false);
+      _timerKnown = true;
+      _chatTimer = e.timer;
+      _show(emit);
     });
     on<ChatTextSent>((e, emit) => _send(emit, () => chatRepository.sendText(coupleId: _coupleId, userId: _userId, text: e.text.trim()), skip: e.text.trim().isEmpty));
     on<ChatImageSent>((e, emit) => _send(emit, () => chatRepository.sendImage(coupleId: _coupleId, userId: _userId, bytes: e.bytes)));
@@ -96,30 +143,56 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
   final Duration         tickEvery;
   String _coupleId = '', _userId = '';
   bool _visible = false;
+  ChatTimer _chatTimer = ChatTimer.defaultTimer;
+  /// "Timer changed" lines of this visit to the chat.
+  var _notices = <ChatTimerNotice>[];
+  /// The timer the server has was loaded: from then on a different value is a change worth a line in the chat.
+  bool _timerKnown = false;
   List<ChatMessage> _all = const [];
   /// Ids already reported as seen, so each is sent once.
   final _reported = <String>{};
   StreamSubscription<List<ChatMessage>>? _sub;
+  StreamSubscription<String>?            _deletions;
+  StreamSubscription<void>?              _clears;
+  StreamSubscription<ChatTimer>?         _timerSub;
+  /// Messages deleted here or by the partner: left out even if the table stream still lists them for a moment.
+  final _deleted = <String>{};
   Timer? _timer;
 
   Future<void> _onOpened(ChatOpened e, Emitter<ChatState> emit) async {
     _coupleId = e.coupleId; _userId = e.userId;
-    emit(ChatState(userId: _userId, now: _clock(), timer: chatRepository.timer));
+    _chatTimer = chatRepository.timer;
+    emit(ChatState(userId: _userId, now: _clock(), timer: _chatTimer));
     await _sub?.cancel();
     _sub = chatRepository.watchMessages(_coupleId).listen(
       (m) { if (!isClosed) add(_MessagesChanged(m)); },
+      onError: (_) {},
+    );
+    await _deletions?.cancel();
+    _deletions = chatRepository.watchDeleted(_coupleId).listen(
+      (id) { if (!isClosed) add(_DeletedByPartner(id)); },
+      onError: (_) {},
+    );
+    await _timerSub?.cancel();
+    _timerSub = chatRepository.watchTimer(_coupleId).listen(
+      (t) { if (!isClosed) add(_TimerFromServer(t)); },
+      onError: (_) {},
+    );
+    await _clears?.cancel();
+    _clears = chatRepository.watchCleared(_coupleId).listen(
+      (_) { if (!isClosed) add(_ClearedByPartner()); },
       onError: (_) {},
     );
     _timer?.cancel();
     _timer = Timer.periodic(tickEvery, (_) { if (!isClosed) add(_Tick()); });
   }
 
-  List<ChatMessage> _alive(DateTime now) => [for (final m in _all) if (!m.isExpired(now)) m];
+  List<ChatMessage> _alive(DateTime now) => [for (final m in _all) if (!m.isExpired(now) && !_deleted.contains(m.id)) m];
 
   void _onMessages(_MessagesChanged e, Emitter<ChatState> emit) {
     _all = e.messages;
     final now = _clock();
-    emit(ChatState(loading: false, messages: _alive(now), now: now, userId: _userId, timer: chatRepository.timer));
+    emit(ChatState(loading: false, messages: _alive(now), now: now, userId: _userId, timer: _chatTimer, notices: _notices));
     _reportSeen();
   }
 
@@ -129,7 +202,67 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
     final alive = _alive(now);
     // Nothing expired: no need to redraw.
     if (alive.length == state.messages.length) return;
-    emit(ChatState(loading: false, messages: alive, now: now, userId: _userId, timer: chatRepository.timer));
+    emit(ChatState(loading: false, messages: alive, now: now, userId: _userId, timer: _chatTimer, notices: _notices));
+  }
+
+  void _show(Emitter<ChatState> emit, {String? notice}) {
+    final now = _clock();
+    emit(ChatState(loading: false, messages: _alive(now), now: now, userId: _userId, timer: _chatTimer, notices: _notices, notice: notice));
+  }
+
+  void _onDeletedByPartner(_DeletedByPartner e, Emitter<ChatState> emit) {
+    if (_deleted.add(e.id)) _show(emit);
+  }
+
+  /// Puts a "timer changed" line after the newest message.
+  void _addNotice(ChatTimer timer, {required bool byMe}) {
+    var at = _clock();
+    final last = _all.isEmpty ? null : _all.last.createdAt;
+    if (last != null && !at.isAfter(last)) at = last.add(const Duration(milliseconds: 1));
+    _notices = [..._notices, ChatTimerNotice(at: at, timer: timer, byMe: byMe)];
+  }
+
+  Future<void> _onTimerChanged(ChatTimerChanged e, Emitter<ChatState> emit) async {
+    final before = _chatTimer;
+    if (e.timer == before) return;
+    _chatTimer = e.timer;
+    _addNotice(e.timer, byMe: true);
+    final added = _notices.last;
+    _show(emit);
+    try {
+      await chatRepository.setTimer(coupleId: _coupleId, timer: e.timer);
+    } catch (_) {
+      _chatTimer = before;
+      _notices = [for (final n in _notices) if (n != added) n];
+      _show(emit, notice: 'Could not change the timer. Check your connection.');
+    }
+  }
+
+  Future<void> _onClear(ChatCleared e, Emitter<ChatState> emit) async {
+    // Empty at once; everything comes back if the server could not be reached.
+    final ids = [for (final m in _all) if (_deleted.add(m.id)) m.id];
+    final lines = _notices;
+    _notices = const [];
+    _show(emit);
+    try {
+      await chatRepository.clearChat(coupleId: _coupleId, userId: _userId);
+    } catch (_) {
+      _deleted.removeAll(ids);
+      _notices = lines;
+      _show(emit, notice: 'Could not clear the chat. Check your connection.');
+    }
+  }
+
+  Future<void> _onDelete(ChatMessageDeleted e, Emitter<ChatState> emit) async {
+    // Gone from the screen at once; put back if the server could not be reached.
+    _deleted.add(e.id);
+    _show(emit);
+    try {
+      await chatRepository.deleteMessage(coupleId: _coupleId, userId: _userId, id: e.id);
+    } catch (_) {
+      _deleted.remove(e.id);
+      _show(emit, notice: 'Could not delete the message. Check your connection.');
+    }
   }
 
   void _onVisibility(ChatVisibilityChanged e, Emitter<ChatState> emit) {
@@ -147,18 +280,23 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
   /// The decrypted photo or voice note of [message] (kept in memory only), or null.
   Future<Uint8List?> loadMedia(ChatMessage message) => chatRepository.loadMedia(message);
 
-  /// Starts the 5-minute timer of the partner's messages that have just been seen. A failure is not
-  /// remembered, so the next change or return to the screen tries again.
+  /// Starts the timer of the partner's TEXT messages that have just been seen. Photos and voice notes are
+  /// left out: their timer starts when the user reveals them ([ChatMediaRevealed]). A failure is not
+  /// remembered, so the next change, return to the screen or tap tries again.
   void _reportSeen() {
     if (!_visible) return;
     final now = _clock();
     final ids = [
       for (final m in _all)
-        if (!m.isMine(_userId) && !m.isSeen && !m.locked && !m.isExpired(now) && !_reported.contains(m.id)) m.id,
+        if (m.kind == ChatKind.text && !m.isMine(_userId) && !m.isSeen && !m.locked && !m.isExpired(now) && !_reported.contains(m.id)) m.id,
     ];
-    if (ids.isEmpty) return;
-    _reported.addAll(ids);
-    chatRepository.markSeen(ids).catchError((_) => _reported.removeAll(ids));
+    _markSeen(ids);
+  }
+
+  void _markSeen(List<String> ids) {
+    final fresh = [for (final id in ids) if (_reported.add(id)) id];
+    if (fresh.isEmpty) return;
+    chatRepository.markSeen(fresh).catchError((_) => _reported.removeAll(fresh));
   }
 
   Future<void> _send(Emitter<ChatState> emit, Future<bool> Function() send, {bool skip = false}) async {
@@ -166,12 +304,12 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
     try {
       final delivered = await send();
       if (!delivered) {
-        emit(ChatState(loading: false, messages: state.messages, now: state.now, userId: _userId, timer: state.timer, notice: 'No connection: it will be sent when you are back online.'));
+        emit(ChatState(loading: false, messages: state.messages, now: state.now, userId: _userId, timer: _chatTimer, notices: _notices, notice: 'No connection: it will be sent when you are back online.'));
       }
     } on EncryptionNotReady catch (e) {
-      emit(ChatState(loading: false, messages: state.messages, now: state.now, userId: _userId, timer: state.timer, notice: e.message));
+      emit(ChatState(loading: false, messages: state.messages, now: state.now, userId: _userId, timer: _chatTimer, notices: _notices, notice: e.message));
     } catch (_) {
-      emit(ChatState(loading: false, messages: state.messages, now: state.now, userId: _userId, timer: state.timer, notice: 'Could not send. Try again.'));
+      emit(ChatState(loading: false, messages: state.messages, now: state.now, userId: _userId, timer: _chatTimer, notices: _notices, notice: 'Could not send. Try again.'));
     }
   }
 
@@ -182,6 +320,9 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
     if (_visible && _coupleId.isNotEmpty) chatRepository.leaveChat(coupleId: _coupleId, userId: _userId).catchError((_) {});
     _visible = false;
     await _sub?.cancel();
+    await _deletions?.cancel();
+    await _clears?.cancel();
+    await _timerSub?.cancel();
     return super.close();
   }
 }

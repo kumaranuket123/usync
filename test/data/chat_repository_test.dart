@@ -139,16 +139,23 @@ void main() {
     expect(local.outbox.pending, 0);
   });
 
-  test('messages carry the sender\'s timer: 1 day by default, the chosen one after changing it', () async {
+  test('the couple\'s timer is set on the server and remembered; sends still hint it', () async {
     expect(repo.timer, ChatTimer.oneDay);
     await repo.sendText(coupleId: 'c1', userId: 'u1', text: 'a');
     expect((rpc('send_chat_message').json as Map)['p_ttl'], 86400);
 
-    await repo.setTimer(ChatTimer.tenSeconds);
-    expect(repo.timer, ChatTimer.tenSeconds);
     backend.requests.clear();
-    await repo.sendText(coupleId: 'c1', userId: 'u1', text: 'b');
-    expect((rpc('send_chat_message').json as Map)['p_ttl'], 10);
+    await repo.setTimer(coupleId: 'c1', timer: ChatTimer.tenSeconds);
+    final set = rpc('set_chat_timer').json as Map;
+    expect(set['p_couple'], 'c1');
+    expect(set['p_seconds'], 10);
+    expect(repo.timer, ChatTimer.tenSeconds);
+  });
+
+  test('a timer change the server refuses is reported and not remembered', () async {
+    backend.respond((_) => FakeBackend.error('P0001', 'Not a member', status: 400));
+    await expectLater(repo.setTimer(coupleId: 'c1', timer: ChatTimer.oneMinute), throwsA(anything));
+    expect(repo.timer, ChatTimer.oneDay);
   });
 
   test('marking messages seen calls the RPC with their ids, and nothing for an empty list', () async {
@@ -157,5 +164,48 @@ void main() {
 
     await repo.markSeen(const ['a', 'b']);
     expect((rpc('mark_chat_seen').json as Map)['p_ids'], ['a', 'b']);
+  });
+
+  test('deleting a message calls the RPC with its id', () async {
+    backend.respond((_) => FakeBackend.ok(null));
+    await repo.deleteMessage(coupleId: 'c1', userId: 'u1', id: 'm1');
+    expect((rpc('delete_chat_message').json as Map)['p_id'], 'm1');
+  });
+
+  test('a delete the server refuses is reported to the caller', () async {
+    backend.respond((_) => FakeBackend.error('P0001', 'Not a member', status: 400));
+    await expectLater(repo.deleteMessage(coupleId: 'c1', userId: 'u1', id: 'm1'), throwsA(anything));
+  });
+
+  test('clearing the chat calls the RPC with the couple', () async {
+    backend.respond((_) => FakeBackend.ok(null));
+    await repo.clearChat(coupleId: 'c1', userId: 'u1');
+    expect((rpc('clear_chat').json as Map)['p_couple'], 'c1');
+  });
+
+  test('a clear the server refuses is reported to the caller', () async {
+    backend.respond((_) => FakeBackend.error('P0001', 'Not a member', status: 400));
+    await expectLater(repo.clearChat(coupleId: 'c1', userId: 'u1'), throwsA(anything));
+  });
+
+  group('unread count', () {
+    final now = DateTime(2026, 6, 1, 12);
+    Map<String, dynamic> row(String id, {String sender = 'partner', String? seen, DateTime? expires}) => {
+          'id': id, 'sender_id': sender, 'seen_at': seen, 'expires_at': (expires ?? DateTime(2030)).toIso8601String(),
+        };
+    int count(List<Map<String, dynamic>> rows, {Set<String> gone = const {}}) =>
+        ChatRepository.countUnread(rows, userId: 'me', gone: gone, now: now);
+
+    test('counts only the partner\'s messages that nobody has seen', () {
+      expect(count([row('1'), row('2'), row('3', seen: '2026-06-01T11:00:00Z'), row('4', sender: 'me')]), 2);
+    });
+
+    test('leaves out expired messages and ones the partner deleted', () {
+      expect(count([row('1', expires: DateTime(2026, 6, 1, 11)), row('2'), row('3')], gone: {'3'}), 1);
+    });
+
+    test('is zero for an empty chat', () {
+      expect(count(const []), 0);
+    });
   });
 }
