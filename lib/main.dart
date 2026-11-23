@@ -18,6 +18,7 @@ import 'data/datasources/local/local_memory_images.dart';
 import 'core/utils/api_call_logger.dart';
 import 'core/services/outbox_service.dart';
 import 'domain/repositories/i_canvas_repository.dart';
+import 'domain/repositories/i_chat_repository.dart';
 import 'domain/repositories/i_memory_repository.dart';
 import 'domain/repositories/i_milestone_repository.dart';
 import 'domain/repositories/i_mood_repository.dart';
@@ -47,6 +48,7 @@ void main() async {
   // flushing, because each registers its handler when it is created.
   getIt<IMoodRepository>();
   getIt<IMemoryRepository>();
+  getIt<IChatRepository>();
   getIt<ICanvasRepository>();
   getIt<IMilestoneRepository>();
   await getIt<OutboxService>().init();

@@ -26,6 +26,7 @@ abstract final class RouteNames {
   static const String wouldYouRather = '/games/would-you-rather';
   static const String quiz         = '/games/quiz';
   static const String cards        = '/games/cards';
+  static const String chat         = '/chat';
   static const String slap         = '/games/slap';
   static const String bucketList   = '/bucket-list';
   static const String memoryDetail = '/memories/:id';

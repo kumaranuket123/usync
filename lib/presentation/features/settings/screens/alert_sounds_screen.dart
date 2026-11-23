@@ -21,6 +21,7 @@ class AlertSoundsScreen extends StatelessWidget {
     _Group('milestone',  '💖', Color(0x1FC77DFF), 'Milestones',     'Pairing and anniversaries'),
     _Group('question',   '💬', Color(0x1F00D4FF), 'Daily question', 'Your partner answered the question of the day'),
     _Group('game',       '🎮', Color(0x1FFFD700), 'Games',          'Your partner started a game, finished one, or it is your turn'),
+    _Group('chat',       '💬', Color(0x1F00D4FF), 'Chat',           'Your partner sent a message in the private chat'),
     _Group('location',   '📍', Color(0x1F00E676), 'Location checks', 'Your partner looks at or requests your location'),
   ];
 

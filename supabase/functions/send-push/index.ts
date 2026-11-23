@@ -17,6 +17,7 @@ const TITLES: Record<string, string> = {
   locate: 'Location 📍',
   question: 'Question of the day 💬',
   game: 'Couple games 🎮',
+  chat: 'Chat 💬',
 };
 
 const db = createClient(
