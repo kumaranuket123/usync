@@ -12,9 +12,11 @@ import '../../presentation/features/mood/screens/mood_screen.dart';
 import '../../presentation/features/mood_insights/screens/mood_insights_screen.dart';
 import '../../presentation/features/activity/screens/activity_screen.dart';
 import '../../presentation/features/bucket/screens/bucket_list_screen.dart';
+import '../../presentation/features/chat/screens/chat_screen.dart';
 import '../../presentation/features/games/screens/cards_screen.dart';
 import '../../presentation/features/games/screens/games_hub_screen.dart';
 import '../../presentation/features/games/screens/quiz_screen.dart';
+import '../../presentation/features/games/screens/slap_screen.dart';
 import '../../presentation/features/games/screens/tic_tac_toe_screen.dart';
 import '../../presentation/features/games/screens/would_you_rather_screen.dart';
 import '../../presentation/features/question/screens/question_screen.dart';
@@ -130,6 +132,11 @@ abstract final class AppRouter {
         builder: (_, __) => const BucketListScreen(),
       ),
       GoRoute(
+        path: RouteNames.chat,
+        parentNavigatorKey: _rootKey,
+        builder: (_, __) => const ChatScreen(),
+      ),
+      GoRoute(
         path: RouteNames.games,
         parentNavigatorKey: _rootKey,
         builder: (_, __) => const GamesHubScreen(),
@@ -143,6 +150,11 @@ abstract final class AppRouter {
         path: RouteNames.cards,
         parentNavigatorKey: _rootKey,
         builder: (_, __) => const CardsScreen(),
+      ),
+      GoRoute(
+        path: RouteNames.slap,
+        parentNavigatorKey: _rootKey,
+        builder: (_, __) => const SlapScreen(),
       ),
       GoRoute(
         path: RouteNames.quiz,

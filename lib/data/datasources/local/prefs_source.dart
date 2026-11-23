@@ -28,6 +28,11 @@ class PrefsSource {
   Future<void> setToggle(String key, bool value) =>
       prefs.setBool('setting_$key', value);
 
+  // ── Private chat ──────────────────────────────────────────────
+  /// Seconds the messages this user sends live after they are seen; null until they choose.
+  int? get chatTimerSeconds => prefs.getInt('chat_timer_seconds');
+  Future<void> setChatTimerSeconds(int seconds) => prefs.setInt('chat_timer_seconds', seconds);
+
   // ── Push token ────────────────────────────────────────────────
   /// The token last written to the server for [uid] and when (ms since epoch).
   ({String token, int savedAt})? fcmSaved(String uid) {

@@ -92,6 +92,12 @@ Not stored: the recovery phrase is never saved on the phone, so it cannot be sho
 - After the lock-down the server can no longer be sent readable content by a modified client either (before it, that was the known gap). What remains readable is the metadata listed above.
 - To finish for good: once every person has opened the updated app, the readable leftovers can be counted (`count(*) where enc is null`) and, if some author never returns, deleted or left as they are.
 
+## Private chat (`chat_messages`)
+
+- Text and the voice-note length are sealed into `chat_messages.enc` (bound to couple, table and message id); photos and voice notes are sealed with `sealBytes` and stored in the private `chat` bucket at `<couple>/<id>.enc`. Without the couple key nothing is sent. Decrypted media is held in memory only; the recorder's temp file is deleted as soon as it is read.
+- Messages are deleted after the sender's timer (10 seconds, 1 minute, 5 minutes, 1 hour or 1 day, default 1 day) has run since the receiver saw them (`mark_chat_seen`, recipient only), or after 1 day unseen, by a cron job plus the `purge-chat` Edge Function (files and rows). Disconnecting clears the chat. See `docs/features/chat.md`.
+- The server still sees: who sent a message, its kind, sizes, when it was sent and when it was seen. On Android the chat screen blocks screenshots (`FLAG_SECURE`); a partner can still photograph the screen.
+
 ## What it protects, and what it cannot
 
 **Protected (once E2 to E5 ship):** content in the database and Storage, backups, a database leak, Supabase staff, and the developer reading rows. The server will hold only ciphertext.

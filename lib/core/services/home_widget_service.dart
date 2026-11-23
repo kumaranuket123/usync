@@ -52,7 +52,8 @@ class HomeWidgetService with WidgetsBindingObserver {
   static Future<void> syncFromServer() async {
     try {
       try {
-        Supabase.instance;
+        // `instance` alone never throws; its late `client` does when this isolate has not initialized it.
+        Supabase.instance.client;
       } catch (_) {
         await Supabase.initialize(url: SupabaseConfig.url, publishableKey: SupabaseConfig.publishableKey);
       }
@@ -76,8 +77,9 @@ class HomeWidgetService with WidgetsBindingObserver {
       // Strokes this phone cannot read yet (no key): keep the last picture instead of blanking the widget.
       if (rows.isNotEmpty && strokes.isEmpty) return;
       await refresh(strokes);
-    } catch (_) {
+    } catch (err) {
       // Best effort: the widget keeps showing the last picture.
+      debugPrint('Widget sync failed: $err');
     }
   }
 
@@ -95,10 +97,13 @@ class HomeWidgetService with WidgetsBindingObserver {
         final newest = strokes.map((s) => s.timestamp).reduce((a, b) => a.isAfter(b) ? a : b);
         await HomeWidget.saveWidgetData<String>('doodle_path', file.path);
         await HomeWidget.saveWidgetData<String>(
-            'doodle_updated', 'Updated ${DateFormat('d MMM, h:mm a').format(newest)}');
+            'doodle_updated', 'Updated ${DateFormat('d MMM, h:mm a').format(newest.toLocal())}');
       }
       await HomeWidget.updateWidget(qualifiedAndroidName: androidProvider);
-    } catch (_) {}
+      debugPrint('Widget redrawn with ${strokes.length} strokes');
+    } catch (err) {
+      debugPrint('Widget refresh failed: $err');
+    }
   }
 
   /// Strokes are in the drawer's screen pixels, which differ per phone, so the
