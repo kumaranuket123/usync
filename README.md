@@ -10,6 +10,7 @@ Realtime emotional connection for couples. Two partners pair with an invite code
 |---|---|---|
 | Pairing | Invite code, `join_with_code` RPC, one couple per user | [pairing](docs/features/pairing.md), [authentication](docs/features/authentication.md) |
 | Shared canvas | Live stroke sync between partners; finished strokes persisted | [canvas](docs/features/canvas.md) |
+| Private chat | Encrypted text, photos and voice notes that vanish after they are seen (you choose the timer) | [chat](docs/features/chat.md) |
 | Touch sync | Both partners touching at once, via Presence + Broadcast | [touch_sync](docs/features/touch_sync.md) |
 | Mood | Preset and custom moods, partner's latest mood on home | [mood](docs/features/mood.md) |
 | Mood insights | How in sync you've been this week: matching-mood days and each person's most shared mood | [mood-insights](docs/features/mood-insights.md) |

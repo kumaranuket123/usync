@@ -12,6 +12,7 @@ import '../../presentation/features/mood/screens/mood_screen.dart';
 import '../../presentation/features/mood_insights/screens/mood_insights_screen.dart';
 import '../../presentation/features/activity/screens/activity_screen.dart';
 import '../../presentation/features/bucket/screens/bucket_list_screen.dart';
+import '../../presentation/features/chat/screens/chat_screen.dart';
 import '../../presentation/features/games/screens/cards_screen.dart';
 import '../../presentation/features/games/screens/games_hub_screen.dart';
 import '../../presentation/features/games/screens/quiz_screen.dart';
@@ -129,6 +130,11 @@ abstract final class AppRouter {
         path: RouteNames.bucketList,
         parentNavigatorKey: _rootKey,
         builder: (_, __) => const BucketListScreen(),
+      ),
+      GoRoute(
+        path: RouteNames.chat,
+        parentNavigatorKey: _rootKey,
+        builder: (_, __) => const ChatScreen(),
       ),
       GoRoute(
         path: RouteNames.games,

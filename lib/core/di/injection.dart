@@ -29,6 +29,8 @@ import '../../data/repositories/mood_repository.dart';
 import '../../data/datasources/local/flutter_secure_key_store.dart';
 import '../../data/repositories/access_repository.dart';
 import '../../data/repositories/bucket_repository.dart';
+import '../../data/datasources/remote/chat_media_source.dart';
+import '../../data/repositories/chat_repository.dart';
 import '../../data/repositories/game_repository.dart';
 import '../../data/repositories/slap_repository.dart';
 import '../../data/repositories/question_repository.dart';
@@ -50,6 +52,7 @@ import '../../domain/repositories/i_memory_repository.dart';
 import '../../domain/repositories/i_mood_repository.dart';
 import '../../domain/repositories/i_access_repository.dart';
 import '../../domain/repositories/i_bucket_repository.dart';
+import '../../domain/repositories/i_chat_repository.dart';
 import '../../domain/repositories/i_game_repository.dart';
 import '../../domain/repositories/i_slap_repository.dart';
 import '../../domain/repositories/i_question_repository.dart';
@@ -64,6 +67,7 @@ import '../../presentation/features/mood/bloc/mood_bloc.dart';
 import '../../presentation/features/mood_insights/bloc/mood_insights_bloc.dart';
 import '../../presentation/features/long_distance/bloc/long_distance_bloc.dart';
 import '../../presentation/features/bucket/bloc/bucket_bloc.dart';
+import '../../presentation/features/chat/bloc/chat_bloc.dart';
 import '../../presentation/features/games/bloc/cards_bloc.dart';
 import '../../presentation/features/games/bloc/games_bloc.dart';
 import '../../presentation/features/games/bloc/quiz_bloc.dart';
@@ -186,6 +190,14 @@ Future<void> setupLocator() async {
       cipher: getIt(),
     ),
   );
+  getIt.registerLazySingleton<ChatMediaSource>(
+    () => ChatMediaSource(client: getIt()),
+  );
+  getIt.registerLazySingleton<IChatRepository>(
+    () => ChatRepository(
+      client: getIt(), media: getIt(), notifications: getIt(), outbox: getIt(), cipher: getIt(), channelSource: getIt(), prefs: getIt(),
+    ),
+  );
   getIt.registerLazySingleton<ISlapRepository>(
     () => SlapRepository(channelSource: getIt()),
   );
@@ -276,6 +288,9 @@ Future<void> setupLocator() async {
   );
   getIt.registerFactory<QuizBloc>(
     () => QuizBloc(gameRepository: getIt()),
+  );
+  getIt.registerFactory<ChatBloc>(
+    () => ChatBloc(chatRepository: getIt()),
   );
   getIt.registerFactory<SlapBloc>(
     () => SlapBloc(gameRepository: getIt(), slapRepository: getIt(), authRepository: getIt(), coupleRepository: getIt()),

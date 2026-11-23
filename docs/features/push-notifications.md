@@ -1,6 +1,6 @@
 # Feature: Push notifications
 
-Partner actions (touch, doodle, mood change, streak, milestone, location, daily question) arrive as FCM pushes. Supabase has no mobile push, so Firebase is used for delivery only.
+Partner actions (touch, doodle, mood change, streak, milestone, location, daily question, chat message) arrive as FCM pushes. Supabase has no mobile push, so Firebase is used for delivery only.
 
 ---
 

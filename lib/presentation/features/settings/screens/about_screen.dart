@@ -197,6 +197,8 @@ const _sections = <_Section>[
         'See how in sync you have been over the last 7 days: the days you shared a similar mood, and the mood each of you shared most.'),
     _Feature('💬', _cyan, 'Question of the day',
         'One question a day for both of you. Your partner\'s answer stays hidden until you have answered too. The questions suit couples who live together or apart.'),
+    _Feature('💌', _cyan, 'Private chat',
+        'Send texts, photos and voice notes to your partner from the Home Chat button or the Activity tab. Everything is encrypted on your phone so only the two of you can read it, and each message disappears after your partner has seen it. Tap the timer to choose how long your messages last: 10 seconds, 1 minute, 5 minutes, 1 hour or 1 day (the default). A message your partner never opens is deleted after 1 day. On Android, screenshots are blocked inside the chat. Your partner is told about a new message, never what it says.'),
     _Feature('🎮', _gold, 'Couple games',
         'Play together from Home or the Activity tab. Play Tic-Tac-Toe live, taking turns, Would you rather (ten questions, see how you matched), or How well do you know me? (answer about yourself, guess your partner and compare scores), all at your own pace, Conversation cards (turn a shared deck of talk, truth and dare cards together), or Slap fight (tap to playfully slap each other live, with a shake and a slap sound on your partner\'s phone, and you see their avatar take the hit). Your partner\'s answers stay hidden until you have answered each question too. Games wait for you, and your partner is told when a game starts or finishes, and in Tic-Tac-Toe when it is their turn and they are not looking at the board.'),
     _Feature('🎟️', _cyan, 'Activity',

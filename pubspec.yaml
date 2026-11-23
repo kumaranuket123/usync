@@ -38,6 +38,8 @@ dependencies:
   # ── Haptics ───────────────────────────────────────────────────
   vibration: ^2.0.0
   audioplayers: ^6.1.0
+  image_picker: ^1.1.2
+  record: ^6.1.1
 
   # ── Sharing / saving ──────────────────────────────────────────
   share_plus: ^10.0.2
