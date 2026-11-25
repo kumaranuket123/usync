@@ -36,17 +36,17 @@ class _FakeChat implements IChatRepository {
   Stream<List<ChatMessage>> watchMessages(String coupleId) => changes.stream;
 
   @override
-  Future<bool> sendText({required String coupleId, required String userId, required String text}) async {
+  Future<bool> sendText({required String coupleId, required String userId, required String text, ChatReply? replyTo}) async {
     if (sendError != null) throw sendError!;
     texts.add(text);
     return delivered;
   }
 
   @override
-  Future<bool> sendImage({required String coupleId, required String userId, required Uint8List bytes}) async => delivered;
+  Future<bool> sendImage({required String coupleId, required String userId, required Uint8List bytes, ChatReply? replyTo}) async => delivered;
 
   @override
-  Future<bool> sendVoice({required String coupleId, required String userId, required Uint8List bytes, required int durationMs}) async => delivered;
+  Future<bool> sendVoice({required String coupleId, required String userId, required Uint8List bytes, required int durationMs, ChatReply? replyTo}) async => delivered;
 
   @override
   Future<void> markSeen(List<String> ids) async {

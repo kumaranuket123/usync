@@ -19,11 +19,12 @@ abstract interface class IChatRepository {
   /// whose [ChatMessage.expiresAt] has passed.
   Stream<List<ChatMessage>> watchMessages(String coupleId);
 
+  /// [replyTo] makes the message a reply to another; it travels inside the sealed content.
   /// Each send returns true when it reached the server and false when it waits for a connection.
   /// Everything is sealed on this phone first; without the couple key it throws `EncryptionNotReady`.
-  Future<bool> sendText({required String coupleId, required String userId, required String text});
-  Future<bool> sendImage({required String coupleId, required String userId, required Uint8List bytes});
-  Future<bool> sendVoice({required String coupleId, required String userId, required Uint8List bytes, required int durationMs});
+  Future<bool> sendText({required String coupleId, required String userId, required String text, ChatReply? replyTo});
+  Future<bool> sendImage({required String coupleId, required String userId, required Uint8List bytes, ChatReply? replyTo});
+  Future<bool> sendVoice({required String coupleId, required String userId, required Uint8List bytes, required int durationMs, ChatReply? replyTo});
 
   /// The receiver has seen these messages: the timer its sender chose starts.
   Future<void> markSeen(List<String> ids);

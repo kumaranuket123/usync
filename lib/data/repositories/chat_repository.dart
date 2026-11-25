@@ -86,6 +86,7 @@ class ChatRepository implements IChatRepository {
       mediaPath:  row['media_path'] as String?,
       text:       c?['t'] as String?,
       durationMs: c?['d'] as int?,
+      reply:      ChatReply.fromJson(c?['r']),
       locked:     c == null,
       ttlSeconds: row['ttl_seconds'] as int? ?? ChatTimer.defaultTimer.seconds,
     );
@@ -172,20 +173,20 @@ class ChatRepository implements IChatRepository {
       .handleError((Object _) {}); // dropped Realtime connection: keep the last known timer
 
   @override
-  Future<bool> sendText({required String coupleId, required String userId, required String text}) =>
-      _submit(coupleId, userId, ChatKind.text, text: text);
+  Future<bool> sendText({required String coupleId, required String userId, required String text, ChatReply? replyTo}) =>
+      _submit(coupleId, userId, ChatKind.text, text: text, replyTo: replyTo);
 
   @override
-  Future<bool> sendImage({required String coupleId, required String userId, required Uint8List bytes}) =>
-      _submit(coupleId, userId, ChatKind.image, bytes: bytes);
+  Future<bool> sendImage({required String coupleId, required String userId, required Uint8List bytes, ChatReply? replyTo}) =>
+      _submit(coupleId, userId, ChatKind.image, bytes: bytes, replyTo: replyTo);
 
   @override
-  Future<bool> sendVoice({required String coupleId, required String userId, required Uint8List bytes, required int durationMs}) =>
-      _submit(coupleId, userId, ChatKind.voice, bytes: bytes, durationMs: durationMs);
+  Future<bool> sendVoice({required String coupleId, required String userId, required Uint8List bytes, required int durationMs, ChatReply? replyTo}) =>
+      _submit(coupleId, userId, ChatKind.voice, bytes: bytes, durationMs: durationMs, replyTo: replyTo);
 
   /// The message id is chosen here, not when sending, so a retry after a lost connection cannot add a
   /// second message. Fails early, before queueing, when this phone has no couple key.
-  Future<bool> _submit(String coupleId, String userId, ChatKind kind, {String? text, Uint8List? bytes, int? durationMs}) async {
+  Future<bool> _submit(String coupleId, String userId, ChatKind kind, {String? text, Uint8List? bytes, int? durationMs, ChatReply? replyTo}) async {
     if (!await cipher.isReady(coupleId)) throw const EncryptionNotReady();
     return outbox.submit(_outboxType, {
       'id':         _uuid.v4(),
@@ -195,6 +196,7 @@ class ChatRepository implements IChatRepository {
       'text':       text,
       'bytes':      bytes,
       'durationMs': durationMs,
+      'reply':      replyTo?.toJson(),
       // Only a hint: the server stamps the message with the couple's timer when it receives it.
       'ttl':        timer.seconds,
     });
@@ -208,7 +210,7 @@ class ChatRepository implements IChatRepository {
 
     // Everything is sealed before it leaves the phone; without the couple key this throws and nothing is sent.
     final enc = await cipher.sealJson(
-      {'t': p['text'], 'd': p['durationMs']}..removeWhere((_, v) => v == null),
+      {'t': p['text'], 'd': p['durationMs'], 'r': p['reply']}..removeWhere((_, v) => v == null),
       coupleId: coupleId, table: _table, rowId: id,
     );
     String? path;

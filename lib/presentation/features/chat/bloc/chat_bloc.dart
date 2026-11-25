@@ -81,6 +81,15 @@ class ChatVoiceSent extends ChatEvent {
   final int       durationMs;
 }
 
+/// The user starts replying to a message (dragged it).
+class ChatReplyStarted extends ChatEvent {
+  ChatReplyStarted(this.message);
+  final ChatMessage message;
+}
+
+/// The user dropped the reply they were writing.
+class ChatReplyCancelled extends ChatEvent {}
+
 class ChatState extends Equatable {
   const ChatState({
     this.loading = true,
@@ -90,6 +99,7 @@ class ChatState extends Equatable {
     this.timer = ChatTimer.defaultTimer,
     this.notice,
     this.notices = const [],
+    this.replyingTo,
   });
 
   final bool              loading;
@@ -103,9 +113,11 @@ class ChatState extends Equatable {
   final String?           notice;
   /// "Timer changed" lines to show among the messages, oldest first.
   final List<ChatTimerNotice> notices;
+  /// The message the user is writing a reply to.
+  final ChatMessage? replyingTo;
 
   @override
-  List<Object?> get props => [loading, messages, now, userId, timer, notice, notices];
+  List<Object?> get props => [loading, messages, now, userId, timer, notice, notices, replyingTo];
 }
 
 class ChatBloc extends Bloc<ChatEvent, ChatState> {
@@ -125,6 +137,8 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
       _notices = const [];
       _show(emit);
     });
+    on<ChatReplyStarted>((e, emit) { _replyTo = e.message; _show(emit); });
+    on<ChatReplyCancelled>((_, emit) { _replyTo = null; _show(emit); });
     on<ChatTimerChanged>(_onTimerChanged);
     on<_TimerFromServer>((e, emit) {
       // The first value is just what the server has; a later different one is the partner's change.
@@ -133,9 +147,9 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
       _chatTimer = e.timer;
       _show(emit);
     });
-    on<ChatTextSent>((e, emit) => _send(emit, () => chatRepository.sendText(coupleId: _coupleId, userId: _userId, text: e.text.trim()), skip: e.text.trim().isEmpty));
-    on<ChatImageSent>((e, emit) => _send(emit, () => chatRepository.sendImage(coupleId: _coupleId, userId: _userId, bytes: e.bytes)));
-    on<ChatVoiceSent>((e, emit) => _send(emit, () => chatRepository.sendVoice(coupleId: _coupleId, userId: _userId, bytes: e.bytes, durationMs: e.durationMs)));
+    on<ChatTextSent>((e, emit) => _send(emit, () => chatRepository.sendText(coupleId: _coupleId, userId: _userId, text: e.text.trim(), replyTo: _reply()), skip: e.text.trim().isEmpty));
+    on<ChatImageSent>((e, emit) => _send(emit, () => chatRepository.sendImage(coupleId: _coupleId, userId: _userId, bytes: e.bytes, replyTo: _reply())));
+    on<ChatVoiceSent>((e, emit) => _send(emit, () => chatRepository.sendVoice(coupleId: _coupleId, userId: _userId, bytes: e.bytes, durationMs: e.durationMs, replyTo: _reply())));
   }
 
   final IChatRepository  chatRepository;
@@ -149,6 +163,9 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
   /// The timer the server has was loaded: from then on a different value is a change worth a line in the chat.
   bool _timerKnown = false;
   List<ChatMessage> _all = const [];
+  /// The message the next one sent answers.
+  ChatMessage? _replyTo;
+  ChatReply? _reply() => _replyTo == null ? null : ChatReply.of(_replyTo!);
   /// Ids already reported as seen, so each is sent once.
   final _reported = <String>{};
   StreamSubscription<List<ChatMessage>>? _sub;
@@ -192,7 +209,7 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
   void _onMessages(_MessagesChanged e, Emitter<ChatState> emit) {
     _all = e.messages;
     final now = _clock();
-    emit(ChatState(loading: false, messages: _alive(now), now: now, userId: _userId, timer: _chatTimer, notices: _notices));
+    emit(ChatState(loading: false, messages: _alive(now), now: now, userId: _userId, timer: _chatTimer, notices: _notices, replyingTo: _replyTo));
     _reportSeen();
   }
 
@@ -202,12 +219,12 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
     final alive = _alive(now);
     // Nothing expired: no need to redraw.
     if (alive.length == state.messages.length) return;
-    emit(ChatState(loading: false, messages: alive, now: now, userId: _userId, timer: _chatTimer, notices: _notices));
+    emit(ChatState(loading: false, messages: alive, now: now, userId: _userId, timer: _chatTimer, notices: _notices, replyingTo: _replyTo));
   }
 
   void _show(Emitter<ChatState> emit, {String? notice}) {
     final now = _clock();
-    emit(ChatState(loading: false, messages: _alive(now), now: now, userId: _userId, timer: _chatTimer, notices: _notices, notice: notice));
+    emit(ChatState(loading: false, messages: _alive(now), now: now, userId: _userId, timer: _chatTimer, notices: _notices, replyingTo: _replyTo, notice: notice));
   }
 
   void _onDeletedByPartner(_DeletedByPartner e, Emitter<ChatState> emit) {
@@ -302,14 +319,20 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
   Future<void> _send(Emitter<ChatState> emit, Future<bool> Function() send, {bool skip = false}) async {
     if (skip) return;
     try {
-      final delivered = await send();
+      final sending = send(); // reads the reply now
+      // The reply belongs to this message only.
+      if (_replyTo != null) {
+        _replyTo = null;
+        _show(emit);
+      }
+      final delivered = await sending;
       if (!delivered) {
-        emit(ChatState(loading: false, messages: state.messages, now: state.now, userId: _userId, timer: _chatTimer, notices: _notices, notice: 'No connection: it will be sent when you are back online.'));
+        emit(ChatState(loading: false, messages: state.messages, now: state.now, userId: _userId, timer: _chatTimer, notices: _notices, replyingTo: _replyTo, notice: 'No connection: it will be sent when you are back online.'));
       }
     } on EncryptionNotReady catch (e) {
-      emit(ChatState(loading: false, messages: state.messages, now: state.now, userId: _userId, timer: _chatTimer, notices: _notices, notice: e.message));
+      emit(ChatState(loading: false, messages: state.messages, now: state.now, userId: _userId, timer: _chatTimer, notices: _notices, replyingTo: _replyTo, notice: e.message));
     } catch (_) {
-      emit(ChatState(loading: false, messages: state.messages, now: state.now, userId: _userId, timer: _chatTimer, notices: _notices, notice: 'Could not send. Try again.'));
+      emit(ChatState(loading: false, messages: state.messages, now: state.now, userId: _userId, timer: _chatTimer, notices: _notices, replyingTo: _replyTo, notice: 'Could not send. Try again.'));
     }
   }
 

@@ -32,6 +32,52 @@ enum ChatTimer {
       values.firstWhere((t) => t.seconds == seconds, orElse: () => defaultTimer);
 }
 
+/// The message a reply answers: a short copy kept inside the (encrypted) reply, so it still shows after
+/// the original has vanished.
+class ChatReply extends Equatable {
+  const ChatReply({required this.messageId, required this.senderId, required this.kind, this.text});
+
+  /// Longest quoted text.
+  static const maxText = 120;
+
+  final String    messageId;
+  final String?   senderId;
+  final ChatKind  kind;
+  /// The quoted text (text messages only; photos and voice notes show a label instead).
+  final String?   text;
+
+  factory ChatReply.of(ChatMessage m) => ChatReply(
+        messageId: m.id,
+        senderId:  m.senderId,
+        kind:      m.kind,
+        text:      m.kind == ChatKind.text && m.text != null
+            ? (m.text!.length > maxText ? m.text!.substring(0, maxText) : m.text)
+            : null,
+      );
+
+  Map<String, dynamic> toJson() => {
+        'id': messageId,
+        if (senderId != null) 's': senderId,
+        'k': kind.name,
+        if (text != null) 't': text,
+      };
+
+  static ChatReply? fromJson(Object? json) {
+    if (json is! Map) return null;
+    final id = json['id'];
+    if (id is! String) return null;
+    return ChatReply(
+      messageId: id,
+      senderId:  json['s'] as String?,
+      kind:      ChatKind.fromKey(json['k'] as String? ?? 'text'),
+      text:      json['t'] as String?,
+    );
+  }
+
+  @override
+  List<Object?> get props => [messageId, senderId, kind, text];
+}
+
 /// One message of the private chat. It disappears for both partners after the sender's [ChatTimer]
 /// has run out since the receiver saw it, and after [unseenLife] if it never is (the server enforces both).
 class ChatMessage extends Equatable {
@@ -48,6 +94,7 @@ class ChatMessage extends Equatable {
     this.seenAt,
     this.locked = false,
     this.ttlSeconds = 86400,
+    this.reply,
   });
 
   /// How long a message nobody has seen stays.
@@ -69,13 +116,15 @@ class ChatMessage extends Equatable {
   final bool      locked;
   /// The sender's timer: how long the message lives once it has been seen.
   final int       ttlSeconds;
+  /// The message this one answers, if it is a reply.
+  final ChatReply? reply;
 
   bool get isSeen => seenAt != null;
   bool isMine(String userId) => senderId == userId;
   bool isExpired(DateTime now) => !now.isBefore(expiresAt);
 
   @override
-  List<Object?> get props => [id, kind, text, durationMs, mediaPath, seenAt, expiresAt, locked, ttlSeconds];
+  List<Object?> get props => [id, kind, text, durationMs, mediaPath, seenAt, expiresAt, locked, ttlSeconds, reply];
 }
 
 /// A line in the chat that says the timer was changed ("You set messages to vanish 1 minute after seen").

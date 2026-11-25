@@ -103,6 +103,16 @@ void main() {
     await expectLater(cipher.openJson(params['p_enc'] as String, coupleId: 'c1', table: 'chat_messages', rowId: 'other'), throwsA(anything));
   });
 
+  test('a reply carries a short copy of the original, sealed with the message', () async {
+    const original = ChatReply(messageId: 'm0', senderId: 'u2', kind: ChatKind.text, text: 'dinner?');
+    await repo.sendText(coupleId: 'c1', userId: 'u1', text: 'yes!', replyTo: original);
+
+    final params = rpc('send_chat_message').json as Map<String, dynamic>;
+    expect(bodyText(params), isNot(contains('dinner')));
+    final content = await cipher.openJson(params['p_enc'] as String, coupleId: 'c1', table: 'chat_messages', rowId: params['p_id'] as String);
+    expect(ChatReply.fromJson(content['r']), original);
+  });
+
   test('a photo is uploaded sealed to <couple>/<id>.enc and the row points at it', () async {
     final photo = Uint8List.fromList([0xFF, 0xD8, 0xFF, 0xE0, ...utf8.encode('private holiday photo'), 9, 9, 9]);
 

@@ -179,7 +179,10 @@ class _Bubble extends StatelessWidget {
   Widget build(BuildContext context) {
     final mine  = message.isMine(state.userId);
     final color = mine ? AppColors.pink : AppColors.cyan;
-    return Align(
+    return _SwipeToReply(
+      enabled: !message.locked,
+      onReply: () => context.read<ChatBloc>().add(ChatReplyStarted(message)),
+      child: Align(
       alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
       child: GestureDetector(
         // Hold a message to delete it.
@@ -203,6 +206,7 @@ class _Bubble extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.end,
           mainAxisSize: MainAxisSize.min,
           children: [
+            if (message.reply != null) _QuotedReply(reply: message.reply!, userId: state.userId, inBubble: true),
             // No Align around the content: it would take all the width and every bubble would be full width.
             _content(context),
             const SizedBox(height: 2),
@@ -223,6 +227,7 @@ class _Bubble extends StatelessWidget {
             ),
           ],
         ),
+      ),
       ),
       ),
     );
@@ -270,6 +275,129 @@ class _Bubble extends StatelessWidget {
       ChatKind.image => _ImageContent(message: message, mine: message.isMine(state.userId)),
       ChatKind.voice => _VoiceContent(message: message, mine: message.isMine(state.userId)),
     };
+  }
+}
+
+/// Drag a message to the right to reply to it: it follows the finger a little, and springs back.
+class _SwipeToReply extends StatefulWidget {
+  const _SwipeToReply({required this.child, required this.onReply, required this.enabled});
+  final Widget child;
+  final VoidCallback onReply;
+  final bool enabled;
+
+  @override
+  State<_SwipeToReply> createState() => _SwipeToReplyState();
+}
+
+class _SwipeToReplyState extends State<_SwipeToReply> with SingleTickerProviderStateMixin {
+  static const _trigger = 56.0;
+  static const _max     = 72.0;
+  double _dx = 0;
+  double _from = 0;
+  bool _armed = false;
+  late final AnimationController _back = AnimationController(vsync: this, duration: const Duration(milliseconds: 180))
+    ..addListener(() => setState(() => _dx = _from * (1 - Curves.easeOut.transform(_back.value))));
+
+  @override
+  void dispose() {
+    _back.dispose();
+    super.dispose();
+  }
+
+  void _update(DragUpdateDetails d) {
+    if (_back.isAnimating) _back.stop();
+    final next = (_dx + d.delta.dx).clamp(0.0, _max);
+    // Past the line the phone ticks once, so the reply is felt before the finger lets go.
+    if (!_armed && next >= _trigger) {
+      _armed = true;
+      HapticUtil.light();
+    } else if (_armed && next < _trigger) {
+      _armed = false;
+    }
+    setState(() => _dx = next);
+  }
+
+  void _end([DragEndDetails? _]) {
+    if (_armed) widget.onReply();
+    _armed = false;
+    _from = _dx;
+    _back.forward(from: 0);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!widget.enabled) return widget.child;
+    final progress = (_dx / _trigger).clamp(0.0, 1.0);
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onHorizontalDragUpdate: _update,
+      onHorizontalDragEnd: _end,
+      onHorizontalDragCancel: _end,
+      child: Stack(
+        alignment: Alignment.centerLeft,
+        children: [
+          Opacity(
+            opacity: progress,
+            child: Transform.scale(
+              scale: 0.6 + 0.4 * progress,
+              child: const CircleAvatar(radius: 14, backgroundColor: AppColors.glassMid, child: Icon(Icons.reply, size: 16, color: AppColors.textPrimary)),
+            ),
+          ),
+          Transform.translate(offset: Offset(_dx, 0), child: widget.child),
+        ],
+      ),
+    );
+  }
+}
+
+/// What a reply answers: who wrote it, and a line of the original (or "Photo" / "Voice note").
+class _QuotedReply extends StatelessWidget {
+  const _QuotedReply({required this.reply, required this.userId, this.inBubble = false, this.onClose});
+  final ChatReply reply;
+  final String userId;
+  /// Inside a message bubble rather than in the bar above the input.
+  final bool inBubble;
+  final VoidCallback? onClose;
+
+  @override
+  Widget build(BuildContext context) {
+    final mine  = reply.senderId == userId;
+    final color = mine ? AppColors.pink : AppColors.cyan;
+    final line  = switch (reply.kind) {
+      ChatKind.text  => reply.text ?? '',
+      ChatKind.image => '📷 Photo',
+      ChatKind.voice => '🎤 Voice note',
+    };
+    final body = Container(
+      margin: EdgeInsets.only(bottom: inBubble ? 6 : 0),
+      padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.2),
+        borderRadius: BorderRadius.circular(8),
+        border: Border(left: BorderSide(color: color, width: 3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Flexible(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(mine ? 'You' : 'Your partner', style: AppTextStyles.label.copyWith(color: color, fontWeight: FontWeight.w600)),
+                Text(line, maxLines: 2, overflow: TextOverflow.ellipsis, style: AppTextStyles.bodyMuted.copyWith(fontSize: 13)),
+              ],
+            ),
+          ),
+          if (onClose != null) ...[
+            const SizedBox(width: 8),
+            GestureDetector(onTap: onClose, child: const Icon(Icons.close, size: 18, color: AppColors.textMuted)),
+          ],
+        ],
+      ),
+    );
+    // In the bar it spans the width; in a bubble it is only as wide as its text.
+    return inBubble ? body : SizedBox(width: double.infinity, child: body);
   }
 }
 
@@ -451,6 +579,7 @@ class _InputBar extends StatefulWidget {
 class _InputBarState extends State<_InputBar> {
   static const _maxVoice = Duration(minutes: 2);
   final _text     = TextEditingController();
+  final _focus    = FocusNode();
   final _recorder = VoiceRecorder();
   Timer?   _ticker;
   Duration _elapsed   = Duration.zero;
@@ -468,6 +597,7 @@ class _InputBarState extends State<_InputBar> {
     _ticker?.cancel();
     _recorder.dispose();
     _text.dispose();
+    _focus.dispose();
     super.dispose();
   }
 
@@ -552,10 +682,32 @@ class _InputBarState extends State<_InputBar> {
   @override
   Widget build(BuildContext context) {
     final hasText = _text.text.trim().isNotEmpty;
-    return Container(
+    return BlocListener<ChatBloc, ChatState>(
+      // Starting a reply puts the cursor in the field.
+      listenWhen: (a, b) => a.replyingTo?.id != b.replyingTo?.id && b.replyingTo != null,
+      listener: (_, __) => _focus.requestFocus(),
+      child: Container(
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
       decoration: const BoxDecoration(border: Border(top: BorderSide(color: AppColors.glassBorder))),
-      child: Row(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          BlocBuilder<ChatBloc, ChatState>(
+            buildWhen: (a, b) => a.replyingTo != b.replyingTo,
+            builder: (context, state) {
+              final m = state.replyingTo;
+              if (m == null) return const SizedBox.shrink();
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: _QuotedReply(
+                  reply: ChatReply.of(m),
+                  userId: state.userId,
+                  onClose: () => context.read<ChatBloc>().add(ChatReplyCancelled()),
+                ),
+              );
+            },
+          ),
+          Row(
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           if (!_recording)
@@ -577,6 +729,7 @@ class _InputBarState extends State<_InputBar> {
                   )
                 : TextField(
                     controller: _text,
+                    focusNode: _focus,
                     minLines: 1,
                     maxLines: 4,
                     maxLength: 2000,
@@ -614,6 +767,9 @@ class _InputBarState extends State<_InputBar> {
               ),
             ),
         ],
+      ),
+        ],
+      ),
       ),
     );
   }
