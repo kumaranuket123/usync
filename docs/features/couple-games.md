@@ -51,3 +51,6 @@ How it stays in step: the rules and physics are pure Dart (`lib/domain/games/pen
 - `lib/presentation/features/games/bloc/slap_bloc.dart`, `screens/slap_screen.dart`, `ISlapRepository` / `SlapRepository` (Broadcast only), `lib/core/services/slap_sound.dart` (needs `audioplayers`)
 - `lib/domain/games/pen_fight.dart` (rules, physics, channel messages), `lib/presentation/features/games/bloc/pen_fight_bloc.dart`, `screens/pen_fight_screen.dart`, `IPenFightRepository` / `PenFightRepository` (Broadcast only), `lib/core/services/pen_sound.dart`
 - Tests: `test/domain/pen_fight_test.dart`, `test/presentation/pen_fight_bloc_test.dart`, `test/presentation/slap_bloc_test.dart`, `test/domain/tic_tac_toe_test.dart`, `test/presentation/tic_tac_toe_bloc_test.dart`, `test/presentation/would_you_rather_bloc_test.dart`, `test/presentation/quiz_bloc_test.dart`, `test/presentation/cards_bloc_test.dart`, `test/domain/quiz_scoring_test.dart`
+
+## Old sessions are cleared
+Starting a new game (`start_game`) deletes the couple's finished sessions, and their `game_answers` with them (cascade), so only the latest game is kept. A game still running is never touched. Migration `games_keep_one_session.sql`.
