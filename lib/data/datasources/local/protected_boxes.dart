@@ -37,3 +37,15 @@ Future<void> _migrateLegacy(String legacyName, Box<dynamic> target) async {
   }
   await Hive.deleteBoxFromDisk(legacyName);
 }
+
+/// A [LazyBox] (values stay on disk until asked for) encrypted with [cipher]. Same recovery as
+/// [openProtectedBox]: a box that cannot be opened with the key is discarded and started empty.
+Future<LazyBox<dynamic>> openProtectedLazyBox(String name, HiveCipher cipher) async {
+  try {
+    return await Hive.openLazyBox<dynamic>(name, encryptionCipher: cipher);
+  } catch (e) {
+    debugPrint('Local box "$name" could not be opened (${e.runtimeType}); starting it empty');
+    await Hive.deleteBoxFromDisk(name);
+    return Hive.openLazyBox<dynamic>(name, encryptionCipher: cipher);
+  }
+}

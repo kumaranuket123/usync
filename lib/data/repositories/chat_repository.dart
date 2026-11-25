@@ -10,10 +10,14 @@ import '../../domain/entities/chat_message.dart';
 import '../../domain/entities/notification_item.dart';
 import '../../domain/repositories/i_chat_repository.dart';
 import '../../domain/repositories/i_notification_repository.dart';
+import '../datasources/local/chat_local_source.dart';
 import '../datasources/local/prefs_source.dart';
 import '../datasources/remote/chat_media_source.dart';
 import '../datasources/remote/couple_channel_source.dart';
+import '../models/chat_message_model.dart';
 
+/// The history is on this phone ([local]); the server (`chat_messages`) is a mailbox that holds a message
+/// only until the partner's phone has saved it and said so (`ack_chat_messages`).
 class ChatRepository implements IChatRepository {
   ChatRepository({
     required this.client,
@@ -23,16 +27,19 @@ class ChatRepository implements IChatRepository {
     required this.cipher,
     required this.channelSource,
     required this.prefs,
+    required this.local,
   }) {
     outbox.register(_outboxType, _deliver);
+    outbox.register(_controlType, _deliverControl);
   }
 
-  static const _outboxType = 'chat_message';
-  static const _table      = 'chat_messages';
-  /// The newest messages loaded at once.
-  static const _limit      = 200;
+  static const _outboxType  = 'chat_message';
+  static const _controlType = 'chat_control';
+  static const _table       = 'chat_messages';
+  /// How many messages one page of the chat shows.
+  static const pageSize     = 30;
   /// What a user announces on Presence while looking at the chat.
-  static const screen      = 'chat';
+  static const screen       = 'chat';
 
   final SupabaseClient          client;
   final ChatMediaSource         media;
@@ -41,101 +48,305 @@ class ChatRepository implements IChatRepository {
   final ContentCipher           cipher;
   final CoupleChannelSource     channelSource;
   final PrefsSource             prefs;
+  final ChatLocalSource         local;
   final _uuid = const Uuid();
 
-  // ── Reading ──────────────────────────────────────────────────────────────
+  static int _micros(DateTime t) => t.toUtc().microsecondsSinceEpoch;
 
-  /// Opened rows by id, so a stream event does not decrypt every message again. Keyed by the sealed
-  /// text too, so a changed row is opened again.
-  final _opened = <String, ({String enc, Map<String, dynamic>? content})>{};
+  // ── Collecting what the partner sent ─────────────────────────────────────
+
+  String _me = '', _couple = '';
+  String? _inboxKey;
+  StreamSubscription<List<Map<String, dynamic>>>? _inboxSub;
+  List<Map<String, dynamic>>? _queued;
+  bool _draining = false;
+  /// The first snapshot on a fresh history also brings in the user's own messages the server still holds.
+  bool _importOwn = false;
+
+  /// Bumped by [reset]: a pass that started before it must not write anything.
+  int _generation = 0;
+  Future<void>? _starting;
 
   @override
-  Stream<List<ChatMessage>> watchMessages(String coupleId) => client
-      .from(_table)
-      .stream(primaryKey: ['id'])
-      .eq('couple_id', coupleId)
-      .order('created_at', ascending: false)
-      .limit(_limit)
-      .asyncMap((rows) async => [for (final row in rows.reversed) await _toMessage(row)])
-      .handleError((Object _) {}); // dropped Realtime connection: keep the screen alive
+  Future<void> startInbox({required String coupleId, required String userId}) {
+    final key = '$userId:$coupleId';
+    if (_inboxKey == key && local.owner == key) return _starting ?? Future.value();
+    _inboxKey = key;
+    return _starting = _start(key, coupleId, userId);
+  }
 
-  Future<ChatMessage> _toMessage(Map<String, dynamic> row) async {
-    final id  = row['id'] as String;
-    final enc = row['enc'] as String;
-    final coupleId = row['couple_id'] as String;
-    var cached = _opened[id];
-    if (cached == null || cached.enc != enc) {
-      Map<String, dynamic>? content;
-      try {
-        content = await cipher.openJson(enc, coupleId: coupleId, table: _table, rowId: id);
-      } catch (e) {
-        debugPrint('Could not read a chat message: ${e.runtimeType}'); // shown as locked, not dropped
-      }
-      cached = (enc: enc, content: content);
-      _opened[id] = cached;
-    }
-    final c = cached.content;
-    return ChatMessage(
-      id:         id,
-      coupleId:   coupleId,
-      senderId:   row['sender_id'] as String?,
-      kind:       ChatKind.fromKey(row['kind'] as String),
-      createdAt:  DateTime.parse(row['created_at'] as String),
-      expiresAt:  DateTime.parse(row['expires_at'] as String),
-      seenAt:     row['seen_at'] == null ? null : DateTime.parse(row['seen_at'] as String),
-      mediaPath:  row['media_path'] as String?,
-      text:       c?['t'] as String?,
-      durationMs: c?['d'] as int?,
-      reply:      ChatReply.fromJson(c?['r']),
-      locked:     c == null,
-      ttlSeconds: row['ttl_seconds'] as int? ?? ChatTimer.defaultTimer.seconds,
+  Future<void> _start(String key, String coupleId, String userId) async {
+    final generation = _generation;
+    _me = userId;
+    _couple = coupleId;
+    await _inboxSub?.cancel();
+    // Another account's history never stays on this phone.
+    _importOwn = await local.claim(key);
+    if (generation != _generation) return; // signed out while starting
+    _inboxSub = client.from(_table).stream(primaryKey: ['id']).eq('couple_id', coupleId).listen(
+      (rows) {
+        _queued = rows;
+        unawaited(_drain());
+      },
+      onError: (_) {}, // dropped Realtime connection: it reconnects, and the next snapshot has everything
     );
   }
 
-  /// The partner's messages in [rows] that have not been seen, still exist and were not deleted ([gone]).
+  /// Runs one collecting pass over [rows] as if they had come from the server (tests only).
   @visibleForTesting
-  static int countUnread(List<Map<String, dynamic>> rows, {required String userId, required Set<String> gone, required DateTime now}) =>
-      rows.where((r) =>
-          r['sender_id'] != userId &&
-          r['seen_at'] == null &&
-          !gone.contains(r['id']) &&
-          DateTime.parse(r['expires_at'] as String).isAfter(now)).length;
+  Future<void> collectForTest(List<Map<String, dynamic>> rows, {required String coupleId, required String userId, bool importOwn = false}) {
+    _couple = coupleId;
+    _me = userId;
+    _importOwn = importOwn;
+    return _collect(rows);
+  }
+
+  /// Sign-out or the couple ended: stop collecting, forget what this session knew, and make a pass that is
+  /// still running write nothing. (The history itself is wiped by [ChatLocalSource.reset].)
+  @override
+  Future<void> reset() async {
+    _generation++;
+    _inboxKey = null;
+    _starting = null;
+    _queued = null;
+    _me = _couple = '';
+    _importOwn = false;
+    _window = pageSize;
+    _hasOlder = false;
+    _media.clear();
+    final sub = _inboxSub;
+    _inboxSub = null;
+    await sub?.cancel();
+    await local.reset();
+  }
+
+  /// One pass at a time; a newer snapshot replaces one that is still waiting.
+  Future<void> _drain() async {
+    if (_draining) return;
+    _draining = true;
+    try {
+      while (_queued != null) {
+        final rows = _queued!;
+        _queued = null;
+        await _collect(rows);
+      }
+    } catch (e) {
+      debugPrint('Could not collect chat messages: ${e.runtimeType}');
+    } finally {
+      _draining = false;
+    }
+  }
+
+  Future<void> _collect(List<Map<String, dynamic>> rows) async {
+    final generation = _generation;
+    final importOwn = _importOwn;
+    _importOwn = false;
+    DateTime at(Map<String, dynamic> r) => DateTime.parse(r['created_at'] as String);
+    final ordered = [...rows]..sort((a, b) => at(a).compareTo(at(b)));
+    final collected = <String>[], delivered = <String>[], lasting = <String>[];
+    var failed = false;
+    for (final row in ordered) {
+      if (generation != _generation) return;
+      final id = row['id'] as String;
+      try {
+        if (row['sender_id'] == _me) {
+          if (importOwn && row['kind'] != 'control' && !local.knows(id)) await _save(row, mine: true);
+          continue;
+        }
+        if (row['kind'] == 'control') {
+          await _apply(row);
+          // A delete or clear must still be there next time if a message it refers to could not be saved
+          // in this pass (it would otherwise survive it); applying it again changes nothing.
+          (await _isReceipt(row) ? collected : lasting).add(id);
+        } else if (local.knows(id)) {
+          collected.add(id); // saved earlier (and maybe deleted since); the delete did not get through
+        } else if (await _save(row, mine: false)) {
+          collected.add(id);
+          delivered.add(id);
+        } else {
+          failed = true;
+        }
+      } catch (e) {
+        failed = true;
+        debugPrint('Could not collect a chat message: ${e.runtimeType}'); // it stays on the server; next time
+      }
+    }
+    if (generation != _generation) return;
+    if (!failed) collected.addAll(lasting);
+    // Saved first, collected second: a crash in between only brings the message again, and it is skipped.
+    for (var i = 0; i < collected.length; i += 500) {
+      try {
+        await client.rpc('ack_chat_messages', params: {'p_ids': collected.sublist(i, i + 500 > collected.length ? collected.length : i + 500)});
+      } catch (_) {}
+    }
+    if (delivered.isNotEmpty) await _sendControl({'c': 'receipt', 'k': 'delivered', 'ids': delivered}).catchError((_) => false);
+  }
+
+  /// Opens a message row and keeps it on this phone, with its photo or voice note. False when it cannot be
+  /// opened yet (no couple key, file not there): it then stays on the server.
+  Future<bool> _save(Map<String, dynamic> row, {required bool mine}) async {
+    final id = row['id'] as String;
+    final Map<String, dynamic> content;
+    try {
+      content = await cipher.openJson(row['enc'] as String, coupleId: _couple, table: _table, rowId: id);
+    } catch (_) {
+      return false;
+    }
+    final kind = ChatKind.fromKey(row['kind'] as String);
+    Uint8List? bytes;
+    if (kind != ChatKind.text) {
+      final path = row['media_path'] as String?;
+      if (path == null) return false;
+      try {
+        bytes = await cipher.openBytes(await media.download(path), coupleId: _couple, table: _table, rowId: id, field: 'media');
+      } catch (_) {
+        return false;
+      }
+    }
+    final seenAt = row['seen_at'] == null ? null : DateTime.parse(row['seen_at'] as String);
+    final message = ChatMessage(
+      id:          id,
+      coupleId:    _couple,
+      senderId:    row['sender_id'] as String?,
+      kind:        kind,
+      createdAt:   DateTime.parse(row['created_at'] as String),
+      // Rows from before the mailbox change may already be read: their timer is as the old server set it.
+      expiresAt:   seenAt == null || row['expires_at'] == null ? null : DateTime.parse(row['expires_at'] as String),
+      text:        content['t'] as String?,
+      durationMs:  content['d'] as int?,
+      seenAt:      seenAt,
+      deliveredAt: mine && seenAt != null ? seenAt : null,
+      ttlSeconds:  row['ttl_seconds'] as int? ?? 0,
+      reply:       ChatReply.fromJson(content['r']),
+    );
+    await local.put(ChatMessageModel.toMap(message, mine: mine, hasMedia: bytes != null), media: bytes);
+    return true;
+  }
+
+  Future<bool> _isReceipt(Map<String, dynamic> row) async {
+    final content = await cipher.openJson(row['enc'] as String, coupleId: _couple, table: _table, rowId: row['id'] as String);
+    return content['c'] == 'receipt';
+  }
+
+  /// Carries out a control envelope from the partner.
+  Future<void> _apply(Map<String, dynamic> row) async {
+    final id = row['id'] as String;
+    final content = await cipher.openJson(row['enc'] as String, coupleId: _couple, table: _table, rowId: id);
+    final ids = [for (final x in (content['ids'] as List? ?? const [])) x as String];
+    switch (content['c']) {
+      case 'receipt':
+        final read = content['k'] == 'read';
+        final now = DateTime.now().toUtc();
+        for (final messageId in ids) {
+          await local.update(messageId, (m) {
+            if (m['mine'] != true) return m;
+            final ttl = m['ttl'] as int? ?? 0;
+            return {
+              ...m,
+              'p': false,
+              'del': m['del'] ?? _micros(now),
+              if (read && m['seen'] == null) ...{
+                'seen': _micros(now),
+                if (ttl > 0) 'exp': _micros(now.add(Duration(seconds: ttl))),
+              },
+            };
+          });
+        }
+      case 'delete':
+        // The partner can remove only what the partner wrote.
+        final mine = <String>[];
+        for (final messageId in ids) {
+          final m = await local.get(messageId);
+          if (m != null && m['s'] == row['sender_id']) mine.add(messageId);
+        }
+        await local.delete(mine);
+        // Not here yet (still on its way): remember the delete, so it is not saved when it does arrive.
+        await local.forget([for (final id in ids) if (!local.has(id)) id]);
+      case 'clear':
+        await local.delete(local.idsAtOrBefore(_micros(DateTime.parse(row['created_at'] as String))));
+    }
+  }
+
+  // ── Reading ──────────────────────────────────────────────────────────────
+
+  int _window = pageSize;
+  bool _hasOlder = false;
+  Future<void> Function()? _refresh;
+
+  @override
+  bool get hasOlder => _hasOlder;
+
+  @override
+  Stream<List<ChatMessage>> watchMessages(String coupleId) {
+    late final StreamController<List<ChatMessage>> out;
+    StreamSubscription<void>? sub;
+    var busy = false, again = false;
+
+    Future<void> emit() async {
+      if (busy) {
+        again = true;
+        return;
+      }
+      busy = true;
+      try {
+        do {
+          again = false;
+          final rows = await local.page(limit: _window);
+          _hasOlder = rows.isNotEmpty && local.hasOlderThan(rows.first['at'] as int);
+          if (!out.isClosed) out.add([for (final r in rows) ChatMessageModel.fromMap(r)]);
+        } while (again);
+      } catch (e) {
+        debugPrint('Could not read the chat: ${e.runtimeType}');
+      } finally {
+        busy = false;
+      }
+    }
+
+    out = StreamController<List<ChatMessage>>(
+      onListen: () {
+        _window = pageSize;
+        _refresh = emit;
+        sub = local.changes.listen((_) => unawaited(emit()));
+        unawaited(emit());
+      },
+      onCancel: () async {
+        _refresh = null;
+        await sub?.cancel();
+      },
+    );
+    return out.stream;
+  }
+
+  @override
+  Future<bool> loadOlder() async {
+    if (!_hasOlder) return false;
+    _window += pageSize;
+    await _refresh?.call();
+    return _hasOlder;
+  }
+
+  @override
+  Future<void> purgeExpired() => local.delete(local.expiredIds(DateTime.now()));
 
   @override
   Stream<int> watchUnreadCount({required String coupleId, required String userId}) {
+    startInbox(coupleId: coupleId, userId: userId).catchError((Object e) {
+      debugPrint('Could not start collecting chat messages: ${e.runtimeType}');
+    });
     late final StreamController<int> out;
-    final subs = <StreamSubscription<Object?>>[];
-    var rows = const <Map<String, dynamic>>[];
-    // Deleted by the partner (the table stream does not report deletions).
-    final gone = <String>{};
-
+    StreamSubscription<void>? sub;
+    int? last;
     void publish() {
-      if (out.isClosed) return;
-      out.add(countUnread(rows, userId: userId, gone: gone, now: DateTime.now()));
+      final n = local.unreadCount;
+      if (n != last && !out.isClosed) out.add(last = n);
     }
 
     out = StreamController<int>(
       onListen: () {
-        final channel = channelSource.open(coupleId);
-        subs.add(client.from(_table).stream(primaryKey: ['id']).eq('couple_id', coupleId).listen(
-          (r) { rows = r; publish(); },
-          onError: (_) {}, // dropped Realtime connection: keep the last count
-        ));
-        subs.add(channel.on(CoupleChannel.chatDelete).listen((m) {
-          final ids = m['ids'];
-          if (ids is List) gone.addAll(ids.whereType<String>());
-          publish();
-        }));
-        subs.add(channel.on(CoupleChannel.chatClear).listen((_) {
-          gone.addAll(rows.map((r) => r['id'] as String));
-          publish();
-        }));
+        publish();
+        sub = local.changes.listen((_) => publish());
       },
-      onCancel: () async {
-        for (final s in subs) {
-          await s.cancel();
-        }
-      },
+      onCancel: () => sub?.cancel(),
     );
     return out.stream;
   }
@@ -185,21 +396,33 @@ class ChatRepository implements IChatRepository {
       _submit(coupleId, userId, ChatKind.voice, bytes: bytes, durationMs: durationMs, replyTo: replyTo);
 
   /// The message id is chosen here, not when sending, so a retry after a lost connection cannot add a
-  /// second message. Fails early, before queueing, when this phone has no couple key.
+  /// second message. Fails early, before anything is kept or queued, when this phone has no couple key.
+  /// The message is on the screen at once (still "pending"); the server's time replaces the phone's when it arrives.
   Future<bool> _submit(String coupleId, String userId, ChatKind kind, {String? text, Uint8List? bytes, int? durationMs, ChatReply? replyTo}) async {
     if (!await cipher.isReady(coupleId)) throw const EncryptionNotReady();
-    return outbox.submit(_outboxType, {
-      'id':         _uuid.v4(),
-      'coupleId':   coupleId,
-      'userId':     userId,
-      'kind':       kind.name,
-      'text':       text,
-      'bytes':      bytes,
-      'durationMs': durationMs,
-      'reply':      replyTo?.toJson(),
-      // Only a hint: the server stamps the message with the couple's timer when it receives it.
-      'ttl':        timer.seconds,
-    });
+    final id = _uuid.v4();
+    final message = ChatMessage(
+      id: id, coupleId: coupleId, senderId: userId, kind: kind, createdAt: DateTime.now().toUtc(),
+      text: text, durationMs: durationMs, pending: true, ttlSeconds: timer.seconds, reply: replyTo,
+    );
+    await local.put(ChatMessageModel.toMap(message, mine: true, hasMedia: bytes != null), media: bytes);
+    try {
+      return await outbox.submit(_outboxType, {
+        'id':         id,
+        'coupleId':   coupleId,
+        'userId':     userId,
+        'kind':       kind.name,
+        'text':       text,
+        'bytes':      bytes,
+        'durationMs': durationMs,
+        'reply':      replyTo?.toJson(),
+        // Only a hint: the server stamps the message with the couple's timer when it receives it.
+        'ttl':        timer.seconds,
+      });
+    } catch (e) {
+      await local.delete([id]); // refused: it must not sit on the screen looking sent
+      rethrow;
+    }
   }
 
   Future<void> _deliver(Map<String, dynamic> p) async {
@@ -219,7 +442,7 @@ class ChatRepository implements IChatRepository {
       path = ChatMediaSource.pathFor(coupleId, id);
       await media.upload(path, sealed);
     }
-    await client.rpc('send_chat_message', params: {
+    final sentAt = await client.rpc('send_chat_message', params: {
       'p_id':         id,
       'p_couple':     coupleId,
       'p_kind':       kind.name,
@@ -227,7 +450,32 @@ class ChatRepository implements IChatRepository {
       'p_media_path': path,
       'p_ttl':        ChatTimer.fromSeconds(p['ttl'] as int?).seconds,
     });
+    // Reached the server: no longer pending, and ordered by the server's time like the partner's messages.
+    final at = DateTime.tryParse('$sentAt');
+    await local.update(id, (m) => {...m, 'p': false, if (at != null) 'at': _micros(at)});
     unawaited(_notify(coupleId, userId));
+  }
+
+  /// Receipts, "delete for everyone" and "clear for both" go through the same mailbox, sealed like a
+  /// message, and are queued when offline. No push.
+  Future<bool> _sendControl(Map<String, dynamic> content, {String? coupleId}) => outbox.submit(_controlType, {
+        'id':       _uuid.v4(),
+        'coupleId': coupleId ?? _couple,
+        'content':  content,
+      });
+
+  Future<void> _deliverControl(Map<String, dynamic> p) async {
+    final id = p['id'] as String;
+    final coupleId = p['coupleId'] as String;
+    final enc = await cipher.sealJson(Map<String, dynamic>.from(p['content'] as Map), coupleId: coupleId, table: _table, rowId: id);
+    await client.rpc('send_chat_message', params: {
+      'p_id':         id,
+      'p_couple':     coupleId,
+      'p_kind':       'control',
+      'p_enc':        enc,
+      'p_media_path': null,
+      'p_ttl':        0,
+    });
   }
 
   DateTime _lastPush = DateTime.fromMillisecondsSinceEpoch(0);
@@ -256,94 +504,67 @@ class ChatRepository implements IChatRepository {
     }
   }
 
-  // ── Seen, media, presence ────────────────────────────────────────────────
+  // ── Read, delete, media, presence ────────────────────────────────────────
 
   @override
   Future<void> markSeen(List<String> ids) async {
-    if (ids.isEmpty) return;
-    await client.rpc('mark_chat_seen', params: {'p_ids': ids});
-  }
-
-  @override
-  Future<void> deleteMessage({required String coupleId, required String userId, required String id}) async {
-    await client.rpc('delete_chat_message', params: {'p_id': id});
-    _forget(id);
-    // The table stream does not report deletions, so tell the partner's phone directly. A phone that
-    // misses this (offline) simply does not get the message when it next loads the chat.
-    try {
-      await channelSource.open(coupleId).send(CoupleChannel.chatDelete, {'ids': [id], 'from': userId});
-    } catch (_) {}
-  }
-
-  @override
-  Stream<String> watchDeleted(String coupleId) => channelSource
-      .open(coupleId)
-      .on(CoupleChannel.chatDelete)
-      .expand((m) {
-        final ids = m['ids'];
-        return ids is List ? ids.whereType<String>() : const <String>[];
-      })
-      .map((id) {
-        _forget(id);
-        return id;
+    final now = DateTime.now().toUtc();
+    final read = <String>[];
+    for (final id in ids) {
+      await local.update(id, (m) {
+        if (m['mine'] == true || m['seen'] != null) return m;
+        read.add(id);
+        final ttl = m['ttl'] as int? ?? 0;
+        return {...m, 'seen': _micros(now), if (ttl > 0) 'exp': _micros(now.add(Duration(seconds: ttl)))};
       });
-
-  @override
-  Future<void> clearChat({required String coupleId, required String userId}) async {
-    await client.rpc('clear_chat', params: {'p_couple': coupleId});
-    _forgetAll();
-    try {
-      await channelSource.open(coupleId).send(CoupleChannel.chatClear, {'from': userId});
-    } catch (_) {}
+    }
+    if (read.isNotEmpty) await _sendControl({'c': 'receipt', 'k': 'read', 'ids': read});
   }
 
   @override
-  Stream<void> watchCleared(String coupleId) => channelSource.open(coupleId).on(CoupleChannel.chatClear).map((_) {
-        _forgetAll();
-      });
+  Future<void> deleteForMe(String id) => local.delete([id]);
 
-  void _forgetAll() {
-    _opened.clear();
+  @override
+  Future<void> deleteForEveryone({required String coupleId, required String userId, required String id}) async {
+    await local.delete([id]);
+    // Not collected yet: remove it from the mailbox so the partner never gets it.
+    try {
+      await client.rpc('delete_chat_message', params: {'p_id': id});
+    } catch (_) {}
+    await _sendControl({'c': 'delete', 'ids': [id]}, coupleId: coupleId);
+  }
+
+  @override
+  Future<void> clearChat({required String coupleId, required String userId, required bool forEveryone}) async {
+    await local.clear();
     _media.clear();
+    if (!forEveryone) return;
+    try {
+      await client.rpc('clear_chat', params: {'p_couple': coupleId});
+    } catch (_) {}
+    await _sendControl({'c': 'clear'}, coupleId: coupleId);
   }
 
-  /// Drops what is kept in memory about a message that no longer exists.
-  void _forget(String id) {
-    _opened.remove(id);
-    _media.remove(id);
-  }
-
-  /// Decrypted media kept in memory only (never written to the phone). Small, so a photo or voice note
-  /// is not downloaded again each time it scrolls into view.
-  static const _mediaCacheSize = 12;
-  final _media   = <String, Uint8List>{};
-  final _loading = <String, Future<Uint8List?>>{};
+  /// Decrypted media kept in memory for a moment, so a photo or voice note is not read from the box again
+  /// each time it scrolls into view.
+  static const _mediaCacheSize = 30;
+  final _media = <String, Uint8List>{};
 
   @override
-  Future<Uint8List?> loadMedia(ChatMessage message) {
-    final path = message.mediaPath;
-    if (path == null || message.locked) return Future.value(null);
+  Future<Uint8List?> loadMedia(ChatMessage message) async {
+    if (message.mediaPath == null) return null;
     final hit = _media.remove(message.id);
     if (hit != null) {
       _media[message.id] = hit; // most recently used last
-      return Future.value(hit);
+      return hit;
     }
-    return _loading[message.id] ??= () async {
-      try {
-        final sealed = await media.download(path);
-        final bytes = await cipher.openBytes(sealed, coupleId: message.coupleId, table: _table, rowId: message.id, field: 'media');
-        _media[message.id] = bytes;
-        while (_media.length > _mediaCacheSize) {
-          _media.remove(_media.keys.first);
-        }
-        return bytes;
-      } catch (e) {
-        debugPrint('Could not load chat media: ${e.runtimeType}');
-        return null;
-      } finally {
-        _loading.remove(message.id);
-      }
-    }();
+    final bytes = await local.mediaBytes(message.id);
+    if (bytes == null) return null;
+    _media[message.id] = bytes;
+    while (_media.length > _mediaCacheSize) {
+      _media.remove(_media.keys.first);
+    }
+    return bytes;
   }
 
   @override

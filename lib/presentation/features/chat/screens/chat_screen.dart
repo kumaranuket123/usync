@@ -105,7 +105,7 @@ class _BodyState extends State<_Body> with WidgetsBindingObserver {
                       child: Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 32),
                         child: Text(
-                          'Say something sweet.\nMessages, photos and voice notes only you two can read. They vanish after your partner has seen them: tap the timer to choose how long.',
+                          'Say something sweet.\nMessages, photos and voice notes only you two can read. They stay on your phones until you delete them; tap the timer if you want them to vanish after being read.',
                           style: AppTextStyles.bodyMuted,
                           textAlign: TextAlign.center,
                         ),
@@ -117,16 +117,23 @@ class _BodyState extends State<_Body> with WidgetsBindingObserver {
                     for (final m in state.messages) (at: m.createdAt, item: m),
                     for (final n in state.notices) (at: n.at, item: n),
                   ]..sort((a, b) => b.at.compareTo(a.at));
-                  return ListView.builder(
-                    reverse: true, // newest at the bottom, and the list stays there
-                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-                    itemCount: items.length,
-                    itemBuilder: (_, i) {
-                      final item = items[i].item;
-                      if (item is ChatTimerNotice) return _TimerNoticeLine(key: ValueKey(item), notice: item);
-                      final m = item as ChatMessage;
-                      return _Bubble(key: ValueKey(m.id), message: m, state: state);
+                  return NotificationListener<ScrollNotification>(
+                    // Near the top (the end of a reversed list): bring in an older page.
+                    onNotification: (n) {
+                      if (state.hasOlder && n.metrics.extentAfter < 400) context.read<ChatBloc>().add(ChatOlderRequested());
+                      return false;
                     },
+                    child: ListView.builder(
+                      reverse: true, // newest at the bottom, and the list stays there
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                      itemCount: items.length,
+                      itemBuilder: (_, i) {
+                        final item = items[i].item;
+                        if (item is ChatTimerNotice) return _TimerNoticeLine(key: ValueKey(item), notice: item);
+                        final m = item as ChatMessage;
+                        return _Bubble(key: ValueKey(m.id), message: m, state: state);
+                      },
+                    ),
                   );
                 },
               ),
@@ -161,7 +168,9 @@ class _TimerNoticeLine extends StatelessWidget {
               border: Border.all(color: AppColors.glassBorder),
             ),
             child: Text(
-              '⏱ ${notice.byMe ? 'You set' : 'Your partner set'} messages to vanish ${notice.timer.label} after seen',
+              notice.timer.isOff
+                  ? '⏱ ${notice.byMe ? 'You turned' : 'Your partner turned'} vanishing messages off'
+                  : '⏱ ${notice.byMe ? 'You set' : 'Your partner set'} messages to vanish ${notice.timer.label} after read',
               style: AppTextStyles.label,
               textAlign: TextAlign.center,
             ),
@@ -221,7 +230,12 @@ class _Bubble extends StatelessWidget {
                 ),
                 if (mine) ...[
                   const SizedBox(width: 4),
-                  Icon(message.isSeen ? Icons.done_all : Icons.done, size: 14, color: message.isSeen ? AppColors.cyan : AppColors.textDim),
+                  // Clock while it waits for a connection, one tick sent, two grey delivered, two blue read.
+                  Icon(
+                    message.pending ? Icons.schedule : (message.isSeen || message.isDelivered) ? Icons.done_all : Icons.done,
+                    size: 14,
+                    color: message.isSeen ? AppColors.cyan : AppColors.textDim,
+                  ),
                 ],
               ],
             ),
@@ -236,7 +250,8 @@ class _Bubble extends StatelessWidget {
   Future<void> _askDelete(BuildContext context) async {
     HapticUtil.medium();
     final bloc = context.read<ChatBloc>();
-    final sure = await showModalBottomSheet<bool>(
+    final mine = message.isMine(state.userId);
+    final choice = await showModalBottomSheet<bool>(
       context: context,
       backgroundColor: AppColors.bg2,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
@@ -248,22 +263,30 @@ class _Bubble extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               ListTile(
-                leading: const Icon(Icons.delete_outline, color: AppColors.error),
-                title: const Text('Delete message', style: TextStyle(color: AppColors.error)),
-                subtitle: Text('Removed for both of you', style: AppTextStyles.bodyMuted),
-                onTap: () => Navigator.of(sheet).pop(true),
+                leading: const Icon(Icons.delete_outline, color: AppColors.textPrimary),
+                title: Text('Delete for me', style: AppTextStyles.body),
+                subtitle: Text('Only removed from this phone', style: AppTextStyles.bodyMuted),
+                onTap: () => Navigator.of(sheet).pop(false),
               ),
+              // Only what you wrote yourself can be taken back from your partner's phone.
+              if (mine)
+                ListTile(
+                  leading: const Icon(Icons.delete_forever_outlined, color: AppColors.error),
+                  title: const Text('Delete for everyone', style: TextStyle(color: AppColors.error)),
+                  subtitle: Text('Removed from both phones', style: AppTextStyles.bodyMuted),
+                  onTap: () => Navigator.of(sheet).pop(true),
+                ),
               ListTile(
                 leading: const Icon(Icons.close, color: AppColors.textMuted),
                 title: const Text('Cancel', style: TextStyle(color: AppColors.textMuted)),
-                onTap: () => Navigator.of(sheet).pop(false),
+                onTap: () => Navigator.of(sheet).pop(),
               ),
             ],
           ),
         ),
       ),
     );
-    if (sure == true) bloc.add(ChatMessageDeleted(message.id));
+    if (choice != null) bloc.add(ChatMessageDeleted(message.id, forEveryone: choice));
   }
 
   Widget _content(BuildContext context) {
@@ -440,7 +463,7 @@ class _ImageContentState extends State<_ImageContent> {
         if (bytes == null) {
           return SizedBox(width: _size, child: Text('Photo could not be loaded', style: AppTextStyles.bodyMuted));
         }
-        Widget picture = Image.memory(bytes, width: _size, height: _size, fit: BoxFit.cover, gaplessPlayback: true);
+        Widget picture = Image.memory(bytes, width: _size, height: _size, fit: BoxFit.cover, gaplessPlayback: true, cacheWidth: 400);
         if (blurred) {
           picture = Stack(
             alignment: Alignment.center,
@@ -781,22 +804,23 @@ class _MoreButton extends StatelessWidget {
 
   Future<void> _clear(BuildContext context) async {
     final bloc = context.read<ChatBloc>();
-    final sure = await showDialog<bool>(
+    final choice = await showDialog<bool>(
       context: context,
       builder: (dialog) => AlertDialog(
         backgroundColor: AppColors.bg2,
         title: Text('Clear chat?', style: AppTextStyles.h4),
         content: Text(
-          'Every message, photo and voice note is deleted for both of you. This cannot be undone.',
+          'Every message, photo and voice note is deleted. This cannot be undone. Clear it only on this phone, or on your partner\'s phone too.',
           style: AppTextStyles.bodyMuted,
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(dialog, false), child: const Text('Cancel', style: TextStyle(color: AppColors.textMuted))),
-          TextButton(onPressed: () => Navigator.pop(dialog, true), child: const Text('Clear', style: TextStyle(color: AppColors.error))),
+          TextButton(onPressed: () => Navigator.pop(dialog), child: const Text('Cancel', style: TextStyle(color: AppColors.textMuted))),
+          TextButton(onPressed: () => Navigator.pop(dialog, false), child: const Text('This phone', style: TextStyle(color: AppColors.error))),
+          TextButton(onPressed: () => Navigator.pop(dialog, true), child: const Text('Both phones', style: TextStyle(color: AppColors.error))),
         ],
       ),
     );
-    if (sure == true) bloc.add(ChatCleared());
+    if (choice != null) bloc.add(ChatCleared(forEveryone: choice));
   }
 
   @override
@@ -827,29 +851,33 @@ class _TimerButton extends StatelessWidget {
     final picked = await showModalBottomSheet<ChatTimer>(
       context: context,
       backgroundColor: AppColors.bg2,
+      // Six choices and an explanation can be taller than the default sheet: let it grow, and scroll on small screens.
+      isScrollControlled: true,
       builder: (_) => SafeArea(
+        child: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 16, 20, 4),
-              child: Text('Messages vanish after…', style: AppTextStyles.h4),
+              child: Text('Messages vanish…', style: AppTextStyles.h4),
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
               child: Text(
-                'The same for both of you: it applies to every new message, from either of you, and starts when the message has been seen. A message nobody opens is deleted after 1 day.',
+                'The same for both of you: it applies to every new message, from either of you, and starts when the message has been read. With Off, messages stay on your phones until you delete them.',
                 style: AppTextStyles.bodyMuted,
               ),
             ),
             for (final t in ChatTimer.values)
               ListTile(
-                title: Text(t.label, style: AppTextStyles.body),
+                title: Text(t.isOff ? 'Never (off)' : 'After ${t.label}', style: AppTextStyles.body),
                 trailing: bloc.state.timer == t ? const Icon(Icons.check, color: AppColors.cyan) : null,
                 onTap: () => Navigator.pop(context, t),
               ),
           ],
+        ),
         ),
       ),
     );

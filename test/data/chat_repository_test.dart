@@ -1,13 +1,16 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:usync/data/datasources/local/prefs_source.dart';
 import 'package:usync/domain/entities/chat_message.dart';
 import 'package:usync/core/crypto/content_cipher.dart';
 import 'package:usync/data/datasources/remote/chat_media_source.dart';
 import 'package:usync/data/datasources/remote/couple_channel_source.dart';
+import 'package:usync/data/models/chat_message_model.dart';
 import 'package:usync/data/repositories/chat_repository.dart';
 
 import '../support/test_cipher.dart';
@@ -64,6 +67,7 @@ void main() {
         cipher: c,
         channelSource: channels,
         prefs: PrefsSource(prefs: prefs),
+        local: local.chat,
       );
 
   setUp(() async {
@@ -149,10 +153,44 @@ void main() {
     expect(local.outbox.pending, 0);
   });
 
-  test('the couple\'s timer is set on the server and remembered; sends still hint it', () async {
-    expect(repo.timer, ChatTimer.oneDay);
+  test('a message you send is on your screen at once, pending until the server has it, then ordered by the server\'s time', () async {
+    backend.respond((r) => r.path.endsWith('/rpc/send_chat_message') ? FakeBackend.ok('2026-06-01T10:00:00+00:00') : FakeBackend.ok('ok'));
+    await repo.sendText(coupleId: 'c1', userId: 'u1', text: 'hello');
+
+    final id = (rpc('send_chat_message').json as Map)['p_id'] as String;
+    final stored = (await local.chat.get(id))!;
+    expect(stored['t'], 'hello');
+    expect(stored['mine'], isTrue);
+    expect(stored['p'], isFalse);
+    expect(stored['at'], DateTime.utc(2026, 6, 1, 10).microsecondsSinceEpoch);
+  });
+
+  test('offline: the message shows as pending and is sent when the connection is back', () async {
+    local.connectivity.current = [ConnectivityResult.none];
+    await local.outbox.init();
+    final sentNow = await repo.sendText(coupleId: 'c1', userId: 'u1', text: 'later');
+
+    expect(sentNow, isFalse);
+    final id = (await local.chat.page(limit: 5)).single['id'] as String;
+    expect((await local.chat.get(id))!['p'], isTrue);
+    expect(backend.requests.where((r) => r.path.endsWith('/rpc/send_chat_message')), isEmpty);
+
+    local.connectivity.current = [ConnectivityResult.wifi];
+    await local.outbox.flush();
+    expect((await local.chat.get(id))!['p'], isFalse);
+    expect(rpc('send_chat_message'), isNotNull);
+  });
+
+  test('a message the server refuses does not stay on the screen', () async {
+    backend.respond((_) => FakeBackend.error('P0001', 'Invalid message', status: 400));
+    await expectLater(repo.sendText(coupleId: 'c1', userId: 'u1', text: 'x'), throwsA(anything));
+    expect(await local.chat.page(limit: 5), isEmpty);
+  });
+
+  test('the couple\'s timer is Off by default, set on the server and remembered; sends still hint it', () async {
+    expect(repo.timer, ChatTimer.off);
     await repo.sendText(coupleId: 'c1', userId: 'u1', text: 'a');
-    expect((rpc('send_chat_message').json as Map)['p_ttl'], 86400);
+    expect((rpc('send_chat_message').json as Map)['p_ttl'], 0);
 
     backend.requests.clear();
     await repo.setTimer(coupleId: 'c1', timer: ChatTimer.tenSeconds);
@@ -165,57 +203,245 @@ void main() {
   test('a timer change the server refuses is reported and not remembered', () async {
     backend.respond((_) => FakeBackend.error('P0001', 'Not a member', status: 400));
     await expectLater(repo.setTimer(coupleId: 'c1', timer: ChatTimer.oneMinute), throwsA(anything));
-    expect(repo.timer, ChatTimer.oneDay);
+    expect(repo.timer, ChatTimer.off);
   });
 
-  test('marking messages seen calls the RPC with their ids, and nothing for an empty list', () async {
-    await repo.markSeen(const []);
-    expect(backend.requests.where((r) => r.path.endsWith('/rpc/mark_chat_seen')), isEmpty);
-
-    await repo.markSeen(const ['a', 'b']);
-    expect((rpc('mark_chat_seen').json as Map)['p_ids'], ['a', 'b']);
-  });
-
-  test('deleting a message calls the RPC with its id', () async {
-    backend.respond((_) => FakeBackend.ok(null));
-    await repo.deleteMessage(coupleId: 'c1', userId: 'u1', id: 'm1');
-    expect((rpc('delete_chat_message').json as Map)['p_id'], 'm1');
-  });
-
-  test('a delete the server refuses is reported to the caller', () async {
-    backend.respond((_) => FakeBackend.error('P0001', 'Not a member', status: 400));
-    await expectLater(repo.deleteMessage(coupleId: 'c1', userId: 'u1', id: 'm1'), throwsA(anything));
-  });
-
-  test('clearing the chat calls the RPC with the couple', () async {
-    backend.respond((_) => FakeBackend.ok(null));
-    await repo.clearChat(coupleId: 'c1', userId: 'u1');
-    expect((rpc('clear_chat').json as Map)['p_couple'], 'c1');
-  });
-
-  test('a clear the server refuses is reported to the caller', () async {
-    backend.respond((_) => FakeBackend.error('P0001', 'Not a member', status: 400));
-    await expectLater(repo.clearChat(coupleId: 'c1', userId: 'u1'), throwsA(anything));
-  });
-
-  group('unread count', () {
-    final now = DateTime(2026, 6, 1, 12);
-    Map<String, dynamic> row(String id, {String sender = 'partner', String? seen, DateTime? expires}) => {
-          'id': id, 'sender_id': sender, 'seen_at': seen, 'expires_at': (expires ?? DateTime(2030)).toIso8601String(),
+  group('collecting from the mailbox', () {
+    Future<Map<String, dynamic>> row(String id, Map<String, dynamic> content, {String sender = 'partner', String kind = 'text', String? path, String created = '2026-06-01T10:00:00+00:00', String? seen, String? expires}) async => {
+          'id': id, 'couple_id': 'c1', 'sender_id': sender, 'kind': kind, 'media_path': path,
+          'enc': await cipher.sealJson(content, coupleId: 'c1', table: 'chat_messages', rowId: id),
+          'created_at': created, 'seen_at': seen, 'expires_at': expires ?? '2026-06-15T10:00:00+00:00', 'ttl_seconds': 60,
         };
-    int count(List<Map<String, dynamic>> rows, {Set<String> gone = const {}}) =>
-        ChatRepository.countUnread(rows, userId: 'me', gone: gone, now: now);
 
-    test('counts only the partner\'s messages that nobody has seen', () {
-      expect(count([row('1'), row('2'), row('3', seen: '2026-06-01T11:00:00Z'), row('4', sender: 'me')]), 2);
+    Future<void> collect(List<Map<String, dynamic>> rows, {bool importOwn = false}) =>
+        repo.collectForTest(rows, coupleId: 'c1', userId: 'me', importOwn: importOwn);
+
+    List<String> sentControls() => [
+          for (final r in backend.requests.where((r) => r.path.endsWith('/rpc/send_chat_message')))
+            if ((r.json as Map)['p_kind'] == 'control') (r.json as Map)['p_enc'] as String,
+        ];
+
+    test('a partner message is saved on the phone, then deleted from the server, then reported delivered', () async {
+      await collect([await row('m1', {'t': 'hi love'})]);
+
+      final saved = (await local.chat.get('m1'))!;
+      expect(saved['t'], 'hi love');
+      expect(saved['mine'], isFalse);
+      expect(local.chat.unreadCount, 1);
+      expect((rpc('ack_chat_messages').json as Map)['p_ids'], ['m1']);
+      final control = await cipher.openJson(sentControls().single, coupleId: 'c1', table: 'chat_messages', rowId: ((backend.requests.lastWhere((r) => r.path.endsWith('/rpc/send_chat_message')).json as Map)['p_id']) as String);
+      expect(control, {'c': 'receipt', 'k': 'delivered', 'ids': ['m1']});
     });
 
-    test('leaves out expired messages and ones the partner deleted', () {
-      expect(count([row('1', expires: DateTime(2026, 6, 1, 11)), row('2'), row('3')], gone: {'3'}), 1);
+    test('a message already saved is only collected again, not duplicated or reported twice', () async {
+      final m = await row('m1', {'t': 'hi'});
+      await collect([m]);
+      backend.requests.clear();
+      await collect([m]);
+
+      expect((await local.chat.page(limit: 10)).length, 1);
+      expect((rpc('ack_chat_messages').json as Map)['p_ids'], ['m1']);
+      expect(sentControls(), isEmpty);
     });
 
-    test('is zero for an empty chat', () {
-      expect(count(const []), 0);
+    test('a message deleted on this phone is not saved again from a stale copy on the server', () async {
+      final m = await row('m1', {'t': 'hi'});
+      await collect([m]);
+      await repo.deleteForMe('m1');
+      backend.requests.clear();
+
+      await collect([m]);
+
+      expect(local.chat.has('m1'), isFalse);
+      expect((rpc('ack_chat_messages').json as Map)['p_ids'], ['m1']);
     });
+
+    test('a "delete for everyone" that arrives before its message wins when the message follows', () async {
+      await collect([await row('d1', {'c': 'delete', 'ids': ['m1']}, kind: 'control', created: '2026-06-01T10:00:00+00:00')]);
+      await collect([await row('m1', {'t': 'never show'}, created: '2026-06-01T09:00:00+00:00')]);
+      expect(local.chat.has('m1'), isFalse);
+    });
+
+    test('a delete or clear is not collected while a message of the same pass could not be saved', () async {
+      repo = build(notReadyCipher());
+      await collect([await row('m1', {'t': 'x'}), await row('d1', {'c': 'delete', 'ids': ['m1']}, kind: 'control')]);
+      // Nothing could even be opened here, so nothing is collected.
+      expect(backend.requests.where((r) => r.path.endsWith('/rpc/ack_chat_messages')), isEmpty);
+    });
+
+    test('after a reset the history is wiped and collecting stops', () async {
+      await collect([await row('m1', {'t': 'hi'})]);
+      await repo.reset();
+      expect(local.chat.has('m1'), isFalse);
+      expect(local.chat.owner, isNull);
+    });
+
+    test('a message that cannot be opened yet stays on the server', () async {
+      repo = build(notReadyCipher());
+      await collect([await row('m1', {'t': 'hi'})]);
+
+      expect(local.chat.has('m1'), isFalse);
+      expect(backend.requests.where((r) => r.path.endsWith('/rpc/ack_chat_messages')), isEmpty);
+    });
+
+    test('a photo is downloaded, opened and kept on the phone before it is collected', () async {
+      final photo = Uint8List.fromList([1, 2, 3, 4, 5]);
+      final sealed = await cipher.sealBytes(photo, coupleId: 'c1', table: 'chat_messages', rowId: 'p1', field: 'media');
+      backend.respond((r) => r.path.contains('/storage/') && r.method == 'GET' ? http.Response.bytes(sealed, 200) : FakeBackend.ok('ok'));
+
+      await collect([await row('p1', {}, kind: 'image', path: 'c1/p1.enc')]);
+
+      expect(await local.chat.mediaBytes('p1'), photo);
+      expect((await repo.loadMedia(ChatMessageModel.fromMap((await local.chat.get('p1'))!))), photo);
+      expect((rpc('ack_chat_messages').json as Map)['p_ids'], ['p1']);
+    });
+
+    test('a photo that cannot be downloaded is not collected', () async {
+      backend.respond((r) => r.path.contains('/storage/') ? http.Response('nope', 404) : FakeBackend.ok('ok'));
+      await collect([await row('p1', {}, kind: 'image', path: 'c1/p1.enc')]);
+      expect(local.chat.has('p1'), isFalse);
+      expect(backend.requests.where((r) => r.path.endsWith('/rpc/ack_chat_messages')), isEmpty);
+    });
+
+    test('a read receipt starts the timer on the sender\'s phone; a delivered one gives the second tick', () async {
+      await repo.sendText(coupleId: 'c1', userId: 'me', text: 'mine');
+      final id = (await local.chat.page(limit: 1)).single['id'] as String;
+      await local.chat.update(id, (m) => {...m, 'ttl': 60});
+
+      await collect([await row('c-del', {'c': 'receipt', 'k': 'delivered', 'ids': [id]}, kind: 'control')]);
+      var m = (await local.chat.get(id))!;
+      expect(m['del'], isNotNull);
+      expect(m['seen'], isNull);
+
+      await collect([await row('c-read', {'c': 'receipt', 'k': 'read', 'ids': [id]}, kind: 'control')]);
+      m = (await local.chat.get(id))!;
+      expect(m['seen'], isNotNull);
+      expect((m['exp'] as int) - (m['seen'] as int), const Duration(seconds: 60).inMicroseconds);
+      final acks = [for (final r in backend.requests.where((r) => r.path.endsWith('/rpc/ack_chat_messages'))) ...((r.json as Map)['p_ids'] as List)];
+      expect(acks, ['c-del', 'c-read']);
+    });
+
+    test('with the timer off a read message never expires', () async {
+      await collect([await row('m1', {'t': 'hi'})..['ttl_seconds'] = 0]);
+      await repo.markSeen(['m1']);
+      final m = (await local.chat.get('m1'))!;
+      expect(m['seen'], isNotNull);
+      expect(m['exp'], isNull);
+      expect(local.chat.unreadCount, 0);
+    });
+
+    test('"delete for everyone" removes the partner\'s own message only', () async {
+      await collect([await row('m1', {'t': 'a'}), await row('m2', {'t': 'b'}, sender: 'partner')]);
+      await repo.sendText(coupleId: 'c1', userId: 'me', text: 'mine');
+      final mineId = (await local.chat.page(limit: 5)).firstWhere((m) => m['mine'] == true)['id'] as String;
+
+      await collect([await row('d1', {'c': 'delete', 'ids': ['m1', mineId]}, kind: 'control')]);
+
+      expect(local.chat.has('m1'), isFalse);
+      expect(local.chat.has('m2'), isTrue);
+      expect(local.chat.has(mineId), isTrue, reason: 'the partner cannot delete what I wrote');
+    });
+
+    test('"clear for both" removes what came before it, not what came after', () async {
+      await collect([
+        await row('old', {'t': 'a'}, created: '2026-06-01T09:00:00+00:00'),
+        await row('new', {'t': 'b'}, created: '2026-06-01T11:00:00+00:00'),
+        await row('clr', {'c': 'clear'}, kind: 'control', created: '2026-06-01T10:00:00+00:00'),
+      ]);
+      expect(local.chat.has('old'), isFalse);
+      expect(local.chat.has('new'), isTrue);
+    });
+
+    test('on a fresh phone the user\'s own messages still on the server are brought in once', () async {
+      await collect([await row('o1', {'t': 'mine'}, sender: 'me')], importOwn: true);
+      expect((await local.chat.get('o1'))!['mine'], isTrue);
+      expect(backend.requests.where((r) => r.path.endsWith('/rpc/ack_chat_messages')), isEmpty, reason: 'only the partner collects');
+
+      await local.chat.delete(['o1']);
+      await collect([await row('o1', {'t': 'mine'}, sender: 'me')]);
+      expect(local.chat.has('o1'), isFalse, reason: 'deleted for me stays deleted');
+    });
+
+    test('a message already read on the old server keeps its timer', () async {
+      await collect([await row('m1', {'t': 'old'}, seen: '2026-06-01T10:30:00+00:00', expires: '2026-06-01T10:31:00+00:00')]);
+      final m = (await local.chat.get('m1'))!;
+      expect(m['seen'], DateTime.utc(2026, 6, 1, 10, 30).microsecondsSinceEpoch);
+      expect(m['exp'], DateTime.utc(2026, 6, 1, 10, 31).microsecondsSinceEpoch);
+    });
+  });
+
+  test('marking messages read sends one sealed read receipt, and nothing for an empty list', () async {
+    await repo.markSeen(const []);
+    expect(backend.requests.where((r) => r.path.endsWith('/rpc/send_chat_message')), isEmpty);
+  });
+
+  test('delete for me touches only this phone', () async {
+    await repo.sendText(coupleId: 'c1', userId: 'u1', text: 'a');
+    final id = (await local.chat.page(limit: 1)).single['id'] as String;
+    backend.requests.clear();
+
+    await repo.deleteForMe(id);
+
+    expect(local.chat.has(id), isFalse);
+    expect(backend.requests, isEmpty);
+  });
+
+  test('delete for everyone removes it here, from the mailbox, and tells the partner\'s phone', () async {
+    await repo.sendText(coupleId: 'c1', userId: 'u1', text: 'a');
+    final id = (await local.chat.page(limit: 1)).single['id'] as String;
+    backend.requests.clear();
+    backend.respond((_) => FakeBackend.ok(null));
+
+    await repo.deleteForEveryone(coupleId: 'c1', userId: 'u1', id: id);
+
+    expect(local.chat.has(id), isFalse);
+    expect((rpc('delete_chat_message').json as Map)['p_id'], id);
+    final control = backend.requests.lastWhere((r) => r.path.endsWith('/rpc/send_chat_message')).json as Map;
+    expect(control['p_kind'], 'control');
+    expect(await cipher.openJson(control['p_enc'] as String, coupleId: 'c1', table: 'chat_messages', rowId: control['p_id'] as String), {'c': 'delete', 'ids': [id]});
+  });
+
+  test('clearing on this phone does not contact the server; for both it clears the mailbox and sends a control', () async {
+    await repo.sendText(coupleId: 'c1', userId: 'u1', text: 'a');
+    backend.requests.clear();
+    await repo.clearChat(coupleId: 'c1', userId: 'u1', forEveryone: false);
+    expect(await local.chat.page(limit: 5), isEmpty);
+    expect(backend.requests, isEmpty);
+
+    await repo.sendText(coupleId: 'c1', userId: 'u1', text: 'b');
+    backend.requests.clear();
+    backend.respond((_) => FakeBackend.ok(null));
+    await repo.clearChat(coupleId: 'c1', userId: 'u1', forEveryone: true);
+    expect((rpc('clear_chat').json as Map)['p_couple'], 'c1');
+    expect((backend.requests.lastWhere((r) => r.path.endsWith('/rpc/send_chat_message')).json as Map)['p_kind'], 'control');
+  });
+
+  test('expired messages are removed from the phone', () async {
+    await repo.sendText(coupleId: 'c1', userId: 'u1', text: 'a');
+    final id = (await local.chat.page(limit: 1)).single['id'] as String;
+    await local.chat.update(id, (m) => {...m, 'exp': DateTime.now().toUtc().subtract(const Duration(seconds: 1)).microsecondsSinceEpoch});
+
+    await repo.purgeExpired();
+
+    expect(local.chat.has(id), isFalse);
+  });
+
+  test('the chat shows the newest page first and older ones when asked', () async {
+    for (var i = 0; i < 70; i++) {
+      await local.chat.put({'id': 'm$i', 'cid': 'c1', 's': 'partner', 'mine': false, 'k': 'text', 'at': 1000 + i, 't': 'n$i', 'ttl': 0, 'p': false, 'm': false});
+    }
+    final seen = <List<ChatMessage>>[];
+    final sub = repo.watchMessages('c1').listen(seen.add);
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    expect(seen.last.length, ChatRepository.pageSize);
+    expect(seen.last.last.id, 'm69');
+    expect(seen.last.first.id, 'm40');
+    expect(repo.hasOlder, isTrue);
+
+    expect(await repo.loadOlder(), isTrue);
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    expect(seen.last.length, ChatRepository.pageSize * 2);
+    expect(await repo.loadOlder(), isFalse);
+    await sub.cancel();
   });
 }
