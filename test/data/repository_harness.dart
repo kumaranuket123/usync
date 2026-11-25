@@ -8,6 +8,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:usync/core/services/outbox_service.dart';
+import 'package:usync/data/datasources/local/chat_local_source.dart';
 import 'package:usync/data/datasources/local/session_cache.dart';
 import 'package:usync/domain/entities/notification_item.dart';
 import 'package:usync/domain/repositories/i_notification_repository.dart';
@@ -101,6 +102,7 @@ class LocalStorage {
   late Box<dynamic> cacheBox;
   late Box<dynamic> outboxBox;
   late SessionCache sessionCache;
+  late ChatLocalSource chat;
   late OutboxService outbox;
   final connectivity = FakeConnectivity();
 
@@ -111,6 +113,11 @@ class LocalStorage {
     cacheBox = await Hive.openBox<dynamic>('cache_$stamp');
     outboxBox = await Hive.openBox<dynamic>('outbox_$stamp');
     sessionCache = SessionCache(box: cacheBox);
+    chat = ChatLocalSource(
+      messages: await Hive.openLazyBox<dynamic>('chat_$stamp'),
+      index: await Hive.openBox<dynamic>('chat_index_$stamp'),
+      media: await Hive.openLazyBox<dynamic>('chat_media_$stamp'),
+    );
     outbox = OutboxService(
       box: outboxBox,
       connectivity: connectivity,

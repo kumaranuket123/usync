@@ -14,10 +14,18 @@ class UsyncShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.bg1,
-      body: EncryptionSyncGate(child: child),
-      bottomNavigationBar: const _UsyncBottomNav(),
+    final onHome = GoRouterState.of(context).matchedLocation.startsWith(RouteNames.home);
+    // Back (button or gesture) on any other tab goes to Home; only Home lets the app close.
+    return PopScope(
+      canPop: onHome,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) context.go(RouteNames.home);
+      },
+      child: Scaffold(
+        backgroundColor: AppColors.bg1,
+        body: EncryptionSyncGate(child: child),
+        bottomNavigationBar: const _UsyncBottomNav(),
+      ),
     );
   }
 }

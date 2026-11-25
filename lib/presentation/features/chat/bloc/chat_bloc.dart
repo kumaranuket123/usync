@@ -28,11 +28,15 @@ class _TimerFromServer extends ChatEvent {
   final ChatTimer timer;
 }
 
-/// The user deletes a message, for both partners.
+/// The user deletes a message: from this phone, or (their own messages) from both phones.
 class ChatMessageDeleted extends ChatEvent {
-  ChatMessageDeleted(this.id);
+  ChatMessageDeleted(this.id, {this.forEveryone = false});
   final String id;
+  final bool   forEveryone;
 }
+
+/// The user scrolled to the top: show an older page.
+class ChatOlderRequested extends ChatEvent {}
 
 /// The user revealed a partner's photo or voice note (opened the photo, played the voice note): from now
 /// on the timer runs for it. Until then it stays.
@@ -41,16 +45,10 @@ class ChatMediaRevealed extends ChatEvent {
   final String id;
 }
 
-/// The user clears the whole chat, for both partners.
-class ChatCleared extends ChatEvent {}
-
-/// The partner cleared the chat.
-class _ClearedByPartner extends ChatEvent {}
-
-/// The partner deleted a message.
-class _DeletedByPartner extends ChatEvent {
-  _DeletedByPartner(this.id);
-  final String id;
+/// The user clears the whole chat: on this phone, or on both.
+class ChatCleared extends ChatEvent {
+  ChatCleared({this.forEveryone = false});
+  final bool forEveryone;
 }
 
 /// The chat is in front of the user (or not): only then are incoming messages counted as seen.
@@ -81,6 +79,15 @@ class ChatVoiceSent extends ChatEvent {
   final int       durationMs;
 }
 
+/// The user starts replying to a message (dragged it).
+class ChatReplyStarted extends ChatEvent {
+  ChatReplyStarted(this.message);
+  final ChatMessage message;
+}
+
+/// The user dropped the reply they were writing.
+class ChatReplyCancelled extends ChatEvent {}
+
 class ChatState extends Equatable {
   const ChatState({
     this.loading = true,
@@ -90,6 +97,8 @@ class ChatState extends Equatable {
     this.timer = ChatTimer.defaultTimer,
     this.notice,
     this.notices = const [],
+    this.replyingTo,
+    this.hasOlder = false,
   });
 
   final bool              loading;
@@ -103,9 +112,13 @@ class ChatState extends Equatable {
   final String?           notice;
   /// "Timer changed" lines to show among the messages, oldest first.
   final List<ChatTimerNotice> notices;
+  /// The message the user is writing a reply to.
+  final ChatMessage? replyingTo;
+  /// Older messages than those shown exist on this phone.
+  final bool hasOlder;
 
   @override
-  List<Object?> get props => [loading, messages, now, userId, timer, notice, notices];
+  List<Object?> get props => [loading, messages, now, userId, timer, notice, notices, replyingTo, hasOlder];
 }
 
 class ChatBloc extends Bloc<ChatEvent, ChatState> {
@@ -117,14 +130,11 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
     on<_Tick>(_onTick);
     on<ChatVisibilityChanged>(_onVisibility);
     on<ChatMessageDeleted>(_onDelete);
+    on<ChatOlderRequested>(_onOlder);
     on<ChatMediaRevealed>((e, _) => _markSeen([e.id]));
-    on<_DeletedByPartner>(_onDeletedByPartner);
     on<ChatCleared>(_onClear);
-    on<_ClearedByPartner>((_, emit) {
-      _deleted.addAll(_all.map((m) => m.id));
-      _notices = const [];
-      _show(emit);
-    });
+    on<ChatReplyStarted>((e, emit) { _replyTo = e.message; _show(emit); });
+    on<ChatReplyCancelled>((_, emit) { _replyTo = null; _show(emit); });
     on<ChatTimerChanged>(_onTimerChanged);
     on<_TimerFromServer>((e, emit) {
       // The first value is just what the server has; a later different one is the partner's change.
@@ -133,9 +143,9 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
       _chatTimer = e.timer;
       _show(emit);
     });
-    on<ChatTextSent>((e, emit) => _send(emit, () => chatRepository.sendText(coupleId: _coupleId, userId: _userId, text: e.text.trim()), skip: e.text.trim().isEmpty));
-    on<ChatImageSent>((e, emit) => _send(emit, () => chatRepository.sendImage(coupleId: _coupleId, userId: _userId, bytes: e.bytes)));
-    on<ChatVoiceSent>((e, emit) => _send(emit, () => chatRepository.sendVoice(coupleId: _coupleId, userId: _userId, bytes: e.bytes, durationMs: e.durationMs)));
+    on<ChatTextSent>((e, emit) => _send(emit, () => chatRepository.sendText(coupleId: _coupleId, userId: _userId, text: e.text.trim(), replyTo: _reply()), skip: e.text.trim().isEmpty));
+    on<ChatImageSent>((e, emit) => _send(emit, () => chatRepository.sendImage(coupleId: _coupleId, userId: _userId, bytes: e.bytes, replyTo: _reply())));
+    on<ChatVoiceSent>((e, emit) => _send(emit, () => chatRepository.sendVoice(coupleId: _coupleId, userId: _userId, bytes: e.bytes, durationMs: e.durationMs, replyTo: _reply())));
   }
 
   final IChatRepository  chatRepository;
@@ -149,28 +159,28 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
   /// The timer the server has was loaded: from then on a different value is a change worth a line in the chat.
   bool _timerKnown = false;
   List<ChatMessage> _all = const [];
+  /// The message the next one sent answers.
+  ChatMessage? _replyTo;
+  ChatReply? _reply() => _replyTo == null ? null : ChatReply.of(_replyTo!);
   /// Ids already reported as seen, so each is sent once.
   final _reported = <String>{};
   StreamSubscription<List<ChatMessage>>? _sub;
-  StreamSubscription<String>?            _deletions;
-  StreamSubscription<void>?              _clears;
   StreamSubscription<ChatTimer>?         _timerSub;
-  /// Messages deleted here or by the partner: left out even if the table stream still lists them for a moment.
-  final _deleted = <String>{};
+  bool _loadingOlder = false;
   Timer? _timer;
 
   Future<void> _onOpened(ChatOpened e, Emitter<ChatState> emit) async {
     _coupleId = e.coupleId; _userId = e.userId;
     _chatTimer = chatRepository.timer;
     emit(ChatState(userId: _userId, now: _clock(), timer: _chatTimer));
+    // Collects what the partner sent (Home does too; this is a no-op then) and drops what has expired.
+    try {
+      await chatRepository.startInbox(coupleId: _coupleId, userId: _userId);
+      await chatRepository.purgeExpired();
+    } catch (_) {}
     await _sub?.cancel();
     _sub = chatRepository.watchMessages(_coupleId).listen(
       (m) { if (!isClosed) add(_MessagesChanged(m)); },
-      onError: (_) {},
-    );
-    await _deletions?.cancel();
-    _deletions = chatRepository.watchDeleted(_coupleId).listen(
-      (id) { if (!isClosed) add(_DeletedByPartner(id)); },
       onError: (_) {},
     );
     await _timerSub?.cancel();
@@ -178,21 +188,15 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
       (t) { if (!isClosed) add(_TimerFromServer(t)); },
       onError: (_) {},
     );
-    await _clears?.cancel();
-    _clears = chatRepository.watchCleared(_coupleId).listen(
-      (_) { if (!isClosed) add(_ClearedByPartner()); },
-      onError: (_) {},
-    );
     _timer?.cancel();
     _timer = Timer.periodic(tickEvery, (_) { if (!isClosed) add(_Tick()); });
   }
 
-  List<ChatMessage> _alive(DateTime now) => [for (final m in _all) if (!m.isExpired(now) && !_deleted.contains(m.id)) m];
+  List<ChatMessage> _alive(DateTime now) => [for (final m in _all) if (!m.isExpired(now)) m];
 
   void _onMessages(_MessagesChanged e, Emitter<ChatState> emit) {
     _all = e.messages;
-    final now = _clock();
-    emit(ChatState(loading: false, messages: _alive(now), now: now, userId: _userId, timer: _chatTimer, notices: _notices));
+    _show(emit);
     _reportSeen();
   }
 
@@ -202,16 +206,27 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
     final alive = _alive(now);
     // Nothing expired: no need to redraw.
     if (alive.length == state.messages.length) return;
-    emit(ChatState(loading: false, messages: alive, now: now, userId: _userId, timer: _chatTimer, notices: _notices));
+    // Their timer has run out: gone from the screen now, and from this phone's storage.
+    chatRepository.purgeExpired().catchError((_) {});
+    _show(emit);
   }
 
   void _show(Emitter<ChatState> emit, {String? notice}) {
     final now = _clock();
-    emit(ChatState(loading: false, messages: _alive(now), now: now, userId: _userId, timer: _chatTimer, notices: _notices, notice: notice));
+    emit(ChatState(
+      loading: false, messages: _alive(now), now: now, userId: _userId, timer: _chatTimer, notices: _notices,
+      replyingTo: _replyTo, hasOlder: chatRepository.hasOlder, notice: notice,
+    ));
   }
 
-  void _onDeletedByPartner(_DeletedByPartner e, Emitter<ChatState> emit) {
-    if (_deleted.add(e.id)) _show(emit);
+  Future<void> _onOlder(ChatOlderRequested e, Emitter<ChatState> emit) async {
+    if (_loadingOlder || !chatRepository.hasOlder) return;
+    _loadingOlder = true;
+    try {
+      await chatRepository.loadOlder(); // the messages stream reports the longer list
+    } finally {
+      _loadingOlder = false;
+    }
   }
 
   /// Puts a "timer changed" line after the newest message.
@@ -239,29 +254,24 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
   }
 
   Future<void> _onClear(ChatCleared e, Emitter<ChatState> emit) async {
-    // Empty at once; everything comes back if the server could not be reached.
-    final ids = [for (final m in _all) if (_deleted.add(m.id)) m.id];
-    final lines = _notices;
     _notices = const [];
     _show(emit);
     try {
-      await chatRepository.clearChat(coupleId: _coupleId, userId: _userId);
+      await chatRepository.clearChat(coupleId: _coupleId, userId: _userId, forEveryone: e.forEveryone);
     } catch (_) {
-      _deleted.removeAll(ids);
-      _notices = lines;
-      _show(emit, notice: 'Could not clear the chat. Check your connection.');
+      _show(emit, notice: 'Could not clear the chat for your partner. Check your connection.');
     }
   }
 
   Future<void> _onDelete(ChatMessageDeleted e, Emitter<ChatState> emit) async {
-    // Gone from the screen at once; put back if the server could not be reached.
-    _deleted.add(e.id);
-    _show(emit);
     try {
-      await chatRepository.deleteMessage(coupleId: _coupleId, userId: _userId, id: e.id);
+      if (e.forEveryone) {
+        await chatRepository.deleteForEveryone(coupleId: _coupleId, userId: _userId, id: e.id);
+      } else {
+        await chatRepository.deleteForMe(e.id);
+      }
     } catch (_) {
-      _deleted.remove(e.id);
-      _show(emit, notice: 'Could not delete the message. Check your connection.');
+      _show(emit, notice: e.forEveryone ? 'Could not delete the message for your partner. Check your connection.' : 'Could not delete the message.');
     }
   }
 
@@ -280,7 +290,8 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
   /// The decrypted photo or voice note of [message] (kept in memory only), or null.
   Future<Uint8List?> loadMedia(ChatMessage message) => chatRepository.loadMedia(message);
 
-  /// Starts the timer of the partner's TEXT messages that have just been seen. Photos and voice notes are
+  /// Starts the timer of the partner's TEXT messages that have just been seen (and of photos when the timer is
+  /// Off, since nothing is hidden then). Photos with a timer and voice notes are
   /// left out: their timer starts when the user reveals them ([ChatMediaRevealed]). A failure is not
   /// remembered, so the next change, return to the screen or tap tries again.
   void _reportSeen() {
@@ -288,7 +299,7 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
     final now = _clock();
     final ids = [
       for (final m in _all)
-        if (m.kind == ChatKind.text && !m.isMine(_userId) && !m.isSeen && !m.locked && !m.isExpired(now) && !_reported.contains(m.id)) m.id,
+        if ((m.kind == ChatKind.text || (m.kind == ChatKind.image && m.ttlSeconds == 0)) && !m.isMine(_userId) && !m.isSeen && !m.locked && !m.isExpired(now) && !_reported.contains(m.id)) m.id,
     ];
     _markSeen(ids);
   }
@@ -302,14 +313,20 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
   Future<void> _send(Emitter<ChatState> emit, Future<bool> Function() send, {bool skip = false}) async {
     if (skip) return;
     try {
-      final delivered = await send();
+      final sending = send(); // reads the reply now
+      // The reply belongs to this message only.
+      if (_replyTo != null) {
+        _replyTo = null;
+        _show(emit);
+      }
+      final delivered = await sending;
       if (!delivered) {
-        emit(ChatState(loading: false, messages: state.messages, now: state.now, userId: _userId, timer: _chatTimer, notices: _notices, notice: 'No connection: it will be sent when you are back online.'));
+        _show(emit, notice: 'No connection: it will be sent when you are back online.');
       }
     } on EncryptionNotReady catch (e) {
-      emit(ChatState(loading: false, messages: state.messages, now: state.now, userId: _userId, timer: _chatTimer, notices: _notices, notice: e.message));
+      _show(emit, notice: e.message);
     } catch (_) {
-      emit(ChatState(loading: false, messages: state.messages, now: state.now, userId: _userId, timer: _chatTimer, notices: _notices, notice: 'Could not send. Try again.'));
+      _show(emit, notice: 'Could not send. Try again.');
     }
   }
 
@@ -320,8 +337,6 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
     if (_visible && _coupleId.isNotEmpty) chatRepository.leaveChat(coupleId: _coupleId, userId: _userId).catchError((_) {});
     _visible = false;
     await _sub?.cancel();
-    await _deletions?.cancel();
-    await _clears?.cancel();
     await _timerSub?.cancel();
     return super.close();
   }

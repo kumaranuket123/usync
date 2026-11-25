@@ -29,6 +29,7 @@ import '../../data/repositories/mood_repository.dart';
 import '../../data/datasources/local/flutter_secure_key_store.dart';
 import '../../data/repositories/access_repository.dart';
 import '../../data/repositories/bucket_repository.dart';
+import '../../data/datasources/local/chat_local_source.dart';
 import '../../data/datasources/remote/chat_media_source.dart';
 import '../../data/repositories/chat_repository.dart';
 import '../../data/repositories/game_repository.dart';
@@ -133,7 +134,8 @@ Future<void> setupLocator() async {
   // keeps who you are, your couple and recent data so the app can start offline.
   // Both boxes (and the pictures kept on the phone) are encrypted with a key that only lives in the
   // Keystore / Keychain. The old unencrypted boxes are copied over once and deleted.
-  final (sessionBox, outboxBox) = await _openLocalBoxes();
+  final (sessionBox, outboxBox, chatLocal) = await _openLocalBoxes();
+  getIt.registerSingleton<ChatLocalSource>(chatLocal);
   getIt.registerSingleton<SessionCache>(SessionCache(box: sessionBox));
   getIt.registerSingleton<IdentityCache>(IdentityCache());
   getIt.registerSingleton<OutboxService>(OutboxService(box: outboxBox));
@@ -151,6 +153,7 @@ Future<void> setupLocator() async {
       storage: getIt(),
       wipeKeys: (userId) => getIt<KeyServiceFor>()(userId).clearAll(),
       cancelReminders: () => getIt<ReminderService>().cancelAll(),
+      clearChat: () => getIt<IChatRepository>().reset(),
     ),
   );
   getIt.registerLazySingleton<ICoupleRepository>(
@@ -163,6 +166,7 @@ Future<void> setupLocator() async {
       identity: getIt(),
       cipher: getIt(),
       cancelReminders: () => getIt<ReminderService>().cancelAll(),
+      clearChat: () => getIt<IChatRepository>().reset(),
     ),
   );
   getIt.registerLazySingleton<IMoodRepository>(
@@ -199,6 +203,7 @@ Future<void> setupLocator() async {
   getIt.registerLazySingleton<IChatRepository>(
     () => ChatRepository(
       client: getIt(), media: getIt(), notifications: getIt(), outbox: getIt(), cipher: getIt(), channelSource: getIt(), prefs: getIt(),
+      local: getIt(),
     ),
   );
   getIt.registerLazySingleton<IPenFightRepository>(
@@ -346,26 +351,37 @@ Future<void> setupLocator() async {
   );
 }
 
-Future<(Box<dynamic>, Box<dynamic>)> _openLocalBoxes() async {
+Future<(Box<dynamic>, Box<dynamic>, ChatLocalSource)> _openLocalBoxes() async {
   try {
     final cipher = HiveAesCipher(await getIt<DeviceKey>().bytes());
     LocalMemoryImages.configure(getIt<DeviceKey>());
     return (
       await openProtectedBox('session_cache_enc', cipher, legacyName: SessionCache.boxName),
       await openProtectedBox('outbox_enc', cipher, legacyName: 'outbox'),
+      // The chat history lives on the phone, encrypted with the same local key.
+      ChatLocalSource(
+        messages: await openProtectedLazyBox('chat_messages_enc', cipher),
+        index:    await openProtectedBox('chat_index_enc', cipher),
+        media:    await openProtectedLazyBox('chat_media_enc', cipher),
+      ),
     );
   } catch (e) {
     // The Keystore / Keychain is not usable: nothing readable is ever kept instead. For this run the
     // boxes are encrypted with a key that exists only in memory, so the app still starts (offline caching
     // and queued changes just do not survive a restart).
     debugPrint('Local key unavailable (${e.runtimeType}); using volatile local storage');
-    for (final name in ['session_cache_tmp', 'outbox_tmp']) {
+    for (final name in ['session_cache_tmp', 'outbox_tmp', 'chat_messages_tmp', 'chat_index_tmp', 'chat_media_tmp']) {
       await Hive.deleteBoxFromDisk(name);
     }
     final cipher = HiveAesCipher(CryptoService().randomBytes(CryptoService.keyLength));
     return (
       await Hive.openBox<dynamic>('session_cache_tmp', encryptionCipher: cipher),
       await Hive.openBox<dynamic>('outbox_tmp', encryptionCipher: cipher),
+      ChatLocalSource(
+        messages: await Hive.openLazyBox<dynamic>('chat_messages_tmp', encryptionCipher: cipher),
+        index:    await Hive.openBox<dynamic>('chat_index_tmp', encryptionCipher: cipher),
+        media:    await Hive.openLazyBox<dynamic>('chat_media_tmp', encryptionCipher: cipher),
+      ),
     );
   }
 }

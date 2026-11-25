@@ -36,17 +36,17 @@ class _FakeChat implements IChatRepository {
   Stream<List<ChatMessage>> watchMessages(String coupleId) => changes.stream;
 
   @override
-  Future<bool> sendText({required String coupleId, required String userId, required String text}) async {
+  Future<bool> sendText({required String coupleId, required String userId, required String text, ChatReply? replyTo}) async {
     if (sendError != null) throw sendError!;
     texts.add(text);
     return delivered;
   }
 
   @override
-  Future<bool> sendImage({required String coupleId, required String userId, required Uint8List bytes}) async => delivered;
+  Future<bool> sendImage({required String coupleId, required String userId, required Uint8List bytes, ChatReply? replyTo}) async => delivered;
 
   @override
-  Future<bool> sendVoice({required String coupleId, required String userId, required Uint8List bytes, required int durationMs}) async => delivered;
+  Future<bool> sendVoice({required String coupleId, required String userId, required Uint8List bytes, required int durationMs, ChatReply? replyTo}) async => delivered;
 
   @override
   Future<void> markSeen(List<String> ids) async {
@@ -61,30 +61,52 @@ class _FakeChat implements IChatRepository {
   Stream<int> watchUnreadCount({required String coupleId, required String userId}) => const Stream.empty();
 
   int cleared = 0;
-  final partnerClears = StreamController<void>.broadcast();
+  bool? clearedForEveryone;
   bool clearFails = false;
 
   @override
-  Future<void> clearChat({required String coupleId, required String userId}) async {
+  Future<void> clearChat({required String coupleId, required String userId, required bool forEveryone}) async {
     if (clearFails) throw Exception('offline');
     cleared++;
+    clearedForEveryone = forEveryone;
   }
 
-  @override
-  Stream<void> watchCleared(String coupleId) => partnerClears.stream;
-
   final deleted = <String>[];
-  final partnerDeletes = StreamController<String>.broadcast();
+  final deletedForEveryone = <String>[];
   bool deleteFails = false;
 
   @override
-  Future<void> deleteMessage({required String coupleId, required String userId, required String id}) async {
-    if (deleteFails) throw Exception('offline');
+  Future<void> deleteForMe(String id) async {
+    if (deleteFails) throw Exception('disk');
     deleted.add(id);
   }
 
   @override
-  Stream<String> watchDeleted(String coupleId) => partnerDeletes.stream;
+  Future<void> deleteForEveryone({required String coupleId, required String userId, required String id}) async {
+    if (deleteFails) throw Exception('offline');
+    deletedForEveryone.add(id);
+  }
+
+  var inboxStarts = 0;
+  var purges = 0;
+  var olderRequests = 0;
+  @override
+  bool hasOlder = false;
+
+  @override
+  Future<void> reset() async {}
+
+  @override
+  Future<void> startInbox({required String coupleId, required String userId}) async => inboxStarts++;
+
+  @override
+  Future<void> purgeExpired() async => purges++;
+
+  @override
+  Future<bool> loadOlder() async {
+    olderRequests++;
+    return hasOlder;
+  }
 
   @override
   Future<void> enterChat({required String coupleId, required String userId}) async => presence.add('enter');
@@ -95,7 +117,7 @@ class _FakeChat implements IChatRepository {
 
 ChatMessage _msg(String id, {String sender = 'partner', DateTime? seenAt, DateTime? expiresAt, bool locked = false}) => ChatMessage(
       id: id, coupleId: 'c', senderId: sender, kind: ChatKind.text, text: 'hi $id',
-      createdAt: DateTime(2026, 1, 1), expiresAt: expiresAt ?? DateTime(2030), seenAt: seenAt, locked: locked,
+      createdAt: DateTime(2026, 1, 1), expiresAt: expiresAt, seenAt: seenAt, locked: locked,
     );
 
 void main() {
@@ -168,7 +190,7 @@ void main() {
   });
 
   test('starts with the saved timer and changes it when the user chooses', () async {
-    expect(bloc.state.timer, ChatTimer.oneDay);
+    expect(bloc.state.timer, ChatTimer.off);
     bloc.add(ChatTimerChanged(ChatTimer.oneMinute));
     await pump();
     expect(repo.timer, ChatTimer.oneMinute);
@@ -207,98 +229,82 @@ void main() {
     expect(repo.presence.last, 'leave');
   });
 
+  test('opening the chat starts collecting and drops expired messages', () async {
+    expect(repo.inboxStarts, 1);
+    expect(repo.purges, 1);
+  });
+
   group('deleting', () {
-    test('a message I delete disappears at once and is deleted on the server', () async {
-      repo.changes.add([_msg('1'), _msg('2', sender: 'me')]);
-      await pump();
+    test('delete for me removes it from this phone only', () async {
       bloc.add(ChatMessageDeleted('2'));
       await pump();
-      expect(bloc.state.messages.map((m) => m.id), ['1']);
       expect(repo.deleted, ['2']);
+      expect(repo.deletedForEveryone, isEmpty);
     });
 
-    test('I can delete my partner\'s message too', () async {
-      repo.changes.add([_msg('1'), _msg('2', sender: 'me')]);
+    test('delete for everyone is passed on', () async {
+      bloc.add(ChatMessageDeleted('2', forEveryone: true));
       await pump();
-      bloc.add(ChatMessageDeleted('1'));
-      await pump();
-      expect(bloc.state.messages.map((m) => m.id), ['2']);
-      expect(repo.deleted, ['1']);
+      expect(repo.deletedForEveryone, ['2']);
+      expect(repo.deleted, isEmpty);
     });
 
-    test('a deleted message stays gone even if the table stream still lists it', () async {
-      repo.changes.add([_msg('1')]);
-      await pump();
-      bloc.add(ChatMessageDeleted('1'));
-      await pump();
-      repo.changes.add([_msg('1'), _msg('2')]);
-      await pump();
-      expect(bloc.state.messages.map((m) => m.id), ['2']);
-    });
-
-    test('a message the partner deletes disappears from my screen', () async {
-      repo.changes.add([_msg('1'), _msg('2')]);
-      await pump();
-      repo.partnerDeletes.add('1');
-      await pump();
-      expect(bloc.state.messages.map((m) => m.id), ['2']);
-      expect(repo.deleted, isEmpty, reason: 'the partner already deleted it on the server');
-    });
-
-    test('if the server cannot be reached the message comes back, with a notice', () async {
+    test('if the partner\'s phone cannot be told, the user gets a notice', () async {
       repo.deleteFails = true;
-      repo.changes.add([_msg('1')]);
+      bloc.add(ChatMessageDeleted('1', forEveryone: true));
       await pump();
-      bloc.add(ChatMessageDeleted('1'));
-      await pump();
-      expect(bloc.state.messages.map((m) => m.id), ['1']);
       expect(bloc.state.notice, contains('Could not delete'));
+    });
+
+    test('a message deleted or removed shows up as gone when the list changes', () async {
+      repo.changes.add([_msg('1'), _msg('2')]);
+      await pump();
+      repo.changes.add([_msg('2')]);
+      await pump();
+      expect(bloc.state.messages.map((m) => m.id), ['2']);
     });
   });
 
   group('clearing', () {
-    test('clearing empties the chat at once and clears it on the server', () async {
-      repo.changes.add([_msg('1'), _msg('2', sender: 'me')]);
-      await pump();
+    test('clearing on this phone and on both are told apart', () async {
       bloc.add(ChatCleared());
       await pump();
-      expect(bloc.state.messages, isEmpty);
       expect(repo.cleared, 1);
+      expect(repo.clearedForEveryone, isFalse);
+
+      bloc.add(ChatCleared(forEveryone: true));
+      await pump();
+      expect(repo.cleared, 2);
+      expect(repo.clearedForEveryone, isTrue);
     });
 
-    test('messages sent after clearing show up as usual', () async {
+    test('a clear for both that cannot reach the partner gives a notice', () async {
+      repo.clearFails = true;
+      bloc.add(ChatCleared(forEveryone: true));
+      await pump();
+      expect(bloc.state.notice, contains('Could not clear'));
+    });
+  });
+
+  group('older messages', () {
+    test('asks for an older page only when there is one', () async {
+      bloc.add(ChatOlderRequested());
+      await pump();
+      expect(repo.olderRequests, 0);
+
+      repo.hasOlder = true;
       repo.changes.add([_msg('1')]);
       await pump();
-      bloc.add(ChatCleared());
+      expect(bloc.state.hasOlder, isTrue);
+      bloc.add(ChatOlderRequested());
       await pump();
-      repo.changes.add([_msg('1'), _msg('new', sender: 'me')]);
-      await pump();
-      expect(bloc.state.messages.map((m) => m.id), ['new']);
-    });
-
-    test('when the partner clears the chat it empties on my screen', () async {
-      repo.changes.add([_msg('1'), _msg('2')]);
-      await pump();
-      repo.partnerClears.add(null);
-      await pump();
-      expect(bloc.state.messages, isEmpty);
-      expect(repo.cleared, 0, reason: 'the partner already cleared it on the server');
-    });
-
-    test('if the server cannot be reached everything comes back, with a notice', () async {
-      repo.clearFails = true;
-      repo.changes.add([_msg('1'), _msg('2')]);
-      await pump();
-      bloc.add(ChatCleared());
-      await pump();
-      expect(bloc.state.messages.map((m) => m.id), ['1', '2']);
-      expect(bloc.state.notice, contains('Could not clear'));
+      expect(repo.olderRequests, 1);
     });
   });
 
   group('shared timer', () {
     test('when the partner changes the timer it changes here too', () async {
-      expect(bloc.state.timer, ChatTimer.oneDay);
+      expect(bloc.state.timer, ChatTimer.off);
       repo.timerChanges.add(ChatTimer.oneMinute);
       await pump();
       expect(bloc.state.timer, ChatTimer.oneMinute);
@@ -314,7 +320,7 @@ void main() {
       repo.timerFails = true;
       bloc.add(ChatTimerChanged(ChatTimer.oneMinute));
       await pump();
-      expect(bloc.state.timer, ChatTimer.oneDay);
+      expect(bloc.state.timer, ChatTimer.off);
       expect(bloc.state.notice, contains('Could not change the timer'));
     });
 
@@ -359,7 +365,7 @@ void main() {
     });
 
     test('my own change coming back from the server does not add a second line', () async {
-      repo.timerChanges.add(ChatTimer.oneDay);
+      repo.timerChanges.add(ChatTimer.off);
       await pump();
       bloc.add(ChatTimerChanged(ChatTimer.oneMinute));
       await pump();
@@ -369,7 +375,7 @@ void main() {
     });
 
     test('choosing the timer that is already set adds nothing', () async {
-      bloc.add(ChatTimerChanged(ChatTimer.oneDay));
+      bloc.add(ChatTimerChanged(ChatTimer.off));
       await pump();
       expect(bloc.state.notices, isEmpty);
     });
@@ -391,9 +397,9 @@ void main() {
   });
 
   group('photos and voice notes', () {
-    ChatMessage media(String id, ChatKind kind, {String sender = 'partner'}) => ChatMessage(
+    ChatMessage media(String id, ChatKind kind, {String sender = 'partner', int ttl = 60}) => ChatMessage(
           id: id, coupleId: 'c', senderId: sender, kind: kind, mediaPath: 'c/$id.enc',
-          createdAt: DateTime(2026, 1, 1), expiresAt: DateTime(2030),
+          createdAt: DateTime(2026, 1, 1), ttlSeconds: ttl,
         );
 
     test('a photo or voice note appearing on screen does not start its timer', () async {
@@ -401,6 +407,13 @@ void main() {
       repo.changes.add([media('p', ChatKind.image), media('v', ChatKind.voice), _msg('t')]);
       await pump();
       expect(repo.seen, [['t']], reason: 'only the text is marked seen by being on screen');
+    });
+
+    test('with the timer Off a photo is nothing to hide: being on screen counts as read, a voice note still waits', () async {
+      bloc.add(ChatVisibilityChanged(visible: true));
+      repo.changes.add([media('p', ChatKind.image, ttl: 0), media('v', ChatKind.voice, ttl: 0)]);
+      await pump();
+      expect(repo.seen, [['p']]);
     });
 
     test('revealing a photo starts its timer, once', () async {

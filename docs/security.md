@@ -94,9 +94,9 @@ Not stored: the recovery phrase is never saved on the phone, so it cannot be sho
 
 ## Private chat (`chat_messages`)
 
-- Text and the voice-note length are sealed into `chat_messages.enc` (bound to couple, table and message id); photos and voice notes are sealed with `sealBytes` and stored in the private `chat` bucket at `<couple>/<id>.enc`. Without the couple key nothing is sent. Decrypted media is held in memory only; the recorder's temp file is deleted as soon as it is read.
-- Messages are deleted after the sender's timer (10 seconds, 1 minute, 5 minutes, 1 hour or 1 day, default 1 day) has run since the receiver saw them (`mark_chat_seen`, recipient only), or after 1 day unseen, by a cron job plus the `purge-chat` Edge Function (files and rows). Disconnecting clears the chat. See `docs/features/chat.md`.
-- The server still sees: who sent a message, its kind, sizes, when it was sent and when it was seen. On Android the chat screen blocks screenshots (`FLAG_SECURE`); a partner can still photograph the screen.
+- Text and the voice-note length are sealed into `chat_messages.enc` (bound to couple, table and message id); photos and voice notes are sealed with `sealBytes` and stored in the private `chat` bucket at `<couple>/<id>.enc`. Without the couple key nothing is sent. Decrypted media is kept in the phone's encrypted local box (and briefly in memory); the recorder's temp file is deleted as soon as it is read.
+- The server is only a mailbox: the recipient's phone saves a message, then `ack_chat_messages` (recipient only) deletes the row and its file (cron job plus the `purge-chat` Edge Function); nothing undelivered stays longer than 14 days. The history lives on the phones in Hive boxes encrypted with the phone's local key (`DeviceKey`), wiped at sign-out, account deletion and disconnect; there is no backup. The vanish timer (default Off) runs on the phones. Read receipts, "delete for everyone" and "clear for both" are sealed control envelopes, so the server never learns when a message was read. See `docs/features/chat.md`.
+- The server still sees, until the partner collects it: who sent a message, its kind, sizes and when it was sent. On Android the chat screen blocks screenshots (`FLAG_SECURE`); a partner can still photograph the screen.
 
 ## What it protects, and what it cannot
 

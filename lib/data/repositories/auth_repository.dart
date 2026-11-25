@@ -27,6 +27,7 @@ class AuthRepository implements IAuthRepository {
     required this.storage,
     this.wipeKeys,
     this.cancelReminders,
+    this.clearChat,
   });
 
   final SupabaseAuthSource authSource;
@@ -41,6 +42,8 @@ class AuthRepository implements IAuthRepository {
   final Future<void> Function(String userId)? wipeKeys;
   /// Removes the date reminders scheduled on this phone.
   final Future<void> Function()? cancelReminders;
+  /// Forgets the chat history kept on this phone.
+  final Future<void> Function()? clearChat;
 
   @override
   Stream<AppUser?> watchAuthState() {
@@ -118,6 +121,8 @@ class AuthRepository implements IAuthRepository {
     await prefsSource.clearSession();
     await sessionCache.clear();
     await outbox.clear();
+    final chat = clearChat;
+    if (chat != null) await _quietly(chat);
     // The home-screen doodle widget would otherwise keep showing this couple's drawing.
     await _quietly(() => HomeWidgetService.refresh(const []));
     final cancel = cancelReminders;
