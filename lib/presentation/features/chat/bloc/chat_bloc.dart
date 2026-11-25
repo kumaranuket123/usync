@@ -290,7 +290,8 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
   /// The decrypted photo or voice note of [message] (kept in memory only), or null.
   Future<Uint8List?> loadMedia(ChatMessage message) => chatRepository.loadMedia(message);
 
-  /// Starts the timer of the partner's TEXT messages that have just been seen. Photos and voice notes are
+  /// Starts the timer of the partner's TEXT messages that have just been seen (and of photos when the timer is
+  /// Off, since nothing is hidden then). Photos with a timer and voice notes are
   /// left out: their timer starts when the user reveals them ([ChatMediaRevealed]). A failure is not
   /// remembered, so the next change, return to the screen or tap tries again.
   void _reportSeen() {
@@ -298,7 +299,7 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
     final now = _clock();
     final ids = [
       for (final m in _all)
-        if (m.kind == ChatKind.text && !m.isMine(_userId) && !m.isSeen && !m.locked && !m.isExpired(now) && !_reported.contains(m.id)) m.id,
+        if ((m.kind == ChatKind.text || (m.kind == ChatKind.image && m.ttlSeconds == 0)) && !m.isMine(_userId) && !m.isSeen && !m.locked && !m.isExpired(now) && !_reported.contains(m.id)) m.id,
     ];
     _markSeen(ids);
   }

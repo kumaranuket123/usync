@@ -397,9 +397,9 @@ void main() {
   });
 
   group('photos and voice notes', () {
-    ChatMessage media(String id, ChatKind kind, {String sender = 'partner'}) => ChatMessage(
+    ChatMessage media(String id, ChatKind kind, {String sender = 'partner', int ttl = 60}) => ChatMessage(
           id: id, coupleId: 'c', senderId: sender, kind: kind, mediaPath: 'c/$id.enc',
-          createdAt: DateTime(2026, 1, 1),
+          createdAt: DateTime(2026, 1, 1), ttlSeconds: ttl,
         );
 
     test('a photo or voice note appearing on screen does not start its timer', () async {
@@ -407,6 +407,13 @@ void main() {
       repo.changes.add([media('p', ChatKind.image), media('v', ChatKind.voice), _msg('t')]);
       await pump();
       expect(repo.seen, [['t']], reason: 'only the text is marked seen by being on screen');
+    });
+
+    test('with the timer Off a photo is nothing to hide: being on screen counts as read, a voice note still waits', () async {
+      bloc.add(ChatVisibilityChanged(visible: true));
+      repo.changes.add([media('p', ChatKind.image, ttl: 0), media('v', ChatKind.voice, ttl: 0)]);
+      await pump();
+      expect(repo.seen, [['p']]);
     });
 
     test('revealing a photo starts its timer, once', () async {

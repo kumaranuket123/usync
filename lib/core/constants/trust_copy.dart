@@ -7,7 +7,7 @@ abstract final class TrustCopy {
 
   /// One sentence for the welcome slide and the login screen.
   static const summary =
-      'Your moods, drawings, memories and location are encrypted on your phone. Only you and your partner can read them.';
+      'Your chat, moods, drawings, memories and location are encrypted on your phone. Only you and your partner can read them.';
 
   static const promise = 'No ads, no analytics, and we never sell your data.';
 
@@ -15,6 +15,7 @@ abstract final class TrustCopy {
   static const encrypted = [
     'Moods and your daily answers',
     'Bucket list and next-meet date',
+    'Chat messages, photos and voice notes',
     'Shared drawings, memories and pictures',
     'Your location',
     'Timeline dates',
