@@ -432,8 +432,16 @@ class _SwipeToReplyState extends State<_SwipeToReply> with SingleTickerProviderS
   double _dx = 0;
   double _from = 0;
   bool _armed = false;
-  late final AnimationController _back = AnimationController(vsync: this, duration: const Duration(milliseconds: 180))
-    ..addListener(() => setState(() => _dx = _from * (1 - Curves.easeOut.transform(_back.value))));
+  // Created in initState, not lazily: a message that was never swiped would otherwise create the controller
+  // inside dispose(), where looking up the ticker mode of a deactivated element is an error.
+  late final AnimationController _back;
+
+  @override
+  void initState() {
+    super.initState();
+    _back = AnimationController(vsync: this, duration: const Duration(milliseconds: 180))
+      ..addListener(() => setState(() => _dx = _from * (1 - Curves.easeOut.transform(_back.value))));
+  }
 
   @override
   void dispose() {
