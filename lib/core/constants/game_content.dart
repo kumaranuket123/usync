@@ -86,6 +86,9 @@ class ConversationCard {
   const ConversationCard(this.kind, this.text);
   final CardKind kind;
   final String   text;
+
+  /// The card as a chat message, so the partners can talk about it there.
+  String get shareText => '${kind.emoji} ${kind.label}: $text';
 }
 
 /// Card deck for Conversation cards. A game stores indexes, so add at the END only; never reorder or remove.

@@ -21,14 +21,22 @@ import '../../auth/bloc/auth_bloc.dart';
 import '../bloc/chat_bloc.dart';
 
 class ChatScreen extends StatelessWidget {
-  const ChatScreen({super.key});
+  const ChatScreen({super.key, this.share});
+
+  /// Text to send as the first message when the chat opens (a conversation card shared from the games).
+  final String? share;
 
   @override
   Widget build(BuildContext context) {
     final auth = context.read<AuthBloc>().state;
     final user = auth is Authenticated ? auth.user : null;
     return BlocProvider(
-      create: (_) => GetIt.I<ChatBloc>()..add(ChatOpened(coupleId: user?.coupleId ?? '', userId: user?.id ?? '')),
+      create: (_) {
+        final bloc = GetIt.I<ChatBloc>()..add(ChatOpened(coupleId: user?.coupleId ?? '', userId: user?.id ?? ''));
+        final text = share;
+        if (text != null) bloc.add(ChatTextSent(text));
+        return bloc;
+      },
       child: BlocListener<ChatBloc, ChatState>(
         listenWhen: (_, b) => b.notice != null,
         listener: (context, state) => ScaffoldMessenger.of(context).showSnackBar(appSnackBar(content: Text(state.notice!))),

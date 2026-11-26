@@ -135,7 +135,8 @@ abstract final class AppRouter {
       GoRoute(
         path: RouteNames.chat,
         parentNavigatorKey: _rootKey,
-        builder: (_, __) => const ChatScreen(),
+        // `extra` is a text to send as the first message (a shared conversation card).
+        builder: (_, state) => ChatScreen(share: state.extra is String ? state.extra as String : null),
       ),
       GoRoute(
         path: RouteNames.games,

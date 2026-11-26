@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get_it/get_it.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/game_content.dart';
+import '../../../../core/constants/route_names.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/utils/app_snack_bar.dart';
@@ -78,6 +80,16 @@ class _Body extends StatelessWidget {
                   padding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
                   child: Column(
                     children: [
+                      if (card != null)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: TextButton.icon(
+                            // Sends the card as a chat message and opens the chat, to talk about it there.
+                            onPressed: () => context.push(RouteNames.chat, extra: card.shareText),
+                            icon: const Icon(Icons.chat_bubble_outline, size: 18, color: AppColors.cyan),
+                            label: const Text('Share in chat and talk', style: TextStyle(color: AppColors.cyan)),
+                          ),
+                        ),
                       GlowButton(
                         label: !active ? (s == null ? 'Start a game' : 'Play again') : state.isLast ? 'Finish' : 'Next card',
                         isLoading: state.busy,
