@@ -53,3 +53,6 @@ Five selectable themes in `core/theme/themes/` (midnight_purple, lavender_dream,
 - Show messages with `appSnackBar(...)` (`core/utils/app_snack_bar.dart`), never a raw `SnackBar(...)`: it always auto-dismisses (Flutter keeps a snackbar with an action on screen otherwise) and can be swiped away left, right or down.
 - The in-app About screen (`settings/screens/about_screen.dart`, `_sections`) lists every user-facing feature; update it when you add, change or remove one.
 - Per-feature specs are in `docs/features/*.md`; `design/index.html` is the design reference.
+
+### Privacy policy
+`docs/privacy-policy.html` (public, linked from the app) must always match what the app does. After any change that adds, changes or removes a feature, stored or sent data, a permission, a third-party service, a retention rule or anything under `supabase/`, run the `privacy-policy-sync` agent (it updates the policy, `trust_copy.dart`, About and the Play data-safety notes) before committing, and include its edits in the same commit.
