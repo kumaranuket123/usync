@@ -4,11 +4,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get_it/get_it.dart';
 
+import '../../../../core/services/affection_sound.dart';
 import '../../../../core/services/slap_sound.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/utils/app_snack_bar.dart';
 import '../../../../core/utils/haptic_util.dart';
+import '../../../../domain/repositories/i_slap_repository.dart';
 import '../../../shared/widgets/glow_button.dart';
 import '../../../shared/widgets/loading_dots.dart';
 import '../../../shared/widgets/neon_back_button.dart';
@@ -53,10 +55,12 @@ class _BodyState extends State<_Body> with TickerProviderStateMixin {
       vsync: this, duration: const Duration(milliseconds: 220));
 
   final _sound = SlapSound();
+  final _loveSound = AffectionSound();
 
   @override
   void dispose() {
     _sound.dispose();
+    _loveSound.dispose();
     _hit.dispose();
     _swing.dispose();
     super.dispose();
@@ -81,6 +85,21 @@ class _BodyState extends State<_Body> with TickerProviderStateMixin {
             HapticUtil.medium();
             _sound.play();
             _swing.forward(from: 0);
+          },
+        ),
+        // A hug or a kiss from the partner lands softly; giving one is a light tap. Both of you hear it.
+        BlocListener<SlapBloc, SlapState>(
+          listenWhen: (a, b) => b.lovedReceived > a.lovedReceived,
+          listener: (_, state) {
+            HapticUtil.touchLanding();
+            _loveSound.play(state.lastReceived);
+          },
+        ),
+        BlocListener<SlapBloc, SlapState>(
+          listenWhen: (a, b) => b.lovedGiven > a.lovedGiven,
+          listener: (_, state) {
+            HapticUtil.light();
+            _loveSound.play(state.lastGiven);
           },
         ),
       ],
@@ -139,7 +158,10 @@ class _BodyState extends State<_Body> with TickerProviderStateMixin {
                                         swing: _swing,
                                         onSlap: () => context
                                             .read<SlapBloc>()
-                                            .add(SlapSent()))
+                                            .add(SlapSent()),
+                                        onLove: (a) => context
+                                            .read<SlapBloc>()
+                                            .add(AffectionSent(a)))
                                     : _Idle(
                                         finished: state.session != null,
                                         state: state),
@@ -206,7 +228,8 @@ class _Idle extends StatelessWidget {
             Text(
               finished
                   ? 'You gave ${state.given}, you took ${state.received}.'
-                  : 'Both open the game and tap away. Every slap lands on your partner\'s phone at once, with a shake. All in good fun!',
+                      '${state.lovedGiven + state.lovedReceived > 0 ? ' And ${state.lovedGiven} hugs and kisses given, ${state.lovedReceived} received.' : ''}'
+                  : 'Both open the game and tap away. Every slap lands on your partner\'s phone at once, with a shake. And if you are being slapped, give a hug or a kiss back. All in good fun!',
               style: AppTextStyles.bodyMuted,
               textAlign: TextAlign.center,
             ),
@@ -217,10 +240,11 @@ class _Idle extends StatelessWidget {
 
 class _Arena extends StatelessWidget {
   const _Arena(
-      {required this.state, required this.swing, required this.onSlap});
+      {required this.state, required this.swing, required this.onSlap, required this.onLove});
   final SlapState state;
   final Animation<double> swing;
   final VoidCallback onSlap;
+  final ValueChanged<Affection> onLove;
 
   @override
   Widget build(BuildContext context) {
@@ -237,6 +261,8 @@ class _Arena extends StatelessWidget {
           bubble: 'Ouch!',
           color: AppColors.cyan,
           direction: 1,
+          loves: state.lovedGiven,
+          love: state.lastGiven,
         ),
         const SizedBox(height: 20),
         Row(
@@ -274,7 +300,18 @@ class _Arena extends StatelessWidget {
         const SizedBox(height: 12),
         Text('Tap to slap ${players.partnerName}',
             style: AppTextStyles.bodyMuted),
-        const SizedBox(height: 20),
+        const SizedBox(height: 12),
+        // The soft way out: a slapped partner can answer with a hug or a kiss.
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            for (final a in Affection.values) ...[
+              _LoveButton(affection: a, onTap: () => onLove(a)),
+              if (a != Affection.values.last) const SizedBox(width: 14),
+            ],
+          ],
+        ),
+        const SizedBox(height: 16),
         // You: take the hit when your partner slaps.
         _Avatar(
           emoji: players.ownEmoji,
@@ -285,6 +322,8 @@ class _Arena extends StatelessWidget {
           color: AppColors.pink,
           direction: -1,
           size: 64,
+          loves: state.lovedReceived,
+          love: state.lastReceived,
         ),
       ],
     );
@@ -302,11 +341,16 @@ class _Avatar extends StatefulWidget {
     required this.bubble,
     required this.color,
     required this.direction,
+    required this.loves,
+    required this.love,
     this.size = 84,
   });
 
   final String emoji, name, hurtEmoji, bubble;
   final int hits;
+  /// Each time [loves] goes up, the face turns to 🥰 and a [love] emoji floats up.
+  final int loves;
+  final Affection love;
   final Color color;
 
   /// Which way the slap knocks the avatar (1 right, -1 left).
@@ -317,19 +361,23 @@ class _Avatar extends StatefulWidget {
   State<_Avatar> createState() => _AvatarState();
 }
 
-class _AvatarState extends State<_Avatar> with SingleTickerProviderStateMixin {
+class _AvatarState extends State<_Avatar> with TickerProviderStateMixin {
   late final AnimationController _c = AnimationController(
       vsync: this, duration: const Duration(milliseconds: 700));
+  late final AnimationController _l = AnimationController(
+      vsync: this, duration: const Duration(milliseconds: 1100));
 
   @override
   void didUpdateWidget(_Avatar old) {
     super.didUpdateWidget(old);
     if (widget.hits > old.hits) _c.forward(from: 0);
+    if (widget.loves > old.loves) _l.forward(from: 0);
   }
 
   @override
   void dispose() {
     _c.dispose();
+    _l.dispose();
     super.dispose();
   }
 
@@ -337,10 +385,12 @@ class _AvatarState extends State<_Avatar> with SingleTickerProviderStateMixin {
   Widget build(BuildContext context) {
     final size = widget.size;
     return AnimatedBuilder(
-      animation: _c,
+      animation: Listenable.merge([_c, _l]),
       builder: (context, _) {
         final t = _c.value;
         final hurt = _c.isAnimating && t < 0.85;
+        final lt = _l.value;
+        final loved = _l.isAnimating && lt < 0.9 && !hurt;
         // A quick knock to the side that wobbles back.
         final knock = sin(t * pi * 5) * (1 - t) * 26 * widget.direction;
         return Column(
@@ -368,11 +418,26 @@ class _AvatarState extends State<_Avatar> with SingleTickerProviderStateMixin {
                               hurt ? 1 - t : 0),
                           border: Border.all(color: widget.color, width: 2),
                         ),
-                        child: Text(hurt ? widget.hurtEmoji : widget.emoji,
+                        child: Text(hurt ? widget.hurtEmoji : loved ? '🥰' : widget.emoji,
                             style: TextStyle(fontSize: size * 0.5)),
                       ),
                     ),
                   ),
+                  if (loved)
+                    Positioned(
+                      top: 0,
+                      child: Opacity(
+                        opacity: (1 - lt).clamp(0, 1),
+                        // Floats up and grows a little while it fades.
+                        child: Transform.translate(
+                          offset: Offset(0, -24 * lt),
+                          child: Transform.scale(
+                              scale: 0.8 + lt * 0.8,
+                              child: Text(widget.love.emoji,
+                                  style: const TextStyle(fontSize: 34))),
+                        ),
+                      ),
+                    ),
                   if (hurt) ...[
                     Positioned(
                       right: -4 + 10 * (1 - widget.direction) / 2,
@@ -412,6 +477,33 @@ class _AvatarState extends State<_Avatar> with SingleTickerProviderStateMixin {
       },
     );
   }
+}
+
+class _LoveButton extends StatelessWidget {
+  const _LoveButton({required this.affection, required this.onTap});
+  final Affection affection;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(24),
+            color: AppColors.glass,
+            border: Border.all(color: AppColors.lavender),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(affection.emoji, style: const TextStyle(fontSize: 22)),
+              const SizedBox(width: 8),
+              Text(affection.label, style: AppTextStyles.label),
+            ],
+          ),
+        ),
+      );
 }
 
 class _Score extends StatelessWidget {

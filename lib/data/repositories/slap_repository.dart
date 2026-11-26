@@ -17,4 +17,16 @@ class SlapRepository implements ISlapRepository {
       .map((m) => m['user_id'])
       .where((id) => id is String)
       .cast<String>();
+
+  @override
+  Future<void> give({required String coupleId, required String userId, required Affection affection}) =>
+      channelSource.open(coupleId).send(CoupleChannel.affection, {'user_id': userId, 'kind': affection.name});
+
+  @override
+  Stream<({String from, Affection affection})> watchAffection(String coupleId) => channelSource
+      .open(coupleId)
+      .on(CoupleChannel.affection)
+      .map((m) => (from: m['user_id'], affection: Affection.fromKey(m['kind'])))
+      .where((m) => m.from is String && m.affection != null)
+      .map((m) => (from: m.from as String, affection: m.affection!));
 }

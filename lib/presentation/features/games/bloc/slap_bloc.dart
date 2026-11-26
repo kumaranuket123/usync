@@ -30,6 +30,17 @@ class SlapSent extends SlapEvent {}
 
 class SlapEnded extends SlapEvent {}
 
+/// This user gave their partner a hug or a kiss.
+class AffectionSent extends SlapEvent {
+  AffectionSent(this.affection);
+  final Affection affection;
+}
+
+class _AffectionArrived extends SlapEvent {
+  _AffectionArrived(this.affection);
+  final Affection affection;
+}
+
 /// What the screen needs to show the two players.
 class SlapPlayers extends Equatable {
   const SlapPlayers({this.ownEmoji = '🙂', this.partnerEmoji = '🌙', this.partnerName = 'Your partner'});
@@ -53,6 +64,10 @@ class SlapState extends Equatable {
     this.error,
     this.given = 0,
     this.received = 0,
+    this.lovedGiven = 0,
+    this.lovedReceived = 0,
+    this.lastGiven = Affection.hug,
+    this.lastReceived = Affection.hug,
   });
 
   final SlapPlayers  players;
@@ -62,8 +77,14 @@ class SlapState extends Equatable {
   final String?      error;
   /// Slaps this user gave / took since the game was opened (counted on the phone, not stored).
   final int          given, received;
+  /// Hugs and kisses this user gave / got since the game was opened, and which kind was the latest.
+  final int          lovedGiven, lovedReceived;
+  final Affection    lastGiven, lastReceived;
 
-  SlapState copyWith({SlapPlayers? players, bool? loading, GameSession? session, bool clearSession = false, bool? busy, String? error, int? given, int? received}) =>
+  SlapState copyWith({
+    SlapPlayers? players, bool? loading, GameSession? session, bool clearSession = false, bool? busy, String? error,
+    int? given, int? received, int? lovedGiven, int? lovedReceived, Affection? lastGiven, Affection? lastReceived,
+  }) =>
       SlapState(
         players:  players  ?? this.players,
         loading:  loading  ?? this.loading,
@@ -72,10 +93,14 @@ class SlapState extends Equatable {
         error:    error,
         given:    given    ?? this.given,
         received: received ?? this.received,
+        lovedGiven:    lovedGiven    ?? this.lovedGiven,
+        lovedReceived: lovedReceived ?? this.lovedReceived,
+        lastGiven:     lastGiven     ?? this.lastGiven,
+        lastReceived:  lastReceived  ?? this.lastReceived,
       );
 
   @override
-  List<Object?> get props => [players, loading, session, busy, error, given, received];
+  List<Object?> get props => [players, loading, session, busy, error, given, received, lovedGiven, lovedReceived, lastGiven, lastReceived];
 }
 
 class SlapBloc extends Bloc<SlapEvent, SlapState> {
@@ -93,6 +118,8 @@ class SlapBloc extends Bloc<SlapEvent, SlapState> {
     on<SlapStarted>(_onStarted);
     on<SlapSent>(_onSent);
     on<SlapEnded>(_onEnded);
+    on<AffectionSent>(_onAffectionSent);
+    on<_AffectionArrived>((e, emit) => emit(state.copyWith(lovedReceived: state.lovedReceived + 1, lastReceived: e.affection)));
   }
 
   final IGameRepository gameRepository;
@@ -103,13 +130,16 @@ class SlapBloc extends Bloc<SlapEvent, SlapState> {
   final Duration        minGap;
   String _coupleId = '', _userId = '';
   DateTime _lastSent = DateTime.fromMillisecondsSinceEpoch(0);
+  DateTime _lastLove = DateTime.fromMillisecondsSinceEpoch(0);
   StreamSubscription<List<GameSession>>? _sessions;
   StreamSubscription<String>?            _slaps;
+  StreamSubscription<({String from, Affection affection})>? _love;
 
   Future<void> _onOpened(SlapOpened e, Emitter<SlapState> emit) async {
     _coupleId = e.coupleId; _userId = e.userId;
     await _sessions?.cancel();
     await _slaps?.cancel();
+    await _love?.cancel();
     unawaited(_loadPlayers());
     _sessions = gameRepository.watchSessions(_coupleId).listen(
       (all) {
@@ -121,6 +151,10 @@ class SlapBloc extends Bloc<SlapEvent, SlapState> {
     );
     _slaps = slapRepository.watchSlaps(_coupleId).listen(
       (from) { if (!isClosed && from != _userId) add(_SlapArrived()); },
+      onError: (_) {},
+    );
+    _love = slapRepository.watchAffection(_coupleId).listen(
+      (m) { if (!isClosed && m.from != _userId) add(_AffectionArrived(m.affection)); },
       onError: (_) {},
     );
   }
@@ -146,6 +180,7 @@ class SlapBloc extends Bloc<SlapEvent, SlapState> {
     emit(state.copyWith(
       loading: false, session: e.session, clearSession: e.session == null,
       given: fresh ? 0 : null, received: fresh ? 0 : null,
+      lovedGiven: fresh ? 0 : null, lovedReceived: fresh ? 0 : null,
     ));
   }
 
@@ -173,6 +208,19 @@ class SlapBloc extends Bloc<SlapEvent, SlapState> {
     }
   }
 
+  Future<void> _onAffectionSent(AffectionSent e, Emitter<SlapState> emit) async {
+    final s = state.session;
+    final now = DateTime.now();
+    if (s == null || !s.isActive || now.difference(_lastLove) < minGap) return;
+    _lastLove = now;
+    emit(state.copyWith(lovedGiven: state.lovedGiven + 1, lastGiven: e.affection));
+    try {
+      await slapRepository.give(coupleId: _coupleId, userId: _userId, affection: e.affection);
+    } catch (_) {
+      emit(state.copyWith(error: 'That ${e.affection.label.toLowerCase()} did not go through.'));
+    }
+  }
+
   Future<void> _onEnded(SlapEnded _, Emitter<SlapState> emit) async {
     final s = state.session;
     if (s == null || !s.isActive) return;
@@ -187,6 +235,7 @@ class SlapBloc extends Bloc<SlapEvent, SlapState> {
   Future<void> close() async {
     await _sessions?.cancel();
     await _slaps?.cancel();
+    await _love?.cancel();
     return super.close();
   }
 }

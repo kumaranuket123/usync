@@ -35,6 +35,12 @@ class _FakeSlaps implements ISlapRepository {
   Future<void> slap({required String coupleId, required String userId}) async => sent.add(userId);
   @override
   Stream<String> watchSlaps(String coupleId) => incoming.stream;
+  final love = StreamController<({String from, Affection affection})>.broadcast();
+  final gave = <Affection>[];
+  @override
+  Future<void> give({required String coupleId, required String userId, required Affection affection}) async => gave.add(affection);
+  @override
+  Stream<({String from, Affection affection})> watchAffection(String coupleId) => love.stream;
 }
 
 AppUser _user(String id, String emoji, String name) =>
@@ -156,5 +162,45 @@ void main() {
     games.changes.add([_session(id: 'g2')]);
     await pump();
     expect(bloc.state.given, 0);
+  });
+
+  test('gives a hug or a kiss while the game runs, and counts it', () async {
+    games.changes.add([_session()]);
+    await pump();
+    bloc.add(AffectionSent(Affection.hug));
+    bloc.add(AffectionSent(Affection.kiss));
+    await pump();
+    expect(slaps.gave, [Affection.hug, Affection.kiss]);
+    expect(bloc.state.lovedGiven, 2);
+    expect(bloc.state.lastGiven, Affection.kiss);
+    expect(bloc.state.given, 0, reason: 'a hug is not a slap');
+  });
+
+  test('does not hug without a running game', () async {
+    games.changes.add([_session(active: false)]);
+    await pump();
+    bloc.add(AffectionSent(Affection.hug));
+    await pump();
+    expect(slaps.gave, isEmpty);
+  });
+
+  test('counts the partner\'s hugs and kisses but not my own echo, apart from slaps', () async {
+    games.changes.add([_session()]);
+    await pump();
+    slaps.love..add((from: 'partner', affection: Affection.kiss))..add((from: 'me', affection: Affection.hug));
+    await pump();
+    expect(bloc.state.lovedReceived, 1);
+    expect(bloc.state.lastReceived, Affection.kiss);
+    expect(bloc.state.received, 0, reason: 'a kiss is not a slap');
+  });
+
+  test('a new game resets the hugs and kisses', () async {
+    games.changes.add([_session()]);
+    await pump();
+    bloc.add(AffectionSent(Affection.hug));
+    await pump();
+    games.changes.add([_session(id: 'g2')]);
+    await pump();
+    expect(bloc.state.lovedGiven, 0);
   });
 }

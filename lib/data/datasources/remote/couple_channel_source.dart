@@ -133,12 +133,14 @@ class CoupleChannel {
   static const strokeEnd   = 'stroke_end';
   static const canvasClear = 'canvas_clear';
   static const slap        = 'slap';
+  /// A hug or a kiss in the slap fight (its own event, so builds that only know slaps ignore it).
+  static const affection   = 'affection';
   static const pen         = 'pen';
   static const chatDelete  = 'chat_delete';
   static const chatClear   = 'chat_clear';
 
   final Map<String, StreamController<Map<String, dynamic>>> _events = {
-    for (final e in [touch, strokeStart, strokeChunk, strokeEnd, canvasClear, slap, pen, chatDelete, chatClear])
+    for (final e in [touch, strokeStart, strokeChunk, strokeEnd, canvasClear, slap, affection, pen, chatDelete, chatClear])
       e: StreamController<Map<String, dynamic>>.broadcast(),
   };
 
