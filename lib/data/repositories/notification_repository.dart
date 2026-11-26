@@ -83,6 +83,16 @@ class NotificationRepository implements INotificationRepository {
   /// One collection at a time, so the same row is not opened and saved twice.
   Future<void> _tail = Future.value();
 
+  int _retries = 0;
+
+  /// A phone woken by a tap can be asked before the session, network or couple key is ready; try again
+  /// shortly (a few times) instead of leaving the list empty.
+  void _retryLater() {
+    if (_retries >= 3) return;
+    _retries++;
+    Timer(const Duration(seconds: 3), () => collect());
+  }
+
   @override
   Future<void> collect() {
     final run = _tail.then((_) async {
@@ -93,20 +103,24 @@ class NotificationRepository implements INotificationRepository {
             .neq('from_user_id', _me ?? '')
             .order('created_at', ascending: false)
             .limit(50);
-        await _store(rows);
+        final deferred = await _store(rows);
+        if (deferred) { _retryLater(); } else { _retries = 0; }
       } catch (e) {
         debugPrint('Could not collect notifications: ${e.runtimeType}');
+        _retryLater();
       }
     });
     _tail = run;
     return run;
   }
 
-  /// Saves rows on this phone, then deletes them from the server.
-  Future<void> _store(List<Map<String, dynamic>> rows) async {
+  /// Saves rows on this phone, then deletes them from the server. True when some rows were left because the
+  /// couple key is not ready yet.
+  Future<bool> _store(List<Map<String, dynamic>> rows) async {
     final mine = _me;
     final ack = <String>[];
     final fresh = <Map<String, dynamic>>[];
+    var deferred = false;
     for (final row in rows) {
       if (row['from_user_id'] == mine) continue;
       final id = row['id'] as String;
@@ -115,7 +129,7 @@ class NotificationRepository implements INotificationRepository {
       if (ContentCipher.isEncrypted(row['detail_enc'] as String?)) {
         // No couple key here yet: leave it on the server and try again later. With the key, a detail that
         // will not open shows the fixed sentence instead.
-        if (!await cipher.isReady(row['couple_id'] as String)) continue;
+        if (!await cipher.isReady(row['couple_id'] as String)) { deferred = true; continue; }
         detail = await _detail(row);
       }
       fresh.add(NotificationModel.toMap(NotificationModel.fromRow(row, detail: detail)));
@@ -125,12 +139,13 @@ class NotificationRepository implements INotificationRepository {
       await local.putAll(fresh);
       await _prune(fresh.first['couple'] as String);
     }
-    if (ack.isEmpty) return;
+    if (ack.isEmpty) return deferred;
     try {
       await client.rpc('ack_notifications', params: {'p_ids': ack});
     } catch (e) {
       debugPrint('Could not clear collected notifications: ${e.runtimeType}'); // saved here; asked again next time
     }
+    return deferred;
   }
 
   /// Drops what the list no longer shows (older repeats) and anything past the cap.

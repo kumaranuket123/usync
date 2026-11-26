@@ -18,9 +18,15 @@ class NotificationsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final auth     = context.read<AuthBloc>().state;
-    final coupleId = auth is Authenticated ? (auth.user.coupleId ?? '') : '';
+    // After a tap from a killed app the user may not be signed in yet: wait for it instead of reading an
+    // empty couple id once and staying empty.
+    final auth = context.watch<AuthBloc>().state;
+    if (auth is! Authenticated) {
+      return const Scaffold(backgroundColor: AppColors.bg1, body: Center(child: LoadingDots()));
+    }
+    final coupleId = auth.user.coupleId ?? '';
     return BlocProvider(
+      key: ValueKey(coupleId),
       create: (_) => GetIt.I<NotificationBloc>()
         ..add(NotificationsLoaded(coupleId)),
       child: const _NotifBody(),

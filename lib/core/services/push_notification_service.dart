@@ -96,6 +96,7 @@ abstract final class PushNotificationService {
     // Home goes underneath, so Back from the opened screen lands on Home instead of closing the app.
     // A chat notification opens the chat; every other one opens the notifications screen.
     final target = message.data['type'] == 'chat' ? RouteNames.chat : RouteNames.notifications;
+    getIt<INotificationRepository>().collect(); // fetch it now so the list is filled when the screen opens
     AppRouter.router
       ..go(RouteNames.home)
       ..push(target);
