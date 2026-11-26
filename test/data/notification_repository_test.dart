@@ -1,5 +1,9 @@
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 import 'package:usync/core/crypto/content_cipher.dart';
+import 'package:usync/data/datasources/local/notification_local_source.dart';
 import 'package:usync/data/repositories/notification_repository.dart';
 import 'package:usync/domain/entities/notification_item.dart';
 
@@ -11,7 +15,12 @@ void main() {
   late ContentCipher cipher;
   late NotificationRepository repo;
 
-  NotificationRepository build(ContentCipher c) => NotificationRepository(client: backend.client, cipher: c);
+  late NotificationLocalSource local;
+  late Directory dir;
+  var boxN = 0;
+
+  NotificationRepository build(ContentCipher c) =>
+      NotificationRepository(client: backend.client, cipher: c, localSource: local);
 
   /// The sender lookup is the only read notifyPartner makes; every other request is the insert.
   void serve() => backend.respond((req) =>
@@ -22,10 +31,17 @@ void main() {
   setUp(() async {
     backend = FakeBackend();
     cipher = await readyCipher();
+    dir = Directory.systemTemp.createTempSync('notif_test');
+    Hive.init(dir.path);
+    local = NotificationLocalSource(box: await Hive.openBox<dynamic>('n${boxN++}'));
     repo = build(cipher);
   });
 
-  tearDown(() => backend.dispose());
+  tearDown(() async {
+    await Hive.close();
+    dir.deleteSync(recursive: true);
+    await backend.dispose();
+  });
 
   group('notifyPartner', () {
     test('the row holds a fixed sentence, and the detail only as ciphertext bound to the row', () async {
@@ -133,13 +149,49 @@ void main() {
       expect((await repo.getNotifications('c1')).single.bodyText, 'Sam shared a mood 💭');
     });
 
-    test('without the couple key the fixed sentence is shown', () async {
+    test('without the couple key it waits: nothing is saved and the server row is not deleted', () async {
       final sealed = await seal('n1', 'secret');
       repo = build(notReadyCipher());
       final rows = [await row('n1', 'Sam shared a mood 💭', detailEnc: sealed)];
       backend.respond((_) => FakeBackend.ok(rows));
 
-      expect((await repo.getNotifications('c1')).single.bodyText, 'Sam shared a mood 💭');
+      expect(await repo.getNotifications('c1'), isEmpty);
+      expect(backend.requests.where((r) => r.path.contains('ack_notifications')), isEmpty);
+    });
+
+    test('collected notifications are saved on the phone and deleted from the server', () async {
+      final rows = [await row('n1', 'Sam shared a mood 💭')];
+      backend.respond((req) => req.path.contains('ack_notifications') ? FakeBackend.ok(null, status: 204) : FakeBackend.ok(rows));
+
+      await repo.collect();
+
+      expect(local.has('n1'), isTrue);
+      final ack = backend.requests.firstWhere((r) => r.path.contains('ack_notifications'));
+      expect((ack.json as Map)['p_ids'], ['n1']);
+    });
+
+    test('read state is kept on the phone only and survives the next collection', () async {
+      final rows = [await row('n1', 'Sam shared a mood 💭')];
+      backend.respond((req) => req.path.contains('ack_notifications') ? FakeBackend.ok(null, status: 204) : FakeBackend.ok(rows));
+      await repo.collect();
+
+      await repo.markRead('c1', 'n1');
+      await repo.collect(); // the server still had the row (the delete failed): it must not turn unread again
+
+      expect((await repo.getNotifications('c1')).single.isRead, isTrue);
+      expect(backend.requests.where((r) => r.method == 'PATCH'), isEmpty);
+    });
+
+    test('only the newest touch from the same person is kept', () async {
+      final rows = [
+        {...await row('t1', 'Sam touched you', type: 'touch'), 'created_at': '2026-03-01T10:00:00Z'},
+        {...await row('t2', 'Sam touched you', type: 'touch'), 'created_at': '2026-03-01T11:00:00Z'},
+      ];
+      backend.respond((req) => req.path.contains('ack_notifications') ? FakeBackend.ok(null, status: 204) : FakeBackend.ok(rows));
+
+      final items = await repo.getNotifications('c1');
+
+      expect(items.map((i) => i.id), ['t2']);
     });
   });
 }

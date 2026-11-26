@@ -1,8 +1,14 @@
 import '../entities/notification_item.dart';
 
 abstract interface class INotificationRepository {
+  /// The list lives on this phone. The server only holds a notification until the recipient's phone has
+  /// saved it ([collect]); then the row is deleted.
   Future<List<NotificationItem>> getNotifications(String coupleId);
   Stream<List<NotificationItem>> watchNotifications(String coupleId);
+  /// Saves what is waiting on the server for this phone, then tells the server to delete it. Never throws.
+  Future<void>  collect();
+  /// Forgets the saved list (sign-out, disconnect).
+  Future<void>  reset();
   Future<void>  markRead(String coupleId, String notificationId);
   Future<void>  markAllRead(String coupleId);
   Stream<int>   watchUnreadCount(String coupleId);

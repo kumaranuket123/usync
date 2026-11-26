@@ -478,21 +478,17 @@ class ChatRepository implements IChatRepository {
     });
   }
 
-  DateTime _lastPush = DateTime.fromMillisecondsSinceEpoch(0);
-
-  /// A push for a partner who is not looking at the chat, at most one a minute, with fixed text (no
-  /// name, no content).
+  /// A push for a partner who is not looking at the chat, one per message (each replaces the last one on the
+  /// partner's phone and shows how many messages are waiting, see `send-push`), with fixed text (no name, no
+  /// content).
   Future<void> _notify(String coupleId, String userId) async {
     try {
-      final now = DateTime.now();
-      if (now.difference(_lastPush) < const Duration(minutes: 1)) return;
       final channel = channelSource.open(coupleId);
       await channel.whenReady(const Duration(seconds: 3));
       if (channel.presenceSynced) {
         final partnerHere = channel.presenceScreens.entries.any((e) => e.key != userId && e.value == screen);
         if (partnerHere) return;
       }
-      _lastPush = now;
       await notifications.notifyPartner(
         coupleId:   coupleId,
         fromUserId: userId,

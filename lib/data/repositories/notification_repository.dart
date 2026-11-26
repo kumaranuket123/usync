@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -6,12 +8,20 @@ import 'package:uuid/uuid.dart';
 import '../../core/crypto/content_cipher.dart';
 import '../../domain/entities/notification_item.dart';
 import '../../domain/repositories/i_notification_repository.dart';
+import '../datasources/local/notification_local_source.dart';
 import '../models/notification_model.dart';
 
 class NotificationRepository implements INotificationRepository {
-  NotificationRepository({required this.client, required this.cipher});
+  /// [localSource] is the saved list; a background task that only sends notifications (no local storage
+  /// there) leaves it out.
+  NotificationRepository({required this.client, required this.cipher, NotificationLocalSource? localSource})
+      : _localSource = localSource;
   final SupabaseClient client;
   final ContentCipher  cipher;
+  final NotificationLocalSource? _localSource;
+
+  NotificationLocalSource get local =>
+      _localSource ?? (throw StateError('This NotificationRepository has no local storage'));
   final _uuid = const Uuid();
 
   final _senderNames = <String, String>{};
@@ -33,43 +43,31 @@ class NotificationRepository implements INotificationRepository {
     return _senderNames[uid] = name;
   }
 
-  /// Notifications are stored couple-wide; the ones we sent are for the partner.
+  /// The ones we sent are for the partner; only the partner's are saved here.
   String? get _me => client.auth.currentUser?.id;
 
   /// Touch and location alerts repeat every time someone taps or looks, which
-  /// floods the list with identical lines. Show only the newest one per sender
+  /// floods the list with identical lines. Keep only the newest one per sender
   /// and kind; other types (doodles, moods, milestones) are distinct events.
-  /// Returns the rows newest first.
-  static List<Map<String, dynamic>> _collapseRepeats(List<Map<String, dynamic>> rows) {
-    const repeating = {'touch': 'touch', 'location': 'location', 'locate': 'location'};
+  /// Takes and returns items newest first.
+  static List<NotificationItem> _collapseRepeats(List<NotificationItem> items) {
+    const repeating = {NotifType.touch: 'touch', NotifType.location: 'location', NotifType.locate: 'location'};
     final seen = <String>{};
-    final newestFirst = [...rows]
-      ..sort((a, b) => (b['created_at'] as String).compareTo(a['created_at'] as String));
     return [
-      for (final row in newestFirst)
-        if (!repeating.containsKey(row['type']) ||
-            seen.add('${row['from_user_id']}:${repeating[row['type']]}'))
-          row,
+      for (final n in items)
+        if (!repeating.containsKey(n.type) || seen.add('${n.fromUserId}:${repeating[n.type]}')) n,
     ];
   }
 
+  List<NotificationItem> _saved(String coupleId) => _collapseRepeats([
+        for (final m in local.all(coupleId)) NotificationModel.fromMap(m),
+      ]);
+
   @override
   Future<List<NotificationItem>> getNotifications(String coupleId) async {
-    final rows = await client
-        .from('notifications')
-        .select()
-        .eq('couple_id', coupleId)
-        .neq('from_user_id', _me ?? '')
-        .order('created_at', ascending: false)
-        .limit(50);
-    return _toItems(_collapseRepeats(rows));
+    await collect();
+    return _saved(coupleId);
   }
-
-  /// Rows to items, replacing the fixed sentence with the decrypted detail where there is one.
-  /// A detail this phone cannot open (no key yet) simply shows the fixed sentence.
-  Future<List<NotificationItem>> _toItems(List<Map<String, dynamic>> rows) async => [
-        for (final row in rows) NotificationModel.fromRow(row, detail: await _detail(row)),
-      ];
 
   Future<String?> _detail(Map<String, dynamic> row) async {
     final sealed = row['detail_enc'] as String?;
@@ -82,41 +80,105 @@ class NotificationRepository implements INotificationRepository {
     }
   }
 
+  /// One collection at a time, so the same row is not opened and saved twice.
+  Future<void> _tail = Future.value();
+
+  @override
+  Future<void> collect() {
+    final run = _tail.then((_) async {
+      try {
+        final rows = await client
+            .from('notifications')
+            .select()
+            .neq('from_user_id', _me ?? '')
+            .order('created_at', ascending: false)
+            .limit(50);
+        await _store(rows);
+      } catch (e) {
+        debugPrint('Could not collect notifications: ${e.runtimeType}');
+      }
+    });
+    _tail = run;
+    return run;
+  }
+
+  /// Saves rows on this phone, then deletes them from the server.
+  Future<void> _store(List<Map<String, dynamic>> rows) async {
+    final mine = _me;
+    final ack = <String>[];
+    final fresh = <Map<String, dynamic>>[];
+    for (final row in rows) {
+      if (row['from_user_id'] == mine) continue;
+      final id = row['id'] as String;
+      if (local.has(id)) { ack.add(id); continue; } // saved before, the delete did not get through
+      String? detail;
+      if (ContentCipher.isEncrypted(row['detail_enc'] as String?)) {
+        // No couple key here yet: leave it on the server and try again later. With the key, a detail that
+        // will not open shows the fixed sentence instead.
+        if (!await cipher.isReady(row['couple_id'] as String)) continue;
+        detail = await _detail(row);
+      }
+      fresh.add(NotificationModel.toMap(NotificationModel.fromRow(row, detail: detail)));
+      ack.add(id);
+    }
+    if (fresh.isNotEmpty) {
+      await local.putAll(fresh);
+      await _prune(fresh.first['couple'] as String);
+    }
+    if (ack.isEmpty) return;
+    try {
+      await client.rpc('ack_notifications', params: {'p_ids': ack});
+    } catch (e) {
+      debugPrint('Could not clear collected notifications: ${e.runtimeType}'); // saved here; asked again next time
+    }
+  }
+
+  /// Drops what the list no longer shows (older repeats) and anything past the cap.
+  Future<void> _prune(String coupleId) async {
+    final all  = local.all(coupleId).map(NotificationModel.fromMap).toList();
+    final kept = _collapseRepeats(all).take(NotificationLocalSource.maxItems).map((n) => n.id).toSet();
+    final drop = [for (final n in all) if (!kept.contains(n.id)) n.id];
+    if (drop.isNotEmpty) await local.delete(drop);
+  }
+
   @override
   Stream<List<NotificationItem>> watchNotifications(String coupleId) {
-    return client
-        .from('notifications')
-        .stream(primaryKey: ['id'])
-        .eq('couple_id', coupleId)
-        .order('created_at', ascending: false)
-        .limit(50)
-        .asyncMap((rows) => _toItems(_collapseRepeats(rows.where((r) => r['from_user_id'] != _me).toList())))
-        .handleError((Object _) {}); // dropped Realtime connection: keep the screen alive
+    final controller = StreamController<List<NotificationItem>>();
+    StreamSubscription<void>? localSub;
+    StreamSubscription<List<Map<String, dynamic>>>? serverSub;
+    controller.onListen = () {
+      localSub = local.changes.listen((_) => controller.add(_saved(coupleId)));
+      controller.add(_saved(coupleId));
+      // New rows arrive here while the screen is open; they are saved, which updates the list above.
+      serverSub = client
+          .from('notifications')
+          .stream(primaryKey: ['id'])
+          .eq('couple_id', coupleId)
+          .listen((_) => collect(), onError: (Object _) {}); // dropped Realtime connection: keep the screen alive
+      collect();
+    };
+    controller.onCancel = () async {
+      await localSub?.cancel();
+      await serverSub?.cancel();
+    };
+    return controller.stream;
   }
 
   @override
-  Future<void> markRead(String coupleId, String notificationId) =>
-      client.from('notifications').update({'is_read': true}).eq('id', notificationId);
+  Future<void> markRead(String coupleId, String notificationId) => local.markRead(notificationId);
 
   @override
-  Future<void> markAllRead(String coupleId) => client
-      .from('notifications')
-      .update({'is_read': true})
-      .eq('couple_id', coupleId)
-      .neq('from_user_id', _me ?? '')
-      .eq('is_read', false);
+  Future<void> markAllRead(String coupleId) => local.markAllRead(coupleId);
 
   @override
-  Stream<int> watchUnreadCount(String coupleId) {
-    return client
-        .from('notifications')
-        .stream(primaryKey: ['id'])
-        .eq('couple_id', coupleId)
-        .map((rows) => _collapseRepeats(rows.where((r) => r['from_user_id'] != _me).toList())
-            .where((r) => r['is_read'] == false)
-            .length)
-        .handleError((Object _) {});
+  Stream<int> watchUnreadCount(String coupleId) async* {
+    int unread() => _saved(coupleId).where((n) => !n.isRead).length;
+    yield unread();
+    yield* local.changes.map((_) => unread());
   }
+
+  @override
+  Future<void> reset() => local.clear();
 
   /// What the stored (and pushed) text says in place of the sender's name: the server and the lock screen
   /// never get the name from here. The named sentence is sealed into `detail_enc` and shown inside the app.

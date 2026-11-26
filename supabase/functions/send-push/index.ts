@@ -138,13 +138,14 @@ Deno.serve(async (req) => {
     .maybeSingle();
 
   const accessToken = await fcmAccessToken(sa);
-  const send = async (token: string, message: Record<string, unknown>) => {
+  // True when FCM accepted the message.
+  const send = async (token: string, message: Record<string, unknown>): Promise<boolean> => {
     const res = await fetch(`https://fcm.googleapis.com/v1/projects/${sa.project_id}/messages:send`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
       body: JSON.stringify({ message: { token, ...message } }),
     });
-    if (res.ok) return;
+    if (res.ok) return true;
     const body = await res.text();
     // Dead token: drop only this device so we stop sending to it.
     if (res.status === 404 || body.includes('UNREGISTERED')) {
@@ -152,6 +153,7 @@ Deno.serve(async (req) => {
     } else {
       console.error('FCM send failed', res.status, body);
     }
+    return false;
   };
 
   // Types the recipient chose to silence get no sound and no heads-up popup (the
@@ -160,16 +162,48 @@ Deno.serve(async (req) => {
   const group = isLocate ? 'location' : String(record.type);
   const quiet = ((profile?.silent_types as string[] | null) ?? ['location']).includes(group);
 
+  // Chat messages stack into ONE notification (like WhatsApp): same tag / collapse id, so each push
+  // replaces the previous one, and the body says how many messages are waiting. The count is the sender's
+  // messages the recipient's phone has not collected yet (the mailbox), so it is exact; the text itself is
+  // sealed and never in the push.
+  const isChat = record.type === 'chat';
+  let body: string = record.body_text;
+  if (isChat) {
+    const { count } = await db
+      .from('chat_messages')
+      .select('id', { count: 'exact', head: true })
+      .eq('couple_id', record.couple_id)
+      .eq('sender_id', record.from_user_id)
+      .neq('kind', 'control');
+    if (count && count > 1) body = `${count} new messages 💬`;
+  }
+  const androidExtra = isChat ? { tag: 'usync_chat' } : {};
+  const apnsHeaders = isChat ? { 'apns-collapse-id': 'usync_chat' } : undefined;
+  const apsExtra = isChat ? { 'thread-id': 'usync_chat' } : {};
+
   await Promise.all(devices.map(async ({ fcm_token }: { fcm_token: string }) => {
     // Visible notification: the partner always sees that they were located.
     await send(fcm_token, {
-      notification: { title: TITLES[record.type] ?? 'Usync', body: record.body_text },
+      notification: { title: TITLES[record.type] ?? 'Usync', body },
       data: { route: '/notifications', type: String(record.type) },
       android: quiet
-        ? { priority: 'normal', notification: { channel_id: 'usync_silent' } }
-        : { priority: 'high', notification: { channel_id: 'usync_default' } },
-      apns: { payload: { aps: quiet ? {} : { sound: 'default' } } },
+        ? { priority: 'normal', notification: { channel_id: 'usync_silent', ...androidExtra } }
+        : { priority: 'high', notification: { channel_id: 'usync_default', ...androidExtra } },
+      apns: { ...(apnsHeaders ? { headers: apnsHeaders } : {}), payload: { aps: { ...(quiet ? {} : { sound: 'default' }), ...apsExtra } } },
     });
+
+    // Data-only message that wakes the app (even when killed, on Android) so it can send the sender a
+    // delivered receipt. A phone that is offline never gets it, so the sender keeps one tick.
+    if (isChat) {
+      await send(fcm_token, {
+        data: { action: 'chat_delivered', couple_id: String(record.couple_id), sender_id: String(record.from_user_id) },
+        android: { priority: 'high' },
+        apns: {
+          headers: { 'apns-priority': '5', 'apns-push-type': 'background' },
+          payload: { aps: { 'content-available': 1 } },
+        },
+      });
+    }
 
     // Data-only message that wakes the app to read its location.
     if (isLocate) {
@@ -183,5 +217,6 @@ Deno.serve(async (req) => {
       });
     }
   }));
+
   return new Response('ok', { status: 200 });
 });

@@ -22,4 +22,25 @@ class NotificationModel extends NotificationItem {
     isRead:     row['is_read']      as bool? ?? false,
     fromUserId: row['from_user_id'] as String?,
   );
+
+  /// The map kept on this phone (see NotificationLocalSource).
+  static Map<String, dynamic> toMap(NotificationItem n) => {
+    'id':     n.id,
+    'couple': n.coupleId,
+    'type':   n.type.name,
+    'body':   n.bodyText,
+    'at':     n.timestamp.millisecondsSinceEpoch,
+    'read':   n.isRead,
+    'from':   n.fromUserId,
+  };
+
+  factory NotificationModel.fromMap(Map<String, dynamic> m) => NotificationModel(
+    id:         m['id']     as String,
+    coupleId:   m['couple'] as String,
+    type:       NotifType.fromString(m['type'] as String),
+    bodyText:   m['body']   as String,
+    timestamp:  DateTime.fromMillisecondsSinceEpoch(m['at'] as int),
+    isRead:     m['read']   as bool? ?? false,
+    fromUserId: m['from']   as String?,
+  );
 }

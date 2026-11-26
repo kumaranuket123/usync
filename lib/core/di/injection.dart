@@ -30,6 +30,7 @@ import '../../data/datasources/local/flutter_secure_key_store.dart';
 import '../../data/repositories/access_repository.dart';
 import '../../data/repositories/bucket_repository.dart';
 import '../../data/datasources/local/chat_local_source.dart';
+import '../../data/datasources/local/notification_local_source.dart';
 import '../../data/datasources/remote/chat_media_source.dart';
 import '../../data/repositories/chat_repository.dart';
 import '../../data/repositories/game_repository.dart';
@@ -136,6 +137,7 @@ Future<void> setupLocator() async {
   // Keystore / Keychain. The old unencrypted boxes are copied over once and deleted.
   final (sessionBox, outboxBox, chatLocal) = await _openLocalBoxes();
   getIt.registerSingleton<ChatLocalSource>(chatLocal);
+  getIt.registerSingleton<NotificationLocalSource>(await _openNotificationSource());
   getIt.registerSingleton<SessionCache>(SessionCache(box: sessionBox));
   getIt.registerSingleton<IdentityCache>(IdentityCache());
   getIt.registerSingleton<OutboxService>(OutboxService(box: outboxBox));
@@ -153,7 +155,10 @@ Future<void> setupLocator() async {
       storage: getIt(),
       wipeKeys: (userId) => getIt<KeyServiceFor>()(userId).clearAll(),
       cancelReminders: () => getIt<ReminderService>().cancelAll(),
-      clearChat: () => getIt<IChatRepository>().reset(),
+      clearChat: () async {
+        await getIt<IChatRepository>().reset();
+        await getIt<INotificationRepository>().reset();
+      },
     ),
   );
   getIt.registerLazySingleton<ICoupleRepository>(
@@ -166,7 +171,10 @@ Future<void> setupLocator() async {
       identity: getIt(),
       cipher: getIt(),
       cancelReminders: () => getIt<ReminderService>().cancelAll(),
-      clearChat: () => getIt<IChatRepository>().reset(),
+      clearChat: () async {
+        await getIt<IChatRepository>().reset();
+        await getIt<INotificationRepository>().reset();
+      },
     ),
   );
   getIt.registerLazySingleton<IMoodRepository>(
@@ -253,7 +261,7 @@ Future<void> setupLocator() async {
     ),
   );
   getIt.registerLazySingleton<INotificationRepository>(
-    () => NotificationRepository(client: getIt(), cipher: getIt()),
+    () => NotificationRepository(client: getIt(), cipher: getIt(), localSource: getIt()),
   );
 
   // ── BLoCs (factory — new instance per registration request) ───
@@ -349,6 +357,19 @@ Future<void> setupLocator() async {
       coupleRepository: getIt(),
     ),
   );
+}
+
+/// The notification list lives on the phone, encrypted with the same local key.
+Future<NotificationLocalSource> _openNotificationSource() async {
+  try {
+    final cipher = HiveAesCipher(await getIt<DeviceKey>().bytes());
+    return NotificationLocalSource(box: await openProtectedBox('notifications_enc', cipher));
+  } catch (e) {
+    debugPrint('Local key unavailable (${e.runtimeType}); notifications kept in volatile storage');
+    await Hive.deleteBoxFromDisk('notifications_tmp');
+    final cipher = HiveAesCipher(CryptoService().randomBytes(CryptoService.keyLength));
+    return NotificationLocalSource(box: await Hive.openBox<dynamic>('notifications_tmp', encryptionCipher: cipher));
+  }
 }
 
 Future<(Box<dynamic>, Box<dynamic>, ChatLocalSource)> _openLocalBoxes() async {

@@ -226,7 +226,7 @@ const _sections = <_Section>[
   ]),
   _Section('ALWAYS WITH YOU', [
     _Feature('🔔', _pink, 'Notifications',
-        'Get a push when your partner does something. In Alert sounds you choose which alerts stay silent.'),
+        'Get a push when your partner does something. In Alert sounds you choose which alerts stay silent. Your list of moments is kept on your phone, not on our servers.'),
     _Feature('📱', _cyan, 'Home-screen widget',
         'On Android, put the Live Doodle widget on your home screen to see your shared drawing without opening the app. Tap it to jump in. Find it under Profile → Widgets.'),
     _Feature('📶', _green, 'Works offline',

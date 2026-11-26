@@ -3,6 +3,7 @@ import 'package:get_it/get_it.dart';
 
 import '../../../data/repositories/legacy_content_sealer.dart';
 import '../../../domain/repositories/i_encryption_repository.dart';
+import '../../../domain/repositories/i_notification_repository.dart';
 
 /// Keeps this phone's encryption keys in step with the server while the main screens are open:
 /// once when they open and again each time the app comes back to the foreground. It shows nothing.
@@ -39,6 +40,8 @@ class _EncryptionSyncGateState extends State<EncryptionSyncGate> with WidgetsBin
     _lastSync = DateTime.now();
     if (!GetIt.I.isRegistered<IEncryptionRepository>()) return;
     await GetIt.I<IEncryptionRepository>().sync(); // never throws; the result is read where it is shown
+    // With the keys in step, notifications waiting on the server are saved on this phone.
+    if (GetIt.I.isRegistered<INotificationRepository>()) await GetIt.I<INotificationRepository>().collect(); // never throws
     // With the keys in step, content written before encryption is sealed (only this person's own rows).
     if (GetIt.I.isRegistered<LegacyContentSealer>()) await GetIt.I<LegacyContentSealer>().runIfDue(); // never throws
   }

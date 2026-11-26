@@ -6,9 +6,11 @@ import 'package:flutter/material.dart';
 
 import '../../data/datasources/local/prefs_source.dart';
 import '../../domain/repositories/i_auth_repository.dart';
+import '../../domain/repositories/i_notification_repository.dart';
 import '../constants/route_names.dart';
 import '../di/injection.dart';
 import '../router/app_router.dart';
+import 'chat_delivery_service.dart';
 import 'home_widget_service.dart';
 import 'location_sync_service.dart';
 import '../utils/app_snack_bar.dart';
@@ -26,6 +28,8 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   switch (message.data['action']) {
     case 'locate':       await LocationSyncService.answerLocateRequest();
     case 'canvas_widget': await HomeWidgetService.syncFromServer();
+    case 'chat_delivered':
+      await ChatDeliveryService.answerPush(coupleId: '${message.data['couple_id']}', senderId: '${message.data['sender_id']}');
   }
 }
 
@@ -67,6 +71,8 @@ abstract final class PushNotificationService {
       HomeWidgetService.syncFromServer();
       return;
     }
+    // Save the new notification on this phone (the server only holds it until then).
+    getIt<INotificationRepository>().collect();
     // The user switched push notifications off: no banners either.
     if (!getIt<PrefsSource>().notificationsEnabled) return;
     if (message.data['action'] == 'locate') {
@@ -87,7 +93,11 @@ abstract final class PushNotificationService {
 
   static void _openTarget(RemoteMessage message) {
     if (Supabase.instance.client.auth.currentUser == null) return;
-    final route = message.data['route'] as String?;
-    AppRouter.router.go(route == RouteNames.notifications ? route! : RouteNames.notifications);
+    // Home goes underneath, so Back from the opened screen lands on Home instead of closing the app.
+    // A chat notification opens the chat; every other one opens the notifications screen.
+    final target = message.data['type'] == 'chat' ? RouteNames.chat : RouteNames.notifications;
+    AppRouter.router
+      ..go(RouteNames.home)
+      ..push(target);
   }
 }
