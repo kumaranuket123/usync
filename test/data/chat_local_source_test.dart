@@ -109,6 +109,40 @@ void main() {
     expect(source.has('a'), isFalse);
   });
 
+  test('claiming with no user or couple known keeps the history (a phone woken by a notification)', () async {
+    await source.claim('u:c');
+    await source.put(_m('a', 1));
+    for (final who in [':', 'u:', ':c', '']) {
+      expect(await source.claim(who), isFalse);
+    }
+    expect(source.owner, 'u:c');
+    expect(source.has('a'), isTrue);
+    expect(await source.claim('u:c'), isFalse);
+    expect(source.has('a'), isTrue);
+  });
+
+  test('an index that fell behind the messages is repaired, not thrown away', () async {
+    await Hive.close();
+    Hive.init(dir.path);
+    final messages = await Hive.openLazyBox<dynamic>('mx');
+    final index = await Hive.openBox<dynamic>('ix');
+    final media = await Hive.openLazyBox<dynamic>('bx');
+    final s = ChatLocalSource(messages: messages, index: index, media: media);
+    await s.claim('u:c');
+    await s.put(_m('a', 1000));
+    // A message written, the app killed before its index entry: and an index entry whose message is gone.
+    await messages.put('00000000000000002000', _m('b', 2000));
+    await messages.put('00000000000000004000', _m('c', 4000));
+    await index.put('ghost', {'k': '00000000000000003000', 'u': false});
+    final again = ChatLocalSource(messages: messages, index: index, media: media);
+    expect(await again.claim('u:c'), isFalse);
+    expect(again.has('a'), isTrue);
+    expect(again.has('b'), isTrue);
+    expect(again.has('c'), isTrue);
+    expect(again.has('ghost'), isFalse);
+    expect((await again.page(limit: 5)).map((m) => m['id']), ['a', 'b', 'c']);
+  });
+
   test('the history survives closing and opening the boxes again', () async {
     await source.put(_m('a', 1000, text: 'kept'), media: Uint8List.fromList([9]));
     await Hive.close();

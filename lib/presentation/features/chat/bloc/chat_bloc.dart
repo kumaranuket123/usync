@@ -170,6 +170,8 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
   Timer? _timer;
 
   Future<void> _onOpened(ChatOpened e, Emitter<ChatState> emit) async {
+    // Sign-in not restored yet: wait for the screen to open the chat again with real ids.
+    if (e.coupleId.isEmpty || e.userId.isEmpty) return;
     _coupleId = e.coupleId; _userId = e.userId;
     _chatTimer = chatRepository.timer;
     emit(ChatState(userId: _userId, now: _clock(), timer: _chatTimer));

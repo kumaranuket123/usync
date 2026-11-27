@@ -136,6 +136,16 @@ void main() {
 
   Future<void> pump([int ms = 10]) => Future<void>.delayed(Duration(milliseconds: ms));
 
+  test('opening the chat with no user or couple yet does nothing (sign-in not restored)', () async {
+    final other = _FakeChat();
+    final b = ChatBloc(chatRepository: other, clock: () => now, tickEvery: const Duration(milliseconds: 20));
+    addTearDown(b.close);
+    b.add(ChatOpened(coupleId: '', userId: ''));
+    await pump();
+    expect(other.inboxStarts, 0);
+    expect(b.state.loading, isTrue);
+  });
+
   test('shows the messages that exist', () async {
     repo.changes.add([_msg('1'), _msg('2', sender: 'me')]);
     await pump();

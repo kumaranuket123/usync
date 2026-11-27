@@ -69,6 +69,9 @@ class ChatRepository implements IChatRepository {
 
   @override
   Future<void> startInbox({required String coupleId, required String userId}) {
+    // Not signed in / no couple known yet (a phone woken by a notification): nothing to collect, and the
+    // history must be left alone.
+    if (coupleId.isEmpty || userId.isEmpty) return Future.value();
     final key = '$userId:$coupleId';
     if (_inboxKey == key && local.owner == key) return _starting ?? Future.value();
     _inboxKey = key;

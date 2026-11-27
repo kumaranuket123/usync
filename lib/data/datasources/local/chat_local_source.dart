@@ -54,7 +54,13 @@ class ChatLocalSource {
   /// the history was new or reset (first run, or another account), so the caller can import what the
   /// server still holds of the user's own messages.
   Future<bool> claim(String who) async {
-    if (owner == who && await _consistent()) return false;
+    // No user or couple known yet (the app was just woken, sign-in not restored): that is not someone else,
+    // and it must never throw the real history away.
+    if (who.split(':').any((part) => part.isEmpty)) return false;
+    if (owner == who) {
+      if (!await _consistent()) await _repair();
+      return false;
+    }
     await clear();
     await _index.put(_ownerKey, who);
     return true;
@@ -69,6 +75,40 @@ class ChatLocalSource {
   /// The three boxes are recovered independently when one cannot be opened; if what is in them no longer
   /// agrees (an index entry without its message, or the other way round) nothing can be trusted.
   Future<bool> _consistent() async => _messages.length == _entries.length;
+
+  /// The messages are the truth (the app can be killed between writing a message and its index entry):
+  /// rebuild the index from them instead of throwing the history away.
+  Future<void> _repair() => _locked(() async {
+        final found = <String, ({String key, Map<String, dynamic> msg})>{};
+        for (final k in _messages.keys.toList()) {
+          final raw = await _messages.get(k);
+          final id = raw is Map ? raw['id'] : null;
+          if (id is! String) {
+            await _messages.delete(k);
+            continue;
+          }
+          final prev = found[id];
+          if (prev != null) {
+            // The same message under two places: keep the one the index names, else the later one.
+            final want = (_index.get(id) as Map?)?['k'];
+            if (want == prev.key) {
+              await _messages.delete(k);
+              continue;
+            }
+            await _messages.delete(prev.key);
+          }
+          found[id] = (key: k as String, msg: Map<String, dynamic>.from(raw as Map));
+        }
+        for (final k in _index.keys.toList()) {
+          if (k is String && !k.startsWith('_') && !found.containsKey(k)) await _index.delete(k);
+        }
+        for (final e in found.entries) {
+          final current = _index.get(e.key) as Map<dynamic, dynamic>?;
+          if (current == null || current['k'] != e.value.key) await _index.put(e.key, _entry(e.value.msg, e.value.key));
+        }
+        _sorted = null;
+        _changes.add(null);
+      });
 
   /// Remembers that [id] was here, so a copy of it still on the server (a failed collect, a stale
   /// snapshot) is not saved again after it was deleted, or before a "delete for everyone" arrives.

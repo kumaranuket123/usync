@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -35,6 +36,12 @@ class CoupleChannel {
   Timer? _reconnectTimer;
   /// What this user last announced on Presence, sent again after every (re)join.
   Map<String, dynamic>? _tracked;
+  /// Presence updates are limited by the server (`client_rate_limit_exceeded`), so they are spaced out:
+  /// a burst (screen changes, rejoins) sends the newest state once, and an unchanged one is not resent.
+  static const _trackGap = Duration(milliseconds: 600);
+  DateTime _lastTrack = DateTime.fromMillisecondsSinceEpoch(0);
+  Timer?   _trackTimer;
+  String?  _lastTrackJson;
   final _ready = Completer<void>();
 
   /// Completes the first time the channel is joined. It never completes with an
@@ -88,8 +95,8 @@ class CoupleChannel {
         case RealtimeSubscribeStatus.subscribed:
           _failures = 0;
           if (!_ready.isCompleted) _ready.complete();
-          final tracked = _tracked;
-          if (tracked != null) ch.track(tracked).ignore();
+          _lastTrackJson = null; // Presence is lost on every join: send it again
+          _flushTrack();
         case RealtimeSubscribeStatus.closed:
           _scheduleReconnect();
         case RealtimeSubscribeStatus.channelError:
@@ -167,24 +174,47 @@ class CoupleChannel {
   Future<void> track(Map<String, dynamic> state) async {
     _tracked = state; // sent again whenever the channel is (re)joined
     await whenReady(const Duration(seconds: 3));
-    final ch = _channel;
     // Not joined: nothing to send it on now, and the join will send it. (Asking
     // the library to track on an unjoined channel waits out its own long timeout.)
-    if (ch == null || _disposed || !_joined) return;
-    await ch.track(state);
+    if (_channel == null || _disposed || !_joined) return;
+    _flushTrack();
+  }
+
+  /// Sends the newest announced state, at most once per [_trackGap] and only when it changed.
+  void _flushTrack() {
+    final wait = _trackGap - DateTime.now().difference(_lastTrack);
+    if (wait > Duration.zero) {
+      _trackTimer ??= Timer(wait, () {
+        _trackTimer = null;
+        _flushTrack();
+      });
+      return;
+    }
+    final state = _tracked, ch = _channel;
+    if (state == null || ch == null || _disposed || !_joined) return;
+    final json = jsonEncode(state);
+    if (json == _lastTrackJson) return;
+    _lastTrackJson = json;
+    _lastTrack = DateTime.now();
+    ch.track(state).ignore();
   }
 
   Future<void> untrack() async {
     _tracked = null;
+    _lastTrackJson = null;
+    _trackTimer?.cancel();
+    _trackTimer = null;
     await whenReady(const Duration(seconds: 3));
     final ch = _channel;
     if (ch == null || _disposed || !_joined) return;
+    _lastTrack = DateTime.now();
     await ch.untrack();
   }
 
   void dispose() {
     _disposed = true;
     _reconnectTimer?.cancel();
+    _trackTimer?.cancel();
     final ch = _channel;
     if (ch != null) _client.removeChannel(ch).ignore();
     onlineUsers.close();

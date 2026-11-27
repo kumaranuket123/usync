@@ -28,11 +28,17 @@ class ChatScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final auth = context.read<AuthBloc>().state;
-    final user = auth is Authenticated ? auth.user : null;
+    // After a tap on a notification from a killed app the user may not be signed in yet: wait for it. Opening
+    // the chat with no user would read an empty history.
+    final auth = context.watch<AuthBloc>().state;
+    if (auth is! Authenticated) {
+      return const Scaffold(backgroundColor: AppColors.bg1, body: Center(child: LoadingDots()));
+    }
+    final user = auth.user;
     return BlocProvider(
+      key: ValueKey('${user.id}:${user.coupleId}'),
       create: (_) {
-        final bloc = GetIt.I<ChatBloc>()..add(ChatOpened(coupleId: user?.coupleId ?? '', userId: user?.id ?? ''));
+        final bloc = GetIt.I<ChatBloc>()..add(ChatOpened(coupleId: user.coupleId ?? '', userId: user.id));
         final text = share;
         if (text != null) bloc.add(ChatTextSent(text));
         return bloc;
